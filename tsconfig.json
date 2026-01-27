@@ -1,0 +1,3 @@
+{
+  "extends": "@product-stalker/config/tsconfig.base.json"
+}
