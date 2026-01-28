@@ -6,13 +6,18 @@ Your project (`apps/web`) is based on `local.ts` but has diverged with your own 
 
 ---
 
+## Completed Items
+
+- [x] **Testing Infrastructure** - Vitest with @testing-library/react, jsdom, and Tauri API mocks
+
+---
+
 ## Missing from Your Project
 
 ### 1. Frontend Structure
 
 | Feature | local.ts | Your Project |
 |---------|----------|--------------|
-| `__tests__/` directory | Has test infrastructure | Missing |
 | `assets/` directory | Dedicated static assets folder | Missing (uses `public/`) |
 | `constants/` directory | Centralized app constants | Missing |
 | `stores/` directory | State management stores | Missing (uses TanStack Query only) |
@@ -51,42 +56,40 @@ Your project has extended beyond the starter kit:
 
 4. **SeaORM** - More modern async ORM (vs Diesel's sync approach)
 
+5. **Vitest Testing** - Modern test runner with React Testing Library
+
 ---
 
 ## Specific Missing Items to Consider Adding
 
 ### High Priority
 
-1. **Testing Infrastructure**
-   - Add `src/__tests__/` directory
-   - Set up Vitest or Jest for frontend tests
-   - Consider Rust tests for backend
-
-2. **tauri-plugin-opener**
+1. **tauri-plugin-opener**
    - Useful for opening product URLs in native browser
    - Add to Cargo.toml: `tauri-plugin-opener = "2.5.2"`
+   - Register in `lib.rs` and add to `capabilities/default.json`
 
 ### Medium Priority
 
-3. **Constants Directory**
+2. **Constants Directory**
    - Create `src/constants/` for:
      - API endpoints
      - Default values
      - Magic strings/numbers
 
-4. **State Stores**
+3. **State Stores**
    - local.ts has a `stores/` directory
    - Could add Zustand for UI state (separate from server state in TanStack Query)
 
-5. **Window Close Handler**
+4. **Window Close Handler**
    - Add `on_close_requested()` to properly save state before closing
 
 ### Low Priority
 
-6. **Separate App.tsx**
+5. **Separate App.tsx**
    - Extract App component from `main.tsx` for cleaner structure
 
-7. **Assets Directory**
+6. **Assets Directory**
    - Move static assets from `public/` to `src/assets/` for better bundling
 
 ---
@@ -104,13 +107,12 @@ Your project has extended beyond the starter kit:
 
 ---
 
-## Recommendations
+## Next Steps
 
-If you want to align more closely with local.ts patterns:
+Recommended order for remaining items:
 
-1. **Add testing** - Most impactful missing piece
-2. **Add tauri-plugin-opener** - Useful for your product URLs
-3. **Create constants directory** - Better code organization
-4. **Add window close handler** - Proper cleanup on app exit
+1. **Add tauri-plugin-opener** - Most useful for your product tracking app (open product URLs)
+2. **Add window close handler** - Proper cleanup ensures settings/state are saved
+3. **Create constants directory** - Better code organization as the app grows
 
 Your project has already evolved past the starter kit with the products feature and SeaORM choice, which are valid architectural decisions.
