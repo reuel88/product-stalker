@@ -61,8 +61,8 @@ pub async fn get_products(db: State<'_, DbState>) -> Result<Vec<ProductResponse>
 /// Get a single product by ID
 #[tauri::command]
 pub async fn get_product(id: String, db: State<'_, DbState>) -> Result<ProductResponse, AppError> {
-    let uuid = Uuid::parse_str(&id)
-        .map_err(|_| AppError::Validation(format!("Invalid UUID: {}", id)))?;
+    let uuid =
+        Uuid::parse_str(&id).map_err(|_| AppError::Validation(format!("Invalid UUID: {}", id)))?;
 
     let product = ProductService::get_by_id(db.conn(), uuid).await?;
     Ok(ProductResponse::from(product))
@@ -93,8 +93,8 @@ pub async fn update_product(
     input: UpdateProductInput,
     db: State<'_, DbState>,
 ) -> Result<ProductResponse, AppError> {
-    let uuid = Uuid::parse_str(&id)
-        .map_err(|_| AppError::Validation(format!("Invalid UUID: {}", id)))?;
+    let uuid =
+        Uuid::parse_str(&id).map_err(|_| AppError::Validation(format!("Invalid UUID: {}", id)))?;
 
     let product = ProductService::update(
         db.conn(),
@@ -112,8 +112,8 @@ pub async fn update_product(
 /// Delete a product
 #[tauri::command]
 pub async fn delete_product(id: String, db: State<'_, DbState>) -> Result<(), AppError> {
-    let uuid = Uuid::parse_str(&id)
-        .map_err(|_| AppError::Validation(format!("Invalid UUID: {}", id)))?;
+    let uuid =
+        Uuid::parse_str(&id).map_err(|_| AppError::Validation(format!("Invalid UUID: {}", id)))?;
 
     ProductService::delete(db.conn(), uuid).await?;
     Ok(())

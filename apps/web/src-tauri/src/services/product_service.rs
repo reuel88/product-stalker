@@ -18,10 +18,7 @@ impl ProductService {
     }
 
     /// Get a product by ID
-    pub async fn get_by_id(
-        conn: &DatabaseConnection,
-        id: Uuid,
-    ) -> Result<ProductModel, AppError> {
+    pub async fn get_by_id(conn: &DatabaseConnection, id: Uuid) -> Result<ProductModel, AppError> {
         ProductRepository::find_by_id(conn, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Product not found: {}", id)))

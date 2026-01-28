@@ -32,8 +32,9 @@ impl From<AppError> for tauri::ipc::InvokeError {
             code: code.to_string(),
         };
 
-        tauri::ipc::InvokeError::from(serde_json::to_string(&response).unwrap_or_else(|_| {
-            format!(r#"{{"error":"{}","code":"{}"}}"#, err, code)
-        }))
+        tauri::ipc::InvokeError::from(
+            serde_json::to_string(&response)
+                .unwrap_or_else(|_| format!(r#"{{"error":"{}","code":"{}"}}"#, err, code)),
+        )
     }
 }

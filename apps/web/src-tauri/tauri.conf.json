@@ -10,13 +10,32 @@
     "beforeBuildCommand": "pnpm run build"
   },
   "app": {
-    "windows": [
+    "windows": [  
+        {
+        "label": "splash",
+        "title": "Loading...",
+        "url": "splash.html",
+        "width": 400,
+        "height": 300,
+        "decorations": false,
+        "center": true,
+        "visible": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "backgroundColor": "#667eea"
+      },
       {
-        "title": "product-stalker",
-        "width": 800,
-        "height": 600,
+        "label": "main",
+        "title": "Product Stalker",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true,
+        "visible": false,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "backgroundColor": "#667eea"
       }
     ],
     "security": {

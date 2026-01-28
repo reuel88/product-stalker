@@ -81,10 +81,7 @@ impl ProductRepository {
     }
 
     /// Delete a product by ID
-    pub async fn delete_by_id(
-        conn: &DatabaseConnection,
-        id: Uuid,
-    ) -> Result<u64, AppError> {
+    pub async fn delete_by_id(conn: &DatabaseConnection, id: Uuid) -> Result<u64, AppError> {
         let result = Product::delete_by_id(id).exec(conn).await?;
         Ok(result.rows_affected)
     }
