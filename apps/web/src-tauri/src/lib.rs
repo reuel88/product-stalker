@@ -99,6 +99,17 @@ pub fn run() {
 
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                // Only handle close for main window
+                if window.label() == "main" {
+                    log::info!("Application closing - performing cleanup");
+
+                    // Future: Add state saving here if needed
+                    // Currently all settings are saved on change, so no action required
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             // Product commands
             commands::get_products,

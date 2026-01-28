@@ -10,6 +10,7 @@ Your project (`apps/web`) is based on `local.ts` but has diverged with your own 
 
 - [x] **Testing Infrastructure** - Vitest with @testing-library/react, jsdom, and Tauri API mocks
 - [x] **tauri-plugin-opener** - Opens URLs/files in native browser/app
+- [x] **Window Close Handler** - `on_window_event()` for cleanup/logging on app close
 
 ---
 
@@ -24,13 +25,7 @@ Your project (`apps/web`) is based on `local.ts` but has diverged with your own 
 | `stores/` directory | State management stores | Missing (uses TanStack Query only) |
 | `App.tsx` component | Separate App component file | Missing (inline in main.tsx) |
 
-### 2. Backend/Tauri Plugins
-
-| Plugin | local.ts | Your Project |
-|--------|----------|--------------|
-| Window close event handler | `on_close_requested()` for state save | Not implemented |
-
-### 3. Backend Architecture
+### 2. Backend Architecture
 
 | Feature | local.ts | Your Project |
 |---------|----------|--------------|
@@ -83,30 +78,24 @@ await revealItemInDir('/path/to/file');
 
 ## Specific Missing Items to Consider Adding
 
-### High Priority
-
-1. **Window Close Handler**
-   - Add `on_close_requested()` to properly save state before closing
-   - Ensures settings/state are persisted when user closes the app
-
 ### Medium Priority
 
-2. **Constants Directory**
+1. **Constants Directory**
    - Create `src/constants/` for:
      - API endpoints
      - Default values
      - Magic strings/numbers
 
-3. **State Stores**
+2. **State Stores**
    - local.ts has a `stores/` directory
    - Could add Zustand for UI state (separate from server state in TanStack Query)
 
 ### Low Priority
 
-4. **Separate App.tsx**
+3. **Separate App.tsx**
    - Extract App component from `main.tsx` for cleaner structure
 
-5. **Assets Directory**
+4. **Assets Directory**
    - Move static assets from `public/` to `src/assets/` for better bundling
 
 ---
@@ -128,7 +117,7 @@ await revealItemInDir('/path/to/file');
 
 Recommended order for remaining items:
 
-1. **Add window close handler** - Proper cleanup ensures settings/state are saved
-2. **Create constants directory** - Better code organization as the app grows
+1. **Create constants directory** - Better code organization as the app grows
+2. **Add state stores** - Zustand for UI state separate from server state
 
 Your project has already evolved past the starter kit with the products feature and SeaORM choice, which are valid architectural decisions.
