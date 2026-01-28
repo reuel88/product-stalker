@@ -20,6 +20,7 @@ pub struct TrayState(pub Mutex<Option<TrayIcon<tauri::Wry>>>);
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_autostart::init(
@@ -27,11 +28,18 @@ pub fn run() {
             Some(vec![]),
         ))
         .setup(|app| {
-            // Initialize logging plugin
+            // Initialize logging plugin with proper targets
+            // Uses app log directory on all platforms (avoids Windows NUL device issues)
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
                         .level(log::LevelFilter::Info)
+                        .target(tauri_plugin_log::Target::new(
+                            tauri_plugin_log::TargetKind::LogDir { file_name: None },
+                        ))
+                        .target(tauri_plugin_log::Target::new(
+                            tauri_plugin_log::TargetKind::Stdout,
+                        ))
                         .build(),
                 )?;
             }

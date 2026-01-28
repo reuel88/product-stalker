@@ -5,11 +5,13 @@ import {
 	getPaginationRowModel,
 	useReactTable,
 } from "@tanstack/react-table";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
 	ChevronFirst,
 	ChevronLast,
 	ChevronLeft,
 	ChevronRight,
+	ExternalLink,
 	MoreHorizontal,
 	Pencil,
 	Trash2,
@@ -61,15 +63,15 @@ export function ProductsTable({
 				const url = row.getValue("url") as string;
 				const truncated = url.length > 40 ? `${url.slice(0, 40)}...` : url;
 				return (
-					<a
-						href={url}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="text-primary hover:underline"
+					<button
+						type="button"
+						onClick={() => openUrl(url)}
+						className="inline-flex items-center gap-1 text-primary hover:underline"
 						title={url}
 					>
 						{truncated}
-					</a>
+						<ExternalLink className="size-3" />
+					</button>
 				);
 			},
 		},

@@ -9,6 +9,7 @@ Your project (`apps/web`) is based on `local.ts` but has diverged with your own 
 ## Completed Items
 
 - [x] **Testing Infrastructure** - Vitest with @testing-library/react, jsdom, and Tauri API mocks
+- [x] **tauri-plugin-opener** - Opens URLs/files in native browser/app
 
 ---
 
@@ -27,7 +28,6 @@ Your project (`apps/web`) is based on `local.ts` but has diverged with your own 
 
 | Plugin | local.ts | Your Project |
 |--------|----------|--------------|
-| `tauri-plugin-opener` | Has it (opens files/URLs natively) | Missing |
 | Window close event handler | `on_close_requested()` for state save | Not implemented |
 
 ### 3. Backend Architecture
@@ -58,16 +58,36 @@ Your project has extended beyond the starter kit:
 
 5. **Vitest Testing** - Modern test runner with React Testing Library
 
+6. **tauri-plugin-opener** - Open product URLs in native browser
+
+---
+
+## Using tauri-plugin-opener
+
+The opener plugin is now available. Use it in your frontend:
+
+```typescript
+import { openUrl, openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
+
+// Open a URL in the default browser
+await openUrl('https://example.com');
+
+// Open a file with default app
+await openPath('/path/to/file.pdf');
+
+// Reveal a file in the system file explorer
+await revealItemInDir('/path/to/file');
+```
+
 ---
 
 ## Specific Missing Items to Consider Adding
 
 ### High Priority
 
-1. **tauri-plugin-opener**
-   - Useful for opening product URLs in native browser
-   - Add to Cargo.toml: `tauri-plugin-opener = "2.5.2"`
-   - Register in `lib.rs` and add to `capabilities/default.json`
+1. **Window Close Handler**
+   - Add `on_close_requested()` to properly save state before closing
+   - Ensures settings/state are persisted when user closes the app
 
 ### Medium Priority
 
@@ -81,15 +101,12 @@ Your project has extended beyond the starter kit:
    - local.ts has a `stores/` directory
    - Could add Zustand for UI state (separate from server state in TanStack Query)
 
-4. **Window Close Handler**
-   - Add `on_close_requested()` to properly save state before closing
-
 ### Low Priority
 
-5. **Separate App.tsx**
+4. **Separate App.tsx**
    - Extract App component from `main.tsx` for cleaner structure
 
-6. **Assets Directory**
+5. **Assets Directory**
    - Move static assets from `public/` to `src/assets/` for better bundling
 
 ---
@@ -111,8 +128,7 @@ Your project has extended beyond the starter kit:
 
 Recommended order for remaining items:
 
-1. **Add tauri-plugin-opener** - Most useful for your product tracking app (open product URLs)
-2. **Add window close handler** - Proper cleanup ensures settings/state are saved
-3. **Create constants directory** - Better code organization as the app grows
+1. **Add window close handler** - Proper cleanup ensures settings/state are saved
+2. **Create constants directory** - Better code organization as the app grows
 
 Your project has already evolved past the starter kit with the products feature and SeaORM choice, which are valid architectural decisions.
