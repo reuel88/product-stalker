@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { MESSAGES } from "@/constants";
 import {
 	type Settings,
 	type UpdateSettingsInput,
@@ -36,9 +37,9 @@ function SettingsComponent() {
 	const handleUpdate = async (input: UpdateSettingsInput) => {
 		try {
 			await updateSettingsAsync(input);
-			toast.success("Settings saved");
+			toast.success(MESSAGES.SETTINGS.SAVED);
 		} catch {
-			toast.error("Failed to save settings");
+			toast.error(MESSAGES.SETTINGS.SAVE_FAILED);
 		}
 	};
 

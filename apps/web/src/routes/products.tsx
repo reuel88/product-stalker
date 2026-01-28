@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { MESSAGES } from "@/constants";
 import { type CreateProductInput, useProducts } from "@/hooks/useProducts";
 import type { ProductResponse } from "@/types/product";
 
@@ -62,7 +63,7 @@ function ProductsComponent() {
 
 	const handleCreate = async () => {
 		if (!formData.name || !formData.url) {
-			toast.error("Name and URL are required");
+			toast.error(MESSAGES.VALIDATION.NAME_URL_REQUIRED);
 			return;
 		}
 
@@ -73,11 +74,11 @@ function ProductsComponent() {
 				description: formData.description || null,
 				notes: formData.notes || null,
 			});
-			toast.success("Product created");
+			toast.success(MESSAGES.PRODUCT.CREATED);
 			setCreateDialogOpen(false);
 			resetForm();
 		} catch {
-			toast.error("Failed to create product");
+			toast.error(MESSAGES.PRODUCT.CREATE_FAILED);
 		}
 	};
 
@@ -95,7 +96,7 @@ function ProductsComponent() {
 	const handleUpdate = async () => {
 		if (!selectedProduct) return;
 		if (!formData.name || !formData.url) {
-			toast.error("Name and URL are required");
+			toast.error(MESSAGES.VALIDATION.NAME_URL_REQUIRED);
 			return;
 		}
 
@@ -109,12 +110,12 @@ function ProductsComponent() {
 					notes: formData.notes || null,
 				},
 			});
-			toast.success("Product updated");
+			toast.success(MESSAGES.PRODUCT.UPDATED);
 			setEditDialogOpen(false);
 			setSelectedProduct(null);
 			resetForm();
 		} catch {
-			toast.error("Failed to update product");
+			toast.error(MESSAGES.PRODUCT.UPDATE_FAILED);
 		}
 	};
 
@@ -128,11 +129,11 @@ function ProductsComponent() {
 
 		try {
 			await deleteProduct(selectedProduct.id);
-			toast.success("Product deleted");
+			toast.success(MESSAGES.PRODUCT.DELETED);
 			setDeleteDialogOpen(false);
 			setSelectedProduct(null);
 		} catch {
-			toast.error("Failed to delete product");
+			toast.error(MESSAGES.PRODUCT.DELETE_FAILED);
 		}
 	};
 

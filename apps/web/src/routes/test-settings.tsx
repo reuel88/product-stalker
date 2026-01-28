@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { COMMANDS, UI } from "@/constants";
 import {
 	type Settings,
 	type UpdateSettingsInput,
@@ -81,7 +82,7 @@ function TestSettingsComponent() {
 
 	const handleTestNotification = async () => {
 		try {
-			const sent = await invoke<boolean>("send_notification", {
+			const sent = await invoke<boolean>(COMMANDS.SEND_NOTIFICATION, {
 				input: {
 					title: "Test Notification",
 					body: "This is a test notification from Product Stalker!",
@@ -126,7 +127,7 @@ function TestSettingsComponent() {
 		"sidebar_expanded",
 	];
 
-	const logLevels = ["error", "warn", "info", "debug", "trace"];
+	const logLevels = UI.LOG_LEVELS;
 
 	return (
 		<div className="container mx-auto max-w-3xl overflow-y-auto px-4 py-6">

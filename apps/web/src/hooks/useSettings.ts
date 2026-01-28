@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 
+import { COMMANDS, QUERY_KEYS } from "@/constants";
+
 export interface Settings {
 	theme: "light" | "dark" | "system";
 	show_in_tray: boolean;
@@ -22,15 +24,15 @@ export function useSettings() {
 		isLoading,
 		error,
 	} = useQuery({
-		queryKey: ["settings"],
-		queryFn: () => invoke<Settings>("get_settings"),
+		queryKey: QUERY_KEYS.SETTINGS,
+		queryFn: () => invoke<Settings>(COMMANDS.GET_SETTINGS),
 	});
 
 	const updateSettingsMutation = useMutation({
 		mutationFn: (input: UpdateSettingsInput) =>
-			invoke<Settings>("update_settings", { input }),
+			invoke<Settings>(COMMANDS.UPDATE_SETTINGS, { input }),
 		onSuccess: (data) => {
-			queryClient.setQueryData(["settings"], data);
+			queryClient.setQueryData(QUERY_KEYS.SETTINGS, data);
 		},
 	});
 

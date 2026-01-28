@@ -4,13 +4,14 @@ import { invoke } from "@tauri-apps/api/core";
 import ReactDOM from "react-dom/client";
 
 import Loader from "./components/loader";
+import { COMMANDS, CONFIG } from "./constants";
 import { routeTree } from "./routeTree.gen";
 
 const queryClient = new QueryClient({
 	defaultOptions: {
 		queries: {
-			staleTime: 1000 * 60 * 5, // 5 minutes
-			retry: 1,
+			staleTime: CONFIG.QUERY.STALE_TIME,
+			retry: CONFIG.QUERY.RETRY,
 		},
 	},
 });
@@ -42,5 +43,5 @@ if (!rootElement.innerHTML) {
 		</QueryClientProvider>,
 	);
 
-	invoke("close_splashscreen").catch(console.error);
+	invoke(COMMANDS.CLOSE_SPLASHSCREEN).catch(console.error);
 }

@@ -33,6 +33,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { UI } from "@/constants";
 import type { ProductResponse } from "@/types/product";
 
 interface ProductsTableProps {
@@ -61,7 +62,10 @@ export function ProductsTable({
 			header: "URL",
 			cell: ({ row }) => {
 				const url = row.getValue("url") as string;
-				const truncated = url.length > 40 ? `${url.slice(0, 40)}...` : url;
+				const truncated =
+					url.length > UI.TRUNCATE.URL_LENGTH
+						? `${url.slice(0, UI.TRUNCATE.URL_LENGTH)}...`
+						: url;
 				return (
 					<button
 						type="button"
@@ -83,8 +87,8 @@ export function ProductsTable({
 				if (!description)
 					return <span className="text-muted-foreground">-</span>;
 				const truncated =
-					description.length > 50
-						? `${description.slice(0, 50)}...`
+					description.length > UI.TRUNCATE.DESCRIPTION_LENGTH
+						? `${description.slice(0, UI.TRUNCATE.DESCRIPTION_LENGTH)}...`
 						: description;
 				return <span title={description}>{truncated}</span>;
 			},
@@ -134,7 +138,7 @@ export function ProductsTable({
 		getPaginationRowModel: getPaginationRowModel(),
 		initialState: {
 			pagination: {
-				pageSize: 10,
+				pageSize: UI.PAGINATION.DEFAULT_PAGE_SIZE,
 			},
 		},
 	});

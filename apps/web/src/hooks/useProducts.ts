@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 
+import { COMMANDS, QUERY_KEYS } from "@/constants";
 import type { ProductResponse } from "@/types/product";
 
 export interface CreateProductInput {
@@ -25,30 +26,30 @@ export function useProducts() {
 		isLoading,
 		error,
 	} = useQuery({
-		queryKey: ["products"],
-		queryFn: () => invoke<ProductResponse[]>("get_products"),
+		queryKey: QUERY_KEYS.PRODUCTS,
+		queryFn: () => invoke<ProductResponse[]>(COMMANDS.GET_PRODUCTS),
 	});
 
 	const createMutation = useMutation({
 		mutationFn: (input: CreateProductInput) =>
-			invoke<ProductResponse>("create_product", { input }),
+			invoke<ProductResponse>(COMMANDS.CREATE_PRODUCT, { input }),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["products"] });
+			queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTS });
 		},
 	});
 
 	const updateMutation = useMutation({
 		mutationFn: ({ id, input }: { id: string; input: UpdateProductInput }) =>
-			invoke<ProductResponse>("update_product", { id, input }),
+			invoke<ProductResponse>(COMMANDS.UPDATE_PRODUCT, { id, input }),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["products"] });
+			queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTS });
 		},
 	});
 
 	const deleteMutation = useMutation({
-		mutationFn: (id: string) => invoke<void>("delete_product", { id }),
+		mutationFn: (id: string) => invoke<void>(COMMANDS.DELETE_PRODUCT, { id }),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["products"] });
+			queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTS });
 		},
 	});
 
