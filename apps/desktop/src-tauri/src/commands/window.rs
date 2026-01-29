@@ -58,7 +58,7 @@ impl Default for SplashscreenResult {
 }
 
 #[tauri::command]
-pub async fn close_splashscreen(app: AppHandle) -> Result<(), String> {
+pub async fn close_splashscreen(app: AppHandle) -> Result<SplashscreenResult, String> {
     let mut result = SplashscreenResult::default();
 
     if let Some(splash) = app.get_webview_window(window_labels::SPLASH) {
@@ -77,7 +77,7 @@ pub async fn close_splashscreen(app: AppHandle) -> Result<(), String> {
         result.main_shown
     );
 
-    Ok(())
+    Ok(result)
 }
 
 #[cfg(test)]

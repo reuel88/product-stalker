@@ -60,6 +60,13 @@ Use descriptive branch names with prefixes:
    cargo tarpaulin --ignore-tests --fail-under 50
    ```
    CI enforces a minimum 50% coverage threshold.
+
+   > **Note (Windows users):** `cargo-tarpaulin` has limited Windows support and may fail with parser errors. Use `cargo-llvm-cov` as an alternative:
+   > ```bash
+   > cargo install cargo-llvm-cov
+   > cargo llvm-cov --fail-under-lines 50
+   > ```
+   > CI runs on Linux where tarpaulin works reliably.
 5. Push your branch and open a PR against `main`
 6. All CI checks must pass before merging
 
@@ -90,6 +97,11 @@ cd apps/desktop/src-tauri
 cargo test                     # Run tests
 cargo tarpaulin --ignore-tests --fail-under 50  # Coverage (50% threshold)
 ```
+
+> **Windows users:** If tarpaulin fails, use `cargo-llvm-cov` instead:
+> ```bash
+> cargo llvm-cov --fail-under-lines 50
+> ```
 
 ## Release Process (Maintainers)
 
