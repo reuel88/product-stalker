@@ -25,8 +25,8 @@ import {
 	type CreateProductInput,
 	useProducts,
 } from "@/modules/products/hooks/useProducts";
+import type { ProductResponse } from "@/modules/products/types";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
-import type { ProductResponse } from "@/types/product";
 
 export function ProductsComponent() {
 	const {
