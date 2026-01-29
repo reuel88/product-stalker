@@ -148,7 +148,7 @@ Complete SeaORM integration with SQLite for a Tauri app, following clean archite
 ## File Structure
 
 ```
-apps/web/src-tauri/
+apps/desktop/src-tauri/
 ├── Cargo.toml                    # Dependencies configured
 ├── src/
 │   ├── lib.rs                    # Main app setup

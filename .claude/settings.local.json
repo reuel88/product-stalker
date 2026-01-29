@@ -7,7 +7,7 @@
 			"WebFetch(domain:api.github.com)",
 			"Bash(cargo fmt:*)",
 			"Bash(pnpm install:*)",
-			"Bash(dir /s \"C:\\\\Users\\\\reuel\\\\Developer\\\\product-stalker\\\\apps\\\\web\\\\src\")",
+			"Bash(dir /s \"C:\\\\Users\\\\reuel\\\\Developer\\\\product-stalker\\\\apps\\\\desktop\\\\src\")",
 			"Bash(gh api:*)",
 			"WebFetch(domain:github.com)",
 			"WebFetch(domain:v2.tauri.app)",

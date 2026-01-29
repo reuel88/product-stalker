@@ -44,7 +44,7 @@ Open [http://localhost:3001](http://localhost:3001) in your browser to see the w
 ```
 product-stalker/
 ├── apps/
-│   └── web/         # Frontend application (React + TanStack Router + Tauri)
+│   └── desktop/     # Desktop application (React + TanStack Router + Tauri)
 ├── packages/
 │   ├── config/      # Shared configuration
 │   └── env/         # Environment variables (T3 Env)
@@ -53,27 +53,27 @@ product-stalker/
 ## Available Scripts
 
 - `pnpm run dev`: Start all applications in development mode
-- `pnpm run dev:web`: Start only the web application
+- `pnpm run dev:desktop`: Start only the desktop application
 - `pnpm run dev:native`: Start native app in development
 - `pnpm run build`: Build all applications
 - `pnpm run check-types`: Check TypeScript types across all apps
 - `pnpm run check`: Run Biome formatting and linting
 - `pnpm run prepare`: Initialize Husky git hooks
-- `pnpm -F web test`: Run tests
-- `pnpm -F web test:ui`: Run tests with UI
-- `cd apps/web && pnpm run desktop:dev`: Start Tauri desktop app in development
-- `cd apps/web && pnpm run desktop:build`: Build Tauri desktop app
+- `pnpm -F desktop test`: Run tests
+- `pnpm -F desktop test:ui`: Run tests with UI
+- `cd apps/desktop && pnpm run desktop:dev`: Start Tauri desktop app in development
+- `cd apps/desktop && pnpm run desktop:build`: Build Tauri desktop app
 
 ## Testing
 
 This project uses [Vitest](https://vitest.dev/) for testing. Run tests with:
 
 ```bash
-pnpm -F web test
+pnpm -F desktop test
 ```
 
 For an interactive test UI:
 
 ```bash
-pnpm -F web test:ui
+pnpm -F desktop test:ui
 ```

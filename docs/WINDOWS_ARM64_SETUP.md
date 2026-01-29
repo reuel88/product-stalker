@@ -143,7 +143,7 @@ Thread model: posix
 ### 3. Verify the project builds
 
 ```powershell
-cd apps/web/src-tauri
+cd apps/desktop/src-tauri
 cargo build
 ```
 
@@ -198,7 +198,7 @@ If you want to avoid installing LLVM/Clang, you can modify the project to use Wi
 
 ### How to Switch
 
-In `apps/web/src-tauri/Cargo.toml`, change the `sea-orm` feature from:
+In `apps/desktop/src-tauri/Cargo.toml`, change the `sea-orm` feature from:
 
 ```toml
 sea-orm = { version = "...", features = ["runtime-tokio-rustls", ...] }

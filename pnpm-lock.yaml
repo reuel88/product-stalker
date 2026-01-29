@@ -49,7 +49,7 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
-  apps/web:
+  apps/desktop:
     dependencies:
       '@base-ui/react':
         specifier: ^1.0.0
