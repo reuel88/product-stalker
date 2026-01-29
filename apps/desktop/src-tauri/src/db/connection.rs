@@ -165,7 +165,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_init_db_from_url_creates_connection() {
-        let conn = init_db_from_url("sqlite::memory:".to_string()).await.unwrap();
+        let conn = init_db_from_url("sqlite::memory:".to_string())
+            .await
+            .unwrap();
 
         // Verify we can execute queries
         let result = conn
@@ -181,7 +183,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_init_db_from_url_runs_migrations() {
-        let conn = init_db_from_url("sqlite::memory:".to_string()).await.unwrap();
+        let conn = init_db_from_url("sqlite::memory:".to_string())
+            .await
+            .unwrap();
 
         // Verify migrations ran by checking if tables exist
         let result = conn
@@ -192,12 +196,17 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(result.is_some(), "products table should exist after migrations");
+        assert!(
+            result.is_some(),
+            "products table should exist after migrations"
+        );
     }
 
     #[tokio::test]
     async fn test_init_db_from_url_creates_settings_table() {
-        let conn = init_db_from_url("sqlite::memory:".to_string()).await.unwrap();
+        let conn = init_db_from_url("sqlite::memory:".to_string())
+            .await
+            .unwrap();
 
         // Verify settings table exists
         let result = conn
@@ -208,7 +217,10 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(result.is_some(), "settings table should exist after migrations");
+        assert!(
+            result.is_some(),
+            "settings table should exist after migrations"
+        );
     }
 
     #[tokio::test]
