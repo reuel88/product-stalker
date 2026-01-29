@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ProductsTable } from "@/components/products-table";
 import { UI } from "@/constants";
+import { ProductsTable } from "@/modules/products/ui/components/products-table";
 import { createMockProduct, createMockProducts } from "../../mocks/data";
 import { render, screen, waitFor } from "../../test-utils";
 

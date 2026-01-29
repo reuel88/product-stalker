@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { COMMANDS } from "@/constants";
-import { useProducts } from "@/hooks/useProducts";
+import { useProducts } from "@/modules/products/hooks/useProducts";
 import { createMockProduct, createMockProducts } from "../../mocks/data";
 import {
 	getMockedInvoke,

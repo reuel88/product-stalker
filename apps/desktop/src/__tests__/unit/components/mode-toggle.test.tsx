@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ModeToggle } from "@/components/mode-toggle";
+import { ModeToggle } from "@/modules/shared/ui/components/mode-toggle";
 import { render, screen, waitFor } from "../../test-utils";
 
 // Mock next-themes

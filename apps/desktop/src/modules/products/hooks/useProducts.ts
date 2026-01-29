@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 
 import { COMMANDS, QUERY_KEYS } from "@/constants";
-import type { ProductResponse } from "@/types/product";
+import type { ProductResponse } from "@/modules/products/types";
 
 export interface CreateProductInput {
 	name: string;

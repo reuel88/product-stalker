@@ -4,10 +4,9 @@ import {
 	Outlet,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-
-import Header from "@/components/header";
-import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/modules/shared/providers/theme-provider";
+import Header from "@/modules/shared/ui/components/header";
 
 import "../index.css";
 

@@ -34,7 +34,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { UI } from "@/constants";
-import type { ProductResponse } from "@/types/product";
+import type { ProductResponse } from "@/modules/products/types";
 
 interface ProductsTableProps {
 	products: ProductResponse[];

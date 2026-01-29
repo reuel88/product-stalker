@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { ThemeProvider, useTheme } from "@/components/theme-provider";
+import {
+	ThemeProvider,
+	useTheme,
+} from "@/modules/shared/providers/theme-provider";
 import { render, screen } from "../../test-utils";
 
 // Mock next-themes

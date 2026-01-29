@@ -1,6 +1,6 @@
-import type { Settings } from "@/hooks/useSettings";
-import type { UpdateInfo } from "@/hooks/useUpdater";
-import type { ProductResponse } from "@/types/product";
+import type { ProductResponse } from "@/modules/products/types";
+import type { Settings } from "@/modules/settings/hooks/useSettings";
+import type { UpdateInfo } from "@/modules/settings/hooks/useUpdater";
 
 let productIdCounter = 1;
 

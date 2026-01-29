@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { HomeComponent } from "@/routes/index";
+import { HomeComponent } from "@/modules/home/ui/views/home";
 
 describe("HomeComponent", () => {
 	it("should render the ASCII art title", () => {

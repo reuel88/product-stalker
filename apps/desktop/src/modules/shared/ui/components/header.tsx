@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { FlaskConical, Package, Settings } from "lucide-react";
 
-import { ModeToggle } from "./mode-toggle";
+import { ModeToggle } from "@/modules/shared/ui/components/mode-toggle";
 
 export default function Header() {
 	const links = [

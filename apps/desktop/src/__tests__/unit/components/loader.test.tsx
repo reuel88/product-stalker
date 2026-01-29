@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import Loader from "@/components/loader";
+import Loader from "@/modules/shared/ui/components/loader";
 import { render } from "../../test-utils";
 
 describe("Loader", () => {

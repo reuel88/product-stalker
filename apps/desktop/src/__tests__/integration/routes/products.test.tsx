@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS, MESSAGES } from "@/constants";
-import { ProductsComponent } from "@/routes/products";
+import { ProductsComponent } from "@/modules/products/ui/views/products";
 import { createMockProduct, createMockProducts } from "../../mocks/data";
 import {
 	getMockedInvoke,

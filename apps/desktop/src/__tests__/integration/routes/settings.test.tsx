@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS, MESSAGES } from "@/constants";
-import { SettingsComponent, SettingsSkeleton } from "@/routes/settings";
+import { SettingsSkeleton } from "@/modules/settings/ui/components/settings-skeleton";
+import { SettingsComponent } from "@/modules/settings/ui/views/settings";
 import {
 	createMockSettings,
 	createMockUpdateAvailable,

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS } from "@/constants";
-import { TestSettingsComponent } from "@/routes/test-settings";
+import { TestSettingsComponent } from "@/modules/settings/ui/views/test-settings";
 import { createMockSettings } from "../../mocks/data";
 import { getMockedInvoke, mockInvokeMultiple } from "../../mocks/tauri";
 import { render, screen, waitFor } from "../../test-utils";
