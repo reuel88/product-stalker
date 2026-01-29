@@ -2,7 +2,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::entities::setting::Model as SettingModel;
 use crate::error::AppError;
-use crate::repositories::SettingRepository;
+use crate::repositories::{SettingRepository, UpdateSettingsParams};
 
 /// Service layer for settings business logic
 ///
@@ -18,21 +18,15 @@ impl SettingService {
     /// Update settings with validation
     pub async fn update(
         conn: &DatabaseConnection,
-        theme: Option<String>,
-        show_in_tray: Option<bool>,
-        launch_at_login: Option<bool>,
-        enable_logging: Option<bool>,
-        log_level: Option<String>,
-        enable_notifications: Option<bool>,
-        sidebar_expanded: Option<bool>,
+        params: UpdateSettingsParams,
     ) -> Result<SettingModel, AppError> {
         // Validate theme if provided
-        if let Some(ref theme) = theme {
+        if let Some(ref theme) = params.theme {
             Self::validate_theme(theme)?;
         }
 
         // Validate log level if provided
-        if let Some(ref level) = log_level {
+        if let Some(ref level) = params.log_level {
             Self::validate_log_level(level)?;
         }
 
@@ -40,18 +34,7 @@ impl SettingService {
         let settings = SettingRepository::get_or_create(conn).await?;
 
         // Update settings
-        SettingRepository::update(
-            conn,
-            settings,
-            theme,
-            show_in_tray,
-            launch_at_login,
-            enable_logging,
-            log_level,
-            enable_notifications,
-            sidebar_expanded,
-        )
-        .await
+        SettingRepository::update(conn, settings, params).await
     }
 
     fn validate_theme(theme: &str) -> Result<(), AppError> {

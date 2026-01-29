@@ -4,6 +4,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::db::DbState;
 use crate::entities::setting::Model as SettingModel;
 use crate::error::AppError;
+use crate::repositories::UpdateSettingsParams;
 use crate::services::SettingService;
 use crate::TrayState;
 
@@ -82,17 +83,17 @@ pub async fn update_settings(
 ) -> Result<SettingsResponse, AppError> {
     let show_in_tray_value = input.show_in_tray;
 
-    let settings = SettingService::update(
-        db.conn(),
-        input.theme,
-        input.show_in_tray,
-        input.launch_at_login,
-        input.enable_logging,
-        input.log_level,
-        input.enable_notifications,
-        input.sidebar_expanded,
-    )
-    .await?;
+    let params = UpdateSettingsParams {
+        theme: input.theme,
+        show_in_tray: input.show_in_tray,
+        launch_at_login: input.launch_at_login,
+        enable_logging: input.enable_logging,
+        log_level: input.log_level,
+        enable_notifications: input.enable_notifications,
+        sidebar_expanded: input.sidebar_expanded,
+    };
+
+    let settings = SettingService::update(db.conn(), params).await?;
 
     if let Some(show_in_tray) = show_in_tray_value {
         update_tray_visibility(&app, show_in_tray);

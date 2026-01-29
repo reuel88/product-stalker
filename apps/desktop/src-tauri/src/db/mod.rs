@@ -1,6 +1,6 @@
 mod connection;
 
-pub use connection::{get_db_path, init_db};
+pub use connection::init_db;
 
 use sea_orm::DatabaseConnection;
 

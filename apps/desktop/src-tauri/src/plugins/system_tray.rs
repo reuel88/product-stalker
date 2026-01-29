@@ -22,8 +22,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>, visible: bool) -> Result<TrayIcon<R>
     let menu = Menu::with_items(app, &[&show, &hide, &quit])
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
-    let icon = Image::from_bytes(TRAY_ICON)
-        .map_err(|e| AppError::Validation(format!("{e}")))?;
+    let icon = Image::from_bytes(TRAY_ICON).map_err(|e| AppError::Validation(format!("{e}")))?;
 
     let tray = TrayIconBuilder::new()
         .icon(icon)

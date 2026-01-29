@@ -74,11 +74,7 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError>
         .download_and_install(
             |chunk_length, content_length| {
                 downloaded += chunk_length;
-                log::debug!(
-                    "Downloaded {} of {:?} bytes",
-                    downloaded,
-                    content_length
-                );
+                log::debug!("Downloaded {} of {:?} bytes", downloaded, content_length);
             },
             || {
                 log::info!("Download finished, installing update...");
