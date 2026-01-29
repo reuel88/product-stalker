@@ -80,3 +80,60 @@ impl SettingRepository {
         Ok(updated)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Schema};
+
+    async fn setup_test_db() -> DatabaseConnection {
+        let conn = Database::connect("sqlite::memory:").await.unwrap();
+        let schema = Schema::new(DatabaseBackend::Sqlite);
+        let stmt = schema.create_table_from_entity(Setting);
+        conn.execute(conn.get_database_backend().build(&stmt))
+            .await
+            .unwrap();
+        conn
+    }
+
+    #[tokio::test]
+    async fn test_get_or_create_creates_defaults() {
+        let conn = setup_test_db().await;
+        let settings = SettingRepository::get_or_create(&conn).await.unwrap();
+
+        assert_eq!(settings.id, 1);
+        assert_eq!(settings.theme, "system");
+        assert!(settings.show_in_tray);
+    }
+
+    #[tokio::test]
+    async fn test_get_or_create_returns_existing() {
+        let conn = setup_test_db().await;
+
+        let first = SettingRepository::get_or_create(&conn).await.unwrap();
+        let second = SettingRepository::get_or_create(&conn).await.unwrap();
+
+        assert_eq!(first.id, second.id);
+    }
+
+    #[tokio::test]
+    async fn test_update_settings() {
+        let conn = setup_test_db().await;
+        let settings = SettingRepository::get_or_create(&conn).await.unwrap();
+
+        let params = UpdateSettingsParams {
+            theme: Some("dark".to_string()),
+            show_in_tray: None,
+            launch_at_login: None,
+            enable_logging: None,
+            log_level: None,
+            enable_notifications: None,
+            sidebar_expanded: None,
+        };
+
+        let updated = SettingRepository::update(&conn, settings, params)
+            .await
+            .unwrap();
+        assert_eq!(updated.theme, "dark");
+    }
+}

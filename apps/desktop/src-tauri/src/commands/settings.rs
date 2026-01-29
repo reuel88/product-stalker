@@ -101,3 +101,35 @@ pub async fn update_settings(
 
     Ok(SettingsResponse::from(settings))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    #[test]
+    fn test_settings_response_from_model() {
+        let now = Utc::now();
+        let model = SettingModel {
+            id: 1,
+            theme: "dark".to_string(),
+            show_in_tray: true,
+            launch_at_login: false,
+            enable_logging: true,
+            log_level: "info".to_string(),
+            enable_notifications: true,
+            sidebar_expanded: false,
+            updated_at: now,
+        };
+
+        let response = SettingsResponse::from(model);
+
+        assert_eq!(response.theme, "dark");
+        assert!(response.show_in_tray);
+        assert!(!response.launch_at_login);
+        assert!(response.enable_logging);
+        assert_eq!(response.log_level, "info");
+        assert!(response.enable_notifications);
+        assert!(!response.sidebar_expanded);
+    }
+}

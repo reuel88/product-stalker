@@ -99,3 +99,83 @@ impl ProductService {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_name_empty() {
+        assert!(ProductService::validate_name("").is_err());
+    }
+
+    #[test]
+    fn test_validate_name_whitespace() {
+        assert!(ProductService::validate_name("   ").is_err());
+    }
+
+    #[test]
+    fn test_validate_name_valid() {
+        assert!(ProductService::validate_name("My Product").is_ok());
+    }
+
+    #[test]
+    fn test_validate_url_empty() {
+        assert!(ProductService::validate_url("").is_err());
+    }
+
+    #[test]
+    fn test_validate_url_whitespace() {
+        assert!(ProductService::validate_url("   ").is_err());
+    }
+
+    #[test]
+    fn test_validate_url_valid() {
+        assert!(ProductService::validate_url("https://example.com").is_ok());
+    }
+}
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::entities::product::Entity as Product;
+    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Schema};
+
+    async fn setup_test_db() -> DatabaseConnection {
+        let conn = Database::connect("sqlite::memory:").await.unwrap();
+        let schema = Schema::new(DatabaseBackend::Sqlite);
+        let stmt = schema.create_table_from_entity(Product);
+        conn.execute(conn.get_database_backend().build(&stmt))
+            .await
+            .unwrap();
+        conn
+    }
+
+    #[tokio::test]
+    async fn test_create_product_validates_name() {
+        let conn = setup_test_db().await;
+        let result = ProductService::create(
+            &conn,
+            "".to_string(),
+            "https://test.com".to_string(),
+            None,
+            None,
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_by_id_not_found() {
+        let conn = setup_test_db().await;
+        let result = ProductService::get_by_id(&conn, Uuid::new_v4()).await;
+        assert!(matches!(result, Err(AppError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn test_delete_not_found() {
+        let conn = setup_test_db().await;
+        let result = ProductService::delete(&conn, Uuid::new_v4()).await;
+        assert!(matches!(result, Err(AppError::NotFound(_))));
+    }
+}

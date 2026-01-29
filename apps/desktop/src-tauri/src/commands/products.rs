@@ -118,3 +118,32 @@ pub async fn delete_product(id: String, db: State<'_, DbState>) -> Result<(), Ap
     ProductService::delete(db.conn(), uuid).await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    #[test]
+    fn test_product_response_from_model() {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+        let model = ProductModel {
+            id,
+            name: "Test Product".to_string(),
+            url: "https://example.com".to_string(),
+            description: Some("A description".to_string()),
+            notes: None,
+            created_at: now,
+            updated_at: now,
+        };
+
+        let response = ProductResponse::from(model);
+
+        assert_eq!(response.id, id.to_string());
+        assert_eq!(response.name, "Test Product");
+        assert_eq!(response.url, "https://example.com");
+        assert_eq!(response.description, Some("A description".to_string()));
+        assert!(response.notes.is_none());
+    }
+}

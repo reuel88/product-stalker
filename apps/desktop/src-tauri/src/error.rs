@@ -42,3 +42,26 @@ impl From<AppError> for tauri::ipc::InvokeError {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_not_found_error_display() {
+        let err = AppError::NotFound("Product 123".to_string());
+        assert_eq!(err.to_string(), "Not found: Product 123");
+    }
+
+    #[test]
+    fn test_validation_error_display() {
+        let err = AppError::Validation("Name cannot be empty".to_string());
+        assert_eq!(err.to_string(), "Validation error: Name cannot be empty");
+    }
+
+    #[test]
+    fn test_internal_error_display() {
+        let err = AppError::Internal("Something went wrong".to_string());
+        assert_eq!(err.to_string(), "Internal error: Something went wrong");
+    }
+}

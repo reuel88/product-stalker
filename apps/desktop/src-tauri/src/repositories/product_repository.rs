@@ -86,3 +86,103 @@ impl ProductRepository {
         Ok(result.rows_affected)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Schema};
+
+    async fn setup_test_db() -> DatabaseConnection {
+        let conn = Database::connect("sqlite::memory:").await.unwrap();
+        let schema = Schema::new(DatabaseBackend::Sqlite);
+        let stmt = schema.create_table_from_entity(Product);
+        conn.execute(conn.get_database_backend().build(&stmt))
+            .await
+            .unwrap();
+        conn
+    }
+
+    #[tokio::test]
+    async fn test_create_and_find_product() {
+        let conn = setup_test_db().await;
+        let id = Uuid::new_v4();
+
+        let created = ProductRepository::create(
+            &conn,
+            id,
+            "Test".to_string(),
+            "https://test.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(created.name, "Test");
+
+        let found = ProductRepository::find_by_id(&conn, id).await.unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, id);
+    }
+
+    #[tokio::test]
+    async fn test_find_all_empty() {
+        let conn = setup_test_db().await;
+        let products = ProductRepository::find_all(&conn).await.unwrap();
+        assert!(products.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_delete_product() {
+        let conn = setup_test_db().await;
+        let id = Uuid::new_v4();
+
+        ProductRepository::create(
+            &conn,
+            id,
+            "Test".to_string(),
+            "https://test.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let rows = ProductRepository::delete_by_id(&conn, id).await.unwrap();
+        assert_eq!(rows, 1);
+
+        let found = ProductRepository::find_by_id(&conn, id).await.unwrap();
+        assert!(found.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_update_product() {
+        let conn = setup_test_db().await;
+        let id = Uuid::new_v4();
+
+        let created = ProductRepository::create(
+            &conn,
+            id,
+            "Original".to_string(),
+            "https://original.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let updated = ProductRepository::update(
+            &conn,
+            created,
+            Some("Updated".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updated.name, "Updated");
+        assert_eq!(updated.url, "https://original.com");
+    }
+}

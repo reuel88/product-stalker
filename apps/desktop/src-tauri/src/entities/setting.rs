@@ -57,3 +57,21 @@ impl Default for Model {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_settings() {
+        let settings = Model::default();
+        assert_eq!(settings.id, 1);
+        assert_eq!(settings.theme, "system");
+        assert!(settings.show_in_tray);
+        assert!(!settings.launch_at_login);
+        assert!(settings.enable_logging);
+        assert_eq!(settings.log_level, "info");
+        assert!(settings.enable_notifications);
+        assert!(settings.sidebar_expanded);
+    }
+}
