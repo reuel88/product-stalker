@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { vi } from "vitest";
+import { beforeEach, vi } from "vitest";
 
 // Mock @tauri-apps/api/core
 vi.mock("@tauri-apps/api/core", () => ({
@@ -18,3 +18,8 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 	openPath: vi.fn(() => Promise.resolve()),
 	revealItemInDir: vi.fn(() => Promise.resolve()),
 }));
+
+// Clear all mocks between tests
+beforeEach(() => {
+	vi.clearAllMocks();
+});

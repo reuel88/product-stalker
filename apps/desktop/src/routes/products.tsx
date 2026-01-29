@@ -31,7 +31,7 @@ export const Route = createFileRoute("/products")({
 	component: ProductsComponent,
 });
 
-function ProductsComponent() {
+export function ProductsComponent() {
 	const {
 		products,
 		isLoading,

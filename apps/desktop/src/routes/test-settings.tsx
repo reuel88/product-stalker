@@ -23,7 +23,7 @@ interface LogEntry {
 	message: string;
 }
 
-function TestSettingsComponent() {
+export function TestSettingsComponent() {
 	const { settings, isLoading, updateSettingsAsync } = useSettings();
 	const { theme: domTheme, setTheme } = useTheme();
 	const [log, setLog] = useState<LogEntry[]>([]);

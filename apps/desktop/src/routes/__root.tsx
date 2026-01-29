@@ -34,7 +34,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 	}),
 });
 
-function RootComponent() {
+export function RootComponent() {
 	return (
 		<>
 			<HeadContent />

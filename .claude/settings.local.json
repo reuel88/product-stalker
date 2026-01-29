@@ -6,7 +6,6 @@
 			"WebFetch(domain:raw.githubusercontent.com)",
 			"WebFetch(domain:api.github.com)",
 			"Bash(cargo fmt:*)",
-			"Bash(pnpm install:*)",
 			"Bash(dir /s \"C:\\\\Users\\\\reuel\\\\Developer\\\\product-stalker\\\\apps\\\\desktop\\\\src\")",
 			"Bash(gh api:*)",
 			"WebFetch(domain:github.com)",
@@ -14,7 +13,9 @@
 			"Bash(pnpm tsc:*)",
 			"Bash(timeout 10 pnpm vite:*)",
 			"Bash(pnpm list:*)",
-			"Bash(pnpm run build:*)"
+			"Bash(pnpm run build:*)",
+			"Bash(pnpm -F desktop test:run:*)",
+			"Bash(pnpm exec vitest:*)"
 		]
 	}
 }

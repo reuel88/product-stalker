@@ -32,7 +32,7 @@ export const Route = createFileRoute("/settings")({
 	component: SettingsComponent,
 });
 
-function SettingsComponent() {
+export function SettingsComponent() {
 	const { settings, isLoading, updateSettingsAsync } = useSettings();
 	const { setTheme } = useTheme();
 	const {
@@ -281,7 +281,7 @@ function SettingsComponent() {
 	);
 }
 
-function SettingsSkeleton() {
+export function SettingsSkeleton() {
 	return (
 		<div className="container mx-auto max-w-2xl px-4 py-6">
 			<Skeleton className="mb-6 h-7 w-24" />
