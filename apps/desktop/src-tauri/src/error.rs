@@ -11,6 +11,9 @@ pub enum AppError {
 
     #[error("Validation error: {0}")]
     Validation(String),
+
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 #[derive(Serialize)]
@@ -25,6 +28,7 @@ impl From<AppError> for tauri::ipc::InvokeError {
             AppError::Database(db_err) => ("DATABASE_ERROR", db_err.to_string()),
             AppError::NotFound(msg) => ("NOT_FOUND", msg.clone()),
             AppError::Validation(msg) => ("VALIDATION_ERROR", msg.clone()),
+            AppError::Internal(msg) => ("INTERNAL_ERROR", msg.clone()),
         };
 
         let response = ErrorResponse {

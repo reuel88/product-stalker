@@ -7,4 +7,7 @@ export const COMMANDS = {
 	UPDATE_SETTINGS: "update_settings",
 	SEND_NOTIFICATION: "send_notification",
 	CLOSE_SPLASHSCREEN: "close_splashscreen",
+	CHECK_FOR_UPDATE: "check_for_update",
+	DOWNLOAD_AND_INSTALL_UPDATE: "download_and_install_update",
+	GET_CURRENT_VERSION: "get_current_version",
 } as const;

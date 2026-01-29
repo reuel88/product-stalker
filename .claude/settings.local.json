@@ -13,7 +13,8 @@
 			"WebFetch(domain:v2.tauri.app)",
 			"Bash(pnpm tsc:*)",
 			"Bash(timeout 10 pnpm vite:*)",
-			"Bash(pnpm list:*)"
+			"Bash(pnpm list:*)",
+			"Bash(pnpm run build:*)"
 		]
 	}
 }

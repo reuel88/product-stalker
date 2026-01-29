@@ -21,6 +21,7 @@ pub struct TrayState(pub Mutex<Option<TrayIcon<tauri::Wry>>>);
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_autostart::init(
@@ -125,6 +126,10 @@ pub fn run() {
             commands::send_notification,
             // Window commands
             commands::close_splashscreen,
+            // Updater commands
+            commands::check_for_update,
+            commands::download_and_install_update,
+            commands::get_current_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

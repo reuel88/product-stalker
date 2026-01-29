@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { useTheme } from "@/components/theme-provider";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -25,6 +26,7 @@ import {
 	type UpdateSettingsInput,
 	useSettings,
 } from "@/hooks/useSettings";
+import { useUpdater } from "@/hooks/useUpdater";
 
 export const Route = createFileRoute("/settings")({
 	component: SettingsComponent,
@@ -33,6 +35,14 @@ export const Route = createFileRoute("/settings")({
 function SettingsComponent() {
 	const { settings, isLoading, updateSettingsAsync } = useSettings();
 	const { setTheme } = useTheme();
+	const {
+		currentVersion,
+		updateInfo,
+		isChecking,
+		isInstalling,
+		checkForUpdateAsync,
+		installUpdateAsync,
+	} = useUpdater();
 
 	const handleUpdate = async (input: UpdateSettingsInput) => {
 		try {
@@ -47,6 +57,28 @@ function SettingsComponent() {
 		if (!value) return;
 		setTheme(value);
 		await handleUpdate({ theme: value });
+	};
+
+	const handleCheckForUpdate = async () => {
+		try {
+			const info = await checkForUpdateAsync();
+			if (info.available) {
+				toast.success(`Update available: v${info.version}`);
+			} else {
+				toast.info("You're running the latest version");
+			}
+		} catch {
+			toast.error("Failed to check for updates");
+		}
+	};
+
+	const handleInstallUpdate = async () => {
+		try {
+			toast.info("Downloading update...");
+			await installUpdateAsync();
+		} catch {
+			toast.error("Failed to install update");
+		}
 	};
 
 	if (isLoading) {
@@ -198,6 +230,49 @@ function SettingsComponent() {
 									handleUpdate({ sidebar_expanded: checked })
 								}
 							/>
+						</div>
+					</CardContent>
+				</Card>
+
+				{/* Updates */}
+				<Card>
+					<CardHeader>
+						<CardTitle>Updates</CardTitle>
+						<CardDescription>Check for application updates</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="flex items-center justify-between">
+							<Label>Current version</Label>
+							<span className="text-muted-foreground text-sm">
+								v{currentVersion ?? "..."}
+							</span>
+						</div>
+						{updateInfo?.available && (
+							<div className="flex items-center justify-between">
+								<Label>Available version</Label>
+								<span className="font-medium text-green-600 text-sm dark:text-green-400">
+									v{updateInfo.version}
+								</span>
+							</div>
+						)}
+						<div className="flex gap-2">
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={handleCheckForUpdate}
+								disabled={isChecking || isInstalling}
+							>
+								{isChecking ? "Checking..." : "Check for Updates"}
+							</Button>
+							{updateInfo?.available && (
+								<Button
+									size="sm"
+									onClick={handleInstallUpdate}
+									disabled={isInstalling}
+								>
+									{isInstalling ? "Installing..." : "Update Now"}
+								</Button>
+							)}
 						</div>
 					</CardContent>
 				</Card>
