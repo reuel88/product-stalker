@@ -84,10 +84,13 @@ impl From<AppError> for tauri::ipc::InvokeError {
     fn from(err: AppError) -> Self {
         let response = ErrorResponse::from_app_error(&err);
 
-        tauri::ipc::InvokeError::from(
-            serde_json::to_string(&response)
-                .unwrap_or_else(|_| format!(r#"{{"error":"{}","code":"{}"}}"#, err, err.code())),
-        )
+        tauri::ipc::InvokeError::from(serde_json::to_string(&response).unwrap_or_else(|_| {
+            serde_json::json!({
+                "error": err.to_string(),
+                "code": err.code()
+            })
+            .to_string()
+        }))
     }
 }
 
