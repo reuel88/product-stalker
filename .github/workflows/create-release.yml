@@ -1,0 +1,43 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 0.2.0)'
+        required: true
+        type: string
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update tauri.conf.json version
+        run: |
+          cd apps/desktop/src-tauri
+          jq '.version = "${{ inputs.version }}"' tauri.conf.json > tmp.json && mv tmp.json tauri.conf.json
+
+      - name: Update Cargo.toml version
+        run: |
+          cd apps/desktop/src-tauri
+          sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' Cargo.toml
+
+      - name: Commit version changes
+        run: |
+          git add apps/desktop/src-tauri/tauri.conf.json apps/desktop/src-tauri/Cargo.toml
+          git commit -m "Release v${{ inputs.version }}"
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ inputs.version }}"
+          git push origin main "v${{ inputs.version }}"

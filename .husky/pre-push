@@ -1,0 +1,9 @@
+pnpm run check
+pnpm run check-types
+pnpm -F desktop test:run
+
+# Rust checks
+cd apps/desktop/src-tauri
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
