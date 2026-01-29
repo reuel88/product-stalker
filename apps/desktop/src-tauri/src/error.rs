@@ -382,6 +382,10 @@ mod tests {
         let codes: Vec<&str> = errors.iter().map(|e| e.code()).collect();
         let unique_codes: std::collections::HashSet<&str> = codes.iter().cloned().collect();
 
-        assert_eq!(codes.len(), unique_codes.len(), "All error codes should be unique");
+        assert_eq!(
+            codes.len(),
+            unique_codes.len(),
+            "All error codes should be unique"
+        );
     }
 }

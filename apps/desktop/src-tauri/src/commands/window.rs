@@ -128,7 +128,10 @@ mod tests {
 
     #[test]
     fn test_splashscreen_result_default_equals_no_windows() {
-        assert_eq!(SplashscreenResult::default(), SplashscreenResult::no_windows());
+        assert_eq!(
+            SplashscreenResult::default(),
+            SplashscreenResult::no_windows()
+        );
     }
 
     // State check tests
@@ -230,12 +233,7 @@ mod tests {
 
     #[test]
     fn test_all_state_combinations() {
-        let states = [
-            (false, false),
-            (false, true),
-            (true, false),
-            (true, true),
-        ];
+        let states = [(false, false), (false, true), (true, false), (true, true)];
 
         for (splash, main) in states {
             let result = SplashscreenResult::new(splash, main);
