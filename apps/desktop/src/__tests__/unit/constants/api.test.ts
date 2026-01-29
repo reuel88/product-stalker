@@ -18,7 +18,7 @@ describe("COMMANDS constant", () => {
 
 	it("should have snake_case command names", () => {
 		const snakeCasePattern = /^[a-z]+(_[a-z]+)*$/;
-		for (const [key, value] of Object.entries(COMMANDS)) {
+		for (const [_key, value] of Object.entries(COMMANDS)) {
 			expect(value).toMatch(snakeCasePattern);
 		}
 	});

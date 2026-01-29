@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { type Mock, vi } from "vitest";
+import type { Mock } from "vitest";
 
 type InvokeFunction = typeof invoke;
 

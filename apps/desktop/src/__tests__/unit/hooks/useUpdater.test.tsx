@@ -8,11 +8,7 @@ import {
 	createMockUpdateAvailable,
 	createMockUpdateInfo,
 } from "../../mocks/data";
-import {
-	getMockedInvoke,
-	mockInvokeError,
-	mockInvokeMultiple,
-} from "../../mocks/tauri";
+import { getMockedInvoke, mockInvokeMultiple } from "../../mocks/tauri";
 
 function createWrapper() {
 	const queryClient = new QueryClient({

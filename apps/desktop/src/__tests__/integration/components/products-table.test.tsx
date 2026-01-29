@@ -217,7 +217,7 @@ describe("ProductsTable", () => {
 			expect(screen.queryByText("Product 11")).not.toBeInTheDocument();
 
 			// Get all pagination buttons (first, prev, next, last)
-			const paginationButtons = screen
+			const _paginationButtons = screen
 				.getAllByRole("button")
 				.filter((btn) => btn.closest(".flex.items-center.gap-1"));
 
