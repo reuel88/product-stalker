@@ -5,5 +5,14 @@
 		"source.fixAll.biome": "explicit",
 		"source.organizeImports.biome": "explicit"
 	},
-	"vitest.disableWorkspaceWarning": true
+	"vitest.disableWorkspaceWarning": true,
+	"files.autoSave": "onWindowChange",
+	"biome.enabled": true,
+	"biome.configurationPath": "./biome.json",
+	"biome.lsp.trace.server": "verbose",
+	"biome.requireConfiguration": true,
+	"biome.lsp.bin": {
+		"darwin-arm64": "./node_modules/@biomejs/cli-darwin-arm64/bin",
+		"win32-x64": "./node_modules/@biomejs/cli-win32-x64/bin"
+	}
 }
