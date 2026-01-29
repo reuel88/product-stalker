@@ -10,6 +10,5 @@
 	"biome.enabled": true,
 	"biome.configurationPath": "./biome.json",
 	"biome.lsp.trace.server": "verbose",
-	"biome.requireConfiguration": true,
-	"biome.lsp.bin": "./node_modules/.pnpm/@biomejs+cli-win32-x64@2.3.13/node_modules/@biomejs/cli-win32-x64/biome.exe"
+	"biome.requireConfiguration": true
 }
