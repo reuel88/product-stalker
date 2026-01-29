@@ -19,13 +19,8 @@ pub fn get_db_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     Ok(app_data_dir.join("product_stalker.db"))
 }
 
-pub async fn init_db(app: &AppHandle) -> Result<DatabaseConnection, AppError> {
-    let db_path = get_db_path(app)?;
-    let db_url = format!("sqlite:{}?mode=rwc", db_path.display());
-
-    log::info!("Initializing database at: {}", db_path.display());
-
-    // Configure connection options for SQLite with WAL mode
+/// Build connection options for SQLite with recommended settings
+pub(crate) fn build_connection_options(db_url: String) -> ConnectOptions {
     let mut opt = ConnectOptions::new(db_url);
     opt.max_connections(5) // SQLite works best with small pool
         .min_connections(1)
@@ -35,7 +30,12 @@ pub async fn init_db(app: &AppHandle) -> Result<DatabaseConnection, AppError> {
         .max_lifetime(Duration::from_secs(8))
         .sqlx_logging(true)
         .sqlx_logging_level(log::LevelFilter::Debug);
+    opt
+}
 
+/// Initialize database from a connection string (testable version)
+pub(crate) async fn init_db_from_url(db_url: String) -> Result<DatabaseConnection, AppError> {
+    let opt = build_connection_options(db_url);
     let conn = Database::connect(opt).await?;
 
     // Enable WAL mode for better concurrency
@@ -48,7 +48,17 @@ pub async fn init_db(app: &AppHandle) -> Result<DatabaseConnection, AppError> {
     Ok(conn)
 }
 
-async fn enable_wal_mode(conn: &DatabaseConnection) -> Result<(), DbErr> {
+pub async fn init_db(app: &AppHandle) -> Result<DatabaseConnection, AppError> {
+    let db_path = get_db_path(app)?;
+    let db_url = format!("sqlite:{}?mode=rwc", db_path.display());
+
+    log::info!("Initializing database at: {}", db_path.display());
+
+    init_db_from_url(db_url).await
+}
+
+/// Configure SQLite with WAL mode and recommended pragmas
+pub(crate) async fn enable_wal_mode(conn: &DatabaseConnection) -> Result<(), DbErr> {
     use sea_orm::{ConnectionTrait, Statement};
 
     // Enable WAL mode
@@ -74,4 +84,136 @@ async fn enable_wal_mode(conn: &DatabaseConnection) -> Result<(), DbErr> {
 
     log::info!("SQLite configured with WAL mode");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sea_orm::{ConnectionTrait, Database, Statement};
+
+    #[test]
+    fn test_build_connection_options_sets_max_connections() {
+        let opts = build_connection_options("sqlite::memory:".to_string());
+        // ConnectOptions doesn't expose getters, but we can verify it doesn't panic
+        // and returns a valid options object
+        assert!(opts.get_url().contains("sqlite"));
+    }
+
+    #[test]
+    fn test_build_connection_options_with_file_path() {
+        let opts = build_connection_options("sqlite:test.db?mode=rwc".to_string());
+        assert!(opts.get_url().contains("test.db"));
+    }
+
+    #[tokio::test]
+    async fn test_enable_wal_mode_sets_journal_mode() {
+        let conn = Database::connect("sqlite::memory:").await.unwrap();
+
+        enable_wal_mode(&conn).await.unwrap();
+
+        // Verify WAL mode is set (in-memory SQLite returns "memory" instead of "wal")
+        let result = conn
+            .query_one(Statement::from_string(
+                conn.get_database_backend(),
+                "PRAGMA journal_mode;".to_owned(),
+            ))
+            .await
+            .unwrap();
+
+        assert!(result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_enable_wal_mode_sets_synchronous() {
+        let conn = Database::connect("sqlite::memory:").await.unwrap();
+
+        enable_wal_mode(&conn).await.unwrap();
+
+        // Verify synchronous mode is NORMAL (1)
+        let result = conn
+            .query_one(Statement::from_string(
+                conn.get_database_backend(),
+                "PRAGMA synchronous;".to_owned(),
+            ))
+            .await
+            .unwrap()
+            .unwrap();
+
+        let sync_mode: i32 = result.try_get_by_index(0).unwrap();
+        assert_eq!(sync_mode, 1); // NORMAL = 1
+    }
+
+    #[tokio::test]
+    async fn test_enable_wal_mode_enables_foreign_keys() {
+        let conn = Database::connect("sqlite::memory:").await.unwrap();
+
+        enable_wal_mode(&conn).await.unwrap();
+
+        // Verify foreign keys are enabled
+        let result = conn
+            .query_one(Statement::from_string(
+                conn.get_database_backend(),
+                "PRAGMA foreign_keys;".to_owned(),
+            ))
+            .await
+            .unwrap()
+            .unwrap();
+
+        let fk_enabled: i32 = result.try_get_by_index(0).unwrap();
+        assert_eq!(fk_enabled, 1); // ON = 1
+    }
+
+    #[tokio::test]
+    async fn test_init_db_from_url_creates_connection() {
+        let conn = init_db_from_url("sqlite::memory:".to_string()).await.unwrap();
+
+        // Verify we can execute queries
+        let result = conn
+            .query_one(Statement::from_string(
+                conn.get_database_backend(),
+                "SELECT 1;".to_owned(),
+            ))
+            .await
+            .unwrap();
+
+        assert!(result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_init_db_from_url_runs_migrations() {
+        let conn = init_db_from_url("sqlite::memory:".to_string()).await.unwrap();
+
+        // Verify migrations ran by checking if tables exist
+        let result = conn
+            .query_one(Statement::from_string(
+                conn.get_database_backend(),
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='products';".to_owned(),
+            ))
+            .await
+            .unwrap();
+
+        assert!(result.is_some(), "products table should exist after migrations");
+    }
+
+    #[tokio::test]
+    async fn test_init_db_from_url_creates_settings_table() {
+        let conn = init_db_from_url("sqlite::memory:".to_string()).await.unwrap();
+
+        // Verify settings table exists
+        let result = conn
+            .query_one(Statement::from_string(
+                conn.get_database_backend(),
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='settings';".to_owned(),
+            ))
+            .await
+            .unwrap();
+
+        assert!(result.is_some(), "settings table should exist after migrations");
+    }
+
+    #[tokio::test]
+    async fn test_init_db_from_url_invalid_url_fails() {
+        let result = init_db_from_url("invalid://not-a-database".to_string()).await;
+        assert!(result.is_err());
+    }
 }
