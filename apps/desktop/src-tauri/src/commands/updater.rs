@@ -69,7 +69,10 @@ pub async fn check_for_update(app: AppHandle) -> Result<UpdateInfo, AppError> {
     match updater.check().await {
         Ok(Some(update)) => {
             log::info!("Update available: v{}", update.version);
-            Ok(UpdateInfo::available(update.version.clone(), update.body.clone()))
+            Ok(UpdateInfo::available(
+                update.version.clone(),
+                update.body.clone(),
+            ))
         }
         Ok(None) => {
             log::info!("No update available");
