@@ -14,22 +14,34 @@ export default defineConfig({
 			reporter: ["text", "html", "lcov"],
 			reportsDirectory: "./coverage",
 			exclude: [
+				// Build artifacts & dependencies
 				"node_modules/",
 				"dist/",
 				"coverage/",
-				"src-tauri/",
-				"src/__tests__/",
-				"src/components/ui/",
-				"src/routeTree.gen.ts",
-				"**/*.d.ts",
-				"src/main.tsx",
-				"src/vite-env.d.ts",
+
+				// Config files
 				"vite.config.ts",
 				"vitest.config.ts",
+
+				// Entry points & environment
+				"src/main.tsx",
+				"src/vite-env.d.ts",
+
+				// Generated files
+				"src/routeTree.gen.ts",
+
+				// Type definitions (no runtime code)
+				"**/*.d.ts",
 				"src/types/**",
-				"App.tsx",
-				"test-settings.tsx",
-				"__root.tsx",
+				"**/types.ts",
+
+				// Test infrastructure
+				"src/__tests__/",
+
+				// Non-testable source
+				"src-tauri/",
+				"src/routes/**",
+				"src/components/ui/",
 			],
 			thresholds: {
 				statements: 80,
