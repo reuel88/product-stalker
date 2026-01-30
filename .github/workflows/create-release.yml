@@ -41,8 +41,21 @@ jobs:
           current_version=$(jq -r '.version' apps/desktop/src-tauri/tauri.conf.json)
           echo "Current version: $current_version"
 
+          # Normalize version: strip leading 'v' and remove prerelease/build suffixes
+          normalized_version="${current_version#v}"
+          normalized_version="${normalized_version%%-*}"
+          normalized_version="${normalized_version%%+*}"
+          echo "Normalized version: $normalized_version"
+
+          # Validate version format (must be MAJOR.MINOR.PATCH with numeric components)
+          if ! [[ "$normalized_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Invalid version format '$current_version' (normalized: '$normalized_version')"
+            echo "Expected format: MAJOR.MINOR.PATCH (e.g., '1.2.3' or 'v1.2.3-beta.1')"
+            exit 1
+          fi
+
           # Parse version components
-          IFS='.' read -r major minor patch <<< "$current_version"
+          IFS='.' read -r major minor patch <<< "$normalized_version"
 
           # Calculate new version based on bump type
           case "${{ inputs.bump }}" in
@@ -55,6 +68,10 @@ jobs:
             patch)
               new_version="${major}.${minor}.$((patch + 1))"
               ;;
+            *)
+              echo "Error: Invalid bump value '${{ inputs.bump }}'. Must be one of: major, minor, patch" >&2
+              exit 1
+              ;;
           esac
 
           echo "New version: $new_version"
@@ -63,7 +80,7 @@ jobs:
       - name: Update tauri.conf.json version
         run: |
           cd apps/desktop/src-tauri
-          jq '.version = "${{ steps.version.outputs.clean }}"' tauri.conf.json > tmp.json && mv tmp.json tauri.conf.json
+          jq --arg version "${{ steps.version.outputs.clean }}" '.version = $version' tauri.conf.json > tmp.json && mv tmp.json tauri.conf.json
 
       - name: Update Cargo.toml version
         run: |
