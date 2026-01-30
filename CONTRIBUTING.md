@@ -105,7 +105,7 @@ cargo tarpaulin --ignore-tests --fail-under 50  # Coverage (50% threshold)
 
 ## Release Process (Maintainers)
 
-Releases are created through a two-stage GitHub Actions workflow. The process creates a draft release first, allowing you to review the build artifacts before making them public.
+Releases are created through a three-stage draft-first workflow. The automated stages create a draft release, allowing you to review build artifacts before manually publishing.
 
 ### Stage 1: Create Release Tag
 
@@ -114,16 +114,19 @@ Releases are created through a two-stage GitHub Actions workflow. The process cr
 3. **Ensure "Branch: main" is selected** in the dropdown
    - The workflow enforces this and will fail if run from another branch
    - This prevents accidental releases from feature branches
-4. Enter the version number (e.g., `0.2.0`)
-   - Do not include the "v" prefix (the workflow adds it automatically)
-   - The workflow validates that the new version is greater than the current version
+4. Select the version bump type from the dropdown:
+   - **patch** - Bug fixes and minor changes (1.2.3 → 1.2.4)
+   - **minor** - New features, backwards compatible (1.2.3 → 1.3.0)
+   - **major** - Breaking changes (1.2.3 → 2.0.0)
 5. Click **"Run workflow"** to start
 6. The workflow automatically:
+   - Reads the current version from `tauri.conf.json`
+   - Calculates the new version based on your selection
    - Updates version in `tauri.conf.json` and `Cargo.toml`
    - Commits the version bump to main
-   - Creates and pushes a `v{version}` tag (e.g., `v0.2.0`)
+   - Creates and pushes a `v{version}` tag
 
-### Stage 2: Build and Publish
+### Stage 2: Build and Create Draft Release
 
 7. The tag push triggers the **"Release"** workflow, which builds the app for all platforms:
    - Windows (x64)
@@ -131,6 +134,7 @@ Releases are created through a two-stage GitHub Actions workflow. The process cr
    - macOS Apple Silicon (ARM64)
    - Linux (x64)
 8. Once all builds complete, a **draft release** is created with all artifacts attached
+   - The workflow uses `releaseDraft: true`, so releases are never auto-published
    - Draft releases are only visible to maintainers
    - This gives you a chance to verify builds before publishing
 
@@ -144,13 +148,16 @@ Releases are created through a two-stage GitHub Actions workflow. The process cr
     - `.AppImage` / `.deb` for Linux
     - `latest.json` for the auto-updater
 12. Optionally edit the release notes to add changelog details
-13. Click **"Publish release"** to make it public
+13. Click **"Publish release"** to convert the draft to a public release
+    - This is the only way releases become public (drafts are never auto-published)
     - Once published, the release is visible to all users
     - The auto-updater will detect the new version and notify users
 
-### Signing Keys Setup
+### Signing Keys Setup (One-Time)
 
-For maintainers setting up a new repository:
+> **Why signing keys?** The app uses cryptographic signing to enable secure auto-updates. When users update, the app verifies the download hasn't been tampered with. Without valid signing keys, releases cannot be built.
+
+This setup is only needed once when configuring a new repository fork:
 
 1. Generate signing keys:
    ```bash
@@ -163,4 +170,4 @@ For maintainers setting up a new repository:
 
 3. Update `apps/desktop/src-tauri/tauri.conf.json` with the public key
 
-See `docs/MAINTAINER.md` for detailed signing key management.
+See `docs/MAINTAINERS.md` for detailed signing key management, troubleshooting, and key rotation procedures.

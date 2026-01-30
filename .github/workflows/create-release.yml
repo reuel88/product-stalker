@@ -3,10 +3,14 @@ name: Create Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version number (e.g., 0.2.0)'
+      bump:
+        description: 'Version bump type'
         required: true
-        type: string
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 jobs:
   create-release:
@@ -31,30 +35,30 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Validate and normalize version
+      - name: Calculate new version
         id: version
         run: |
           current_version=$(jq -r '.version' apps/desktop/src-tauri/tauri.conf.json)
+          echo "Current version: $current_version"
 
-          # Strip leading 'v' if present (allows user to enter "v0.2.0" or "0.2.0")
-          new_version="${{ inputs.version }}"
-          new_version="${new_version#v}"
+          # Parse version components
+          IFS='.' read -r major minor patch <<< "$current_version"
 
-          # Export cleaned version for use in subsequent steps
+          # Calculate new version based on bump type
+          case "${{ inputs.bump }}" in
+            major)
+              new_version="$((major + 1)).0.0"
+              ;;
+            minor)
+              new_version="${major}.$((minor + 1)).0"
+              ;;
+            patch)
+              new_version="${major}.${minor}.$((patch + 1))"
+              ;;
+          esac
+
+          echo "New version: $new_version"
           echo "clean=$new_version" >> $GITHUB_OUTPUT
-
-          # Compare versions using sort -V
-          highest=$(printf '%s\n%s' "$current_version" "$new_version" | sort -V | tail -n1)
-
-          if [ "$new_version" = "$current_version" ]; then
-            echo "Error: New version ($new_version) is the same as current version ($current_version)"
-            exit 1
-          elif [ "$highest" != "$new_version" ]; then
-            echo "Error: New version ($new_version) must be greater than current version ($current_version)"
-            exit 1
-          fi
-
-          echo "Version bump validated: $current_version -> $new_version"
 
       - name: Update tauri.conf.json version
         run: |
