@@ -72,6 +72,30 @@ jobs:
           projectPath: apps/desktop
           tagName: v__VERSION__
           releaseName: 'Product Stalker v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseBody: |
+            ## Download
+
+            | Platform | Architecture | Recommended | File Extension |
+            |----------|--------------|-------------|----------------|
+            | **Windows** | x64 | `.exe` | `_x64-setup.exe` |
+            | **macOS** | Apple Silicon (M1/M2/M3) | `.dmg` | `_aarch64.dmg` |
+            | **macOS** | Intel | `.dmg` | `_x64.dmg` |
+            | **Linux** | x64 | `.AppImage` | `_amd64.AppImage` |
+
+            ## Installation
+
+            ### Windows
+            - **`.exe`** - Installer wizard with step-by-step setup. Best for most users.
+            - **`.msi`** - Windows Installer package. Preferred for enterprise/IT deployment, supports silent install and Group Policy.
+
+            ### macOS
+            - Open the `.dmg` file and drag the app to your Applications folder.
+            - On first launch, you may need to right-click and select "Open" to bypass Gatekeeper.
+
+            ### Linux
+            - **`.AppImage`** - Portable, works on most distributions. Make executable with `chmod +x` and run directly.
+            - **`.deb`** - For Debian, Ubuntu, and derivatives. Install with `sudo dpkg -i <file>.deb`.
+            - **`.rpm`** - For Fedora, RHEL, and derivatives. Install with `sudo rpm -i <file>.rpm`.
           releaseDraft: true
           prerelease: false
+          includeUpdaterJson: true
