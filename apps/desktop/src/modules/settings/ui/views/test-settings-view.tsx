@@ -17,7 +17,7 @@ interface LogEntry {
 	message: string;
 }
 
-export function TestSettingsComponent() {
+export function TestSettingsView() {
 	const { settings, isLoading, updateSettingsAsync } = useSettings();
 	const { theme: domTheme, setTheme } = useTheme();
 	const [log, setLog] = useState<LogEntry[]>([]);

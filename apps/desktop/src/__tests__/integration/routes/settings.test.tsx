@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS, MESSAGES } from "@/constants";
 import { SettingsSkeleton } from "@/modules/settings/ui/components/settings-skeleton";
-import { SettingsComponent } from "@/modules/settings/ui/views/settings";
+import { SettingsView } from "@/modules/settings/ui/views/settings-view";
 import {
 	createMockSettings,
 	createMockUpdateAvailable,
@@ -41,7 +41,7 @@ describe("SettingsComponent", () => {
 			// Never resolve to keep loading state
 			getMockedInvoke().mockImplementation(() => new Promise(() => {}));
 
-			render(<SettingsComponent />);
+			render(<SettingsView />);
 
 			// SettingsComponent shows SettingsSkeleton when loading
 			// The skeleton doesn't have the Settings title visible
@@ -63,7 +63,7 @@ describe("SettingsComponent", () => {
 				return Promise.reject(new Error(`Unmocked: ${cmd}`));
 			});
 
-			render(<SettingsComponent />);
+			render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Failed to load settings")).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe("SettingsComponent", () => {
 				[COMMANDS.GET_CURRENT_VERSION]: "1.0.0",
 			});
 
-			render(<SettingsComponent />);
+			render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Settings")).toBeInTheDocument();
@@ -98,7 +98,7 @@ describe("SettingsComponent", () => {
 				[COMMANDS.GET_CURRENT_VERSION]: "1.2.3",
 			});
 
-			render(<SettingsComponent />);
+			render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("v1.2.3")).toBeInTheDocument();
@@ -116,7 +116,7 @@ describe("SettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Settings")).toBeInTheDocument();
@@ -151,7 +151,7 @@ describe("SettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Show in tray")).toBeInTheDocument();
@@ -180,7 +180,7 @@ describe("SettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Enable notifications")).toBeInTheDocument();
@@ -208,7 +208,7 @@ describe("SettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Launch at login")).toBeInTheDocument();
@@ -235,7 +235,7 @@ describe("SettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Enable logging")).toBeInTheDocument();
@@ -262,7 +262,7 @@ describe("SettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Sidebar expanded")).toBeInTheDocument();
@@ -294,7 +294,7 @@ describe("SettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Log level")).toBeInTheDocument();
@@ -327,7 +327,7 @@ describe("SettingsComponent", () => {
 				[COMMANDS.CHECK_FOR_UPDATE]: noUpdate,
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Check for Updates")).toBeInTheDocument();
@@ -350,7 +350,7 @@ describe("SettingsComponent", () => {
 				[COMMANDS.CHECK_FOR_UPDATE]: updateAvailable,
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Check for Updates")).toBeInTheDocument();
@@ -374,7 +374,7 @@ describe("SettingsComponent", () => {
 				return Promise.reject(new Error(`Unmocked: ${cmd}`));
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Check for Updates")).toBeInTheDocument();
@@ -401,7 +401,7 @@ describe("SettingsComponent", () => {
 				return Promise.reject(new Error(`Unmocked: ${cmd}`));
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Check for Updates")).toBeInTheDocument();
@@ -430,7 +430,7 @@ describe("SettingsComponent", () => {
 				return Promise.reject(new Error(`Unmocked: ${cmd}`));
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Check for Updates")).toBeInTheDocument();
@@ -463,7 +463,7 @@ describe("SettingsComponent", () => {
 				return Promise.reject(new Error(`Unmocked: ${cmd}`));
 			});
 
-			const { user } = render(<SettingsComponent />);
+			const { user } = render(<SettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Check for Updates")).toBeInTheDocument();

@@ -26,7 +26,7 @@ import { useUpdater } from "@/modules/settings/hooks/useUpdater";
 import { SettingsSkeleton } from "@/modules/settings/ui/components/settings-skeleton";
 import { useTheme } from "@/modules/shared/providers/theme-provider";
 
-export function SettingsComponent() {
+export function SettingsView() {
 	const { settings, isLoading, updateSettingsAsync } = useSettings();
 	const { setTheme } = useTheme();
 	const {

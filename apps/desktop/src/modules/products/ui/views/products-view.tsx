@@ -27,8 +27,9 @@ import {
 } from "@/modules/products/hooks/useProducts";
 import type { ProductResponse } from "@/modules/products/types";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
+import { ErrorState } from "@/modules/shared/ui/components/error-state";
 
-export function ProductsComponent() {
+export function ProductsView() {
 	const {
 		products,
 		isLoading,
@@ -136,8 +137,11 @@ export function ProductsComponent() {
 
 	if (error) {
 		return (
-			<div className="container mx-auto max-w-4xl px-4 py-6">
-				<p className="text-muted-foreground">Failed to load products</p>
+			<div className="flex h-screen w-full flex-col items-center justify-center">
+				<ErrorState
+					title="Failed to load products"
+					description="Please try again later"
+				/>
 			</div>
 		);
 	}

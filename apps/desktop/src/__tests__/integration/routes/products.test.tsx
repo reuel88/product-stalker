@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS, MESSAGES } from "@/constants";
-import { ProductsComponent } from "@/modules/products/ui/views/products";
+import { ProductsView } from "@/modules/products/ui/views/products-view";
 import { createMockProduct } from "../../mocks/data";
 import {
 	getMockedInvoke,
@@ -31,7 +31,7 @@ describe("ProductsComponent", () => {
 			// Delay the response to see loading state
 			getMockedInvoke().mockImplementation(() => new Promise(() => {}));
 
-			render(<ProductsComponent />);
+			render(<ProductsView />);
 
 			// The ProductsTable shows skeleton when loading
 			expect(screen.getByText("All Products")).toBeInTheDocument();
@@ -42,7 +42,7 @@ describe("ProductsComponent", () => {
 		it("should show error message when products fail to load", async () => {
 			mockInvokeError(COMMANDS.GET_PRODUCTS, "Failed to fetch");
 
-			render(<ProductsComponent />);
+			render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Failed to load products")).toBeInTheDocument();
@@ -60,7 +60,7 @@ describe("ProductsComponent", () => {
 				[COMMANDS.GET_PRODUCTS]: products,
 			});
 
-			render(<ProductsComponent />);
+			render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Product One")).toBeInTheDocument();
@@ -73,7 +73,7 @@ describe("ProductsComponent", () => {
 				[COMMANDS.GET_PRODUCTS]: [],
 			});
 
-			render(<ProductsComponent />);
+			render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("No products found")).toBeInTheDocument();
@@ -87,7 +87,7 @@ describe("ProductsComponent", () => {
 				[COMMANDS.GET_PRODUCTS]: [],
 			});
 
-			const { user } = render(<ProductsComponent />);
+			const { user } = render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Add Product")).toBeInTheDocument();
@@ -108,7 +108,7 @@ describe("ProductsComponent", () => {
 				[COMMANDS.CREATE_PRODUCT]: newProduct,
 			});
 
-			const { user } = render(<ProductsComponent />);
+			const { user } = render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Add Product")).toBeInTheDocument();
@@ -134,7 +134,7 @@ describe("ProductsComponent", () => {
 				[COMMANDS.GET_PRODUCTS]: [],
 			});
 
-			const { user } = render(<ProductsComponent />);
+			const { user } = render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Add Product")).toBeInTheDocument();
@@ -158,7 +158,7 @@ describe("ProductsComponent", () => {
 				return Promise.reject(new Error(`Unmocked: ${cmd}`));
 			});
 
-			const { user } = render(<ProductsComponent />);
+			const { user } = render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Add Product")).toBeInTheDocument();
@@ -192,7 +192,7 @@ describe("ProductsComponent", () => {
 				[COMMANDS.GET_PRODUCTS]: [product],
 			});
 
-			const { user } = render(<ProductsComponent />);
+			const { user } = render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Existing Product")).toBeInTheDocument();
@@ -221,7 +221,7 @@ describe("ProductsComponent", () => {
 				[COMMANDS.UPDATE_PRODUCT]: updatedProduct,
 			});
 
-			const { user } = render(<ProductsComponent />);
+			const { user } = render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Old Name")).toBeInTheDocument();
@@ -256,7 +256,7 @@ describe("ProductsComponent", () => {
 				[COMMANDS.GET_PRODUCTS]: [product],
 			});
 
-			const { user } = render(<ProductsComponent />);
+			const { user } = render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("To Delete")).toBeInTheDocument();
@@ -285,7 +285,7 @@ describe("ProductsComponent", () => {
 				[COMMANDS.DELETE_PRODUCT]: undefined,
 			});
 
-			const { user } = render(<ProductsComponent />);
+			const { user } = render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("To Delete")).toBeInTheDocument();
@@ -325,7 +325,7 @@ describe("ProductsComponent", () => {
 				return Promise.reject(new Error(`Unmocked: ${cmd}`));
 			});
 
-			const { user } = render(<ProductsComponent />);
+			const { user } = render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("To Delete")).toBeInTheDocument();
@@ -362,7 +362,7 @@ describe("ProductsComponent", () => {
 				[COMMANDS.GET_PRODUCTS]: [product],
 			});
 
-			const { user } = render(<ProductsComponent />);
+			const { user } = render(<ProductsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("To Delete")).toBeInTheDocument();

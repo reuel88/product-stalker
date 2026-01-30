@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TestSettingsComponent } from "@/modules/settings/ui/views/test-settings";
+import { TestSettingsView } from "@/modules/settings/ui/views/test-settings-view";
 
 export const Route = createFileRoute("/test-settings")({
-	component: TestSettingsComponent,
+	component: TestSettingsView,
 });
