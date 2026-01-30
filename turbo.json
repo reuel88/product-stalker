@@ -13,6 +13,19 @@
 		"check-types": {
 			"dependsOn": ["^check-types"]
 		},
+		"test": {
+			"dependsOn": ["^build"],
+			"inputs": ["$TURBO_DEFAULT$", "src/**", "vitest.config.ts"],
+			"outputs": []
+		},
+		"check": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"**/*.{js,ts,tsx,json,jsonc}",
+				"biome.json"
+			],
+			"outputs": []
+		},
 		"dev": {
 			"cache": false,
 			"persistent": true

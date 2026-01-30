@@ -1,6 +1,6 @@
 pnpm run check
 pnpm run check-types
-pnpm -F desktop test:run
+pnpm run test
 
 # Rust checks
 cd apps/desktop/src-tauri
