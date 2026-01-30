@@ -10,5 +10,6 @@
 	"biome.enabled": true,
 	"biome.configurationPath": "./biome.json",
 	"biome.lsp.trace.server": "verbose",
-	"biome.requireConfiguration": true
+	"biome.requireConfiguration": true,
+	"biome.lsp.bin": "./node_modules/@biomejs/biome/bin/biome"
 }

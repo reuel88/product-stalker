@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS } from "@/constants";
-import { TestSettingsComponent } from "@/modules/settings/ui/views/test-settings";
+import { TestSettingsView } from "@/modules/settings/ui/views/test-settings-view";
 import { createMockSettings } from "../../mocks/data";
 import { getMockedInvoke, mockInvokeMultiple } from "../../mocks/tauri";
 import { render, screen, waitFor } from "../../test-utils";
@@ -35,7 +35,7 @@ describe("TestSettingsComponent", () => {
 		it("should show loading message while loading", async () => {
 			getMockedInvoke().mockImplementation(() => new Promise(() => {}));
 
-			render(<TestSettingsComponent />);
+			render(<TestSettingsView />);
 
 			expect(screen.getByText("Loading settings...")).toBeInTheDocument();
 		});
@@ -45,7 +45,7 @@ describe("TestSettingsComponent", () => {
 		it("should show error message when settings fail to load", async () => {
 			getMockedInvoke().mockRejectedValue(new Error("Failed"));
 
-			render(<TestSettingsComponent />);
+			render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Failed to load settings")).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe("TestSettingsComponent", () => {
 				[COMMANDS.GET_SETTINGS]: createMockSettings(),
 			});
 
-			render(<TestSettingsComponent />);
+			render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Settings Feature Tests")).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe("TestSettingsComponent", () => {
 				[COMMANDS.GET_SETTINGS]: settings,
 			});
 
-			render(<TestSettingsComponent />);
+			render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText(/"theme": "dark"/)).toBeInTheDocument();
@@ -96,7 +96,7 @@ describe("TestSettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<TestSettingsComponent />);
+			const { user } = render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Set Light")).toBeInTheDocument();
@@ -121,7 +121,7 @@ describe("TestSettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<TestSettingsComponent />);
+			const { user } = render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Set Dark")).toBeInTheDocument();
@@ -143,7 +143,7 @@ describe("TestSettingsComponent", () => {
 				return Promise.reject(new Error(`Unmocked: ${cmd}`));
 			});
 
-			const { user } = render(<TestSettingsComponent />);
+			const { user } = render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Set Light")).toBeInTheDocument();
@@ -166,7 +166,7 @@ describe("TestSettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<TestSettingsComponent />);
+			const { user } = render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Toggle show_in_tray")).toBeInTheDocument();
@@ -197,7 +197,7 @@ describe("TestSettingsComponent", () => {
 				return Promise.reject(new Error(`Unmocked: ${cmd}`));
 			});
 
-			const { user } = render(<TestSettingsComponent />);
+			const { user } = render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Toggle show_in_tray")).toBeInTheDocument();
@@ -220,7 +220,7 @@ describe("TestSettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<TestSettingsComponent />);
+			const { user } = render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("debug")).toBeInTheDocument();
@@ -251,7 +251,7 @@ describe("TestSettingsComponent", () => {
 				return Promise.reject(new Error(`Unmocked: ${cmd}`));
 			});
 
-			const { user } = render(<TestSettingsComponent />);
+			const { user } = render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("debug")).toBeInTheDocument();
@@ -272,7 +272,7 @@ describe("TestSettingsComponent", () => {
 				[COMMANDS.SEND_NOTIFICATION]: true,
 			});
 
-			const { user } = render(<TestSettingsComponent />);
+			const { user } = render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Send Test Notification")).toBeInTheDocument();
@@ -305,7 +305,7 @@ describe("TestSettingsComponent", () => {
 				[COMMANDS.SEND_NOTIFICATION]: false,
 			});
 
-			const { user } = render(<TestSettingsComponent />);
+			const { user } = render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Send Test Notification")).toBeInTheDocument();
@@ -327,7 +327,7 @@ describe("TestSettingsComponent", () => {
 				return Promise.reject(new Error(`Unmocked: ${cmd}`));
 			});
 
-			const { user } = render(<TestSettingsComponent />);
+			const { user } = render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Send Test Notification")).toBeInTheDocument();
@@ -347,7 +347,7 @@ describe("TestSettingsComponent", () => {
 				[COMMANDS.GET_SETTINGS]: createMockSettings(),
 			});
 
-			render(<TestSettingsComponent />);
+			render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("No test results yet")).toBeInTheDocument();
@@ -362,7 +362,7 @@ describe("TestSettingsComponent", () => {
 				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
 			});
 
-			const { user } = render(<TestSettingsComponent />);
+			const { user } = render(<TestSettingsView />);
 
 			await waitFor(() => {
 				expect(screen.getByText("Set Dark")).toBeInTheDocument();
