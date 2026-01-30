@@ -31,10 +31,17 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Validate version is greater than current
+      - name: Validate and normalize version
+        id: version
         run: |
           current_version=$(jq -r '.version' apps/desktop/src-tauri/tauri.conf.json)
+
+          # Strip leading 'v' if present (allows user to enter "v0.2.0" or "0.2.0")
           new_version="${{ inputs.version }}"
+          new_version="${new_version#v}"
+
+          # Export cleaned version for use in subsequent steps
+          echo "clean=$new_version" >> $GITHUB_OUTPUT
 
           # Compare versions using sort -V
           highest=$(printf '%s\n%s' "$current_version" "$new_version" | sort -V | tail -n1)
@@ -52,20 +59,20 @@ jobs:
       - name: Update tauri.conf.json version
         run: |
           cd apps/desktop/src-tauri
-          jq '.version = "${{ inputs.version }}"' tauri.conf.json > tmp.json && mv tmp.json tauri.conf.json
+          jq '.version = "${{ steps.version.outputs.clean }}"' tauri.conf.json > tmp.json && mv tmp.json tauri.conf.json
 
       - name: Update Cargo.toml version
         run: |
           cd apps/desktop/src-tauri
-          sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' Cargo.toml
+          sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.clean }}"/' Cargo.toml
 
       - name: Commit version changes
         run: |
           git add apps/desktop/src-tauri/tauri.conf.json apps/desktop/src-tauri/Cargo.toml
-          git commit -m "Release v${{ inputs.version }}"
+          git commit -m "Release v${{ steps.version.outputs.clean }}"
 
       - name: Create and push tag
         run: |
-          git tag "v${{ inputs.version }}"
+          git tag "v${{ steps.version.outputs.clean }}"
           git push origin HEAD:main
-          git push origin "v${{ inputs.version }}"
+          git push origin "v${{ steps.version.outputs.clean }}"
