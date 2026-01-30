@@ -105,18 +105,48 @@ cargo tarpaulin --ignore-tests --fail-under 50  # Coverage (50% threshold)
 
 ## Release Process (Maintainers)
 
-Releases are created through the GitHub Actions workflow:
+Releases are created through a two-stage GitHub Actions workflow. The process creates a draft release first, allowing you to review the build artifacts before making them public.
 
-1. Go to Actions > "Create Release"
-2. Click "Run workflow"
-3. **Ensure "Branch: main" is selected** (the workflow only runs from main)
+### Stage 1: Create Release Tag
+
+1. Go to **Actions** > **"Create Release"** workflow
+2. Click **"Run workflow"**
+3. **Ensure "Branch: main" is selected** in the dropdown
+   - The workflow enforces this and will fail if run from another branch
+   - This prevents accidental releases from feature branches
 4. Enter the version number (e.g., `0.2.0`)
-5. The workflow will:
-   - Update version in `tauri.conf.json` and `Cargo.toml`
-   - Commit the changes
-   - Create and push a version tag
-6. The tag triggers the Release workflow which builds for all platforms
-7. Review and publish the draft release on GitHub
+   - Do not include the "v" prefix (the workflow adds it automatically)
+   - The workflow validates that the new version is greater than the current version
+5. Click **"Run workflow"** to start
+6. The workflow automatically:
+   - Updates version in `tauri.conf.json` and `Cargo.toml`
+   - Commits the version bump to main
+   - Creates and pushes a `v{version}` tag (e.g., `v0.2.0`)
+
+### Stage 2: Build and Publish
+
+7. The tag push triggers the **"Release"** workflow, which builds the app for all platforms:
+   - Windows (x64)
+   - macOS Intel (x64)
+   - macOS Apple Silicon (ARM64)
+   - Linux (x64)
+8. Once all builds complete, a **draft release** is created with all artifacts attached
+   - Draft releases are only visible to maintainers
+   - This gives you a chance to verify builds before publishing
+
+### Stage 3: Review and Publish
+
+9. Go to **Releases** page on GitHub
+10. Click on the draft release to review it
+11. Verify the assets include all expected installers:
+    - `.msi` / `.exe` for Windows
+    - `.dmg` for macOS (both Intel and ARM)
+    - `.AppImage` / `.deb` for Linux
+    - `latest.json` for the auto-updater
+12. Optionally edit the release notes to add changelog details
+13. Click **"Publish release"** to make it public
+    - Once published, the release is visible to all users
+    - The auto-updater will detect the new version and notify users
 
 ### Signing Keys Setup
 
