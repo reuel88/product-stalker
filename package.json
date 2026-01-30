@@ -12,7 +12,8 @@
 		"check-types": "turbo check-types",
 		"dev:native": "turbo -F native dev",
 		"dev:desktop": "turbo -F desktop dev",
-		"check": "biome check --write .",
+		"check": "turbo check",
+		"test": "turbo test",
 		"prepare": "husky"
 	},
 	"dependencies": {
