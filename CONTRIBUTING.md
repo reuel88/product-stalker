@@ -109,13 +109,14 @@ Releases are created through the GitHub Actions workflow:
 
 1. Go to Actions > "Create Release"
 2. Click "Run workflow"
-3. Enter the version number (e.g., `0.2.0`)
-4. The workflow will:
+3. **Ensure "Branch: main" is selected** (the workflow only runs from main)
+4. Enter the version number (e.g., `0.2.0`)
+5. The workflow will:
    - Update version in `tauri.conf.json` and `Cargo.toml`
    - Commit the changes
    - Create and push a version tag
-5. The tag triggers the Release workflow which builds for all platforms
-6. Review and publish the draft release on GitHub
+6. The tag triggers the Release workflow which builds for all platforms
+7. Review and publish the draft release on GitHub
 
 ### Signing Keys Setup
 
