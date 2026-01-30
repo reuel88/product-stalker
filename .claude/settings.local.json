@@ -5,8 +5,10 @@
 			"WebFetch(domain:api.github.com)",
 			"WebFetch(domain:github.com)",
 			"WebFetch(domain:v2.tauri.app)",
-			"Bash(npm test)",
-			"Bash(cargo test:*)"
+			"Bash(pnpm test:*)",
+			"Bash(pnpm check:*)",
+			"Bash(cargo test:*)",
+			"Bash(cargo fmt:*)"
 		]
 	}
 }

@@ -146,4 +146,150 @@ mod tests {
         assert_eq!(response.description, Some("A description".to_string()));
         assert!(response.notes.is_none());
     }
+
+    #[test]
+    fn test_product_response_from_model_with_all_fields() {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+        let model = ProductModel {
+            id,
+            name: "Full Product".to_string(),
+            url: "https://full.example.com".to_string(),
+            description: Some("Full description".to_string()),
+            notes: Some("Some notes".to_string()),
+            created_at: now,
+            updated_at: now,
+        };
+
+        let response = ProductResponse::from(model);
+
+        assert_eq!(response.id, id.to_string());
+        assert_eq!(response.name, "Full Product");
+        assert_eq!(response.url, "https://full.example.com");
+        assert_eq!(response.description, Some("Full description".to_string()));
+        assert_eq!(response.notes, Some("Some notes".to_string()));
+        assert!(!response.created_at.is_empty());
+        assert!(!response.updated_at.is_empty());
+    }
+
+    #[test]
+    fn test_product_response_from_model_with_no_optional_fields() {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+        let model = ProductModel {
+            id,
+            name: "Minimal Product".to_string(),
+            url: "https://minimal.example.com".to_string(),
+            description: None,
+            notes: None,
+            created_at: now,
+            updated_at: now,
+        };
+
+        let response = ProductResponse::from(model);
+
+        assert_eq!(response.name, "Minimal Product");
+        assert!(response.description.is_none());
+        assert!(response.notes.is_none());
+    }
+
+    #[test]
+    fn test_product_response_serializes_to_json() {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+        let model = ProductModel {
+            id,
+            name: "JSON Test".to_string(),
+            url: "https://json.test".to_string(),
+            description: Some("Test desc".to_string()),
+            notes: None,
+            created_at: now,
+            updated_at: now,
+        };
+
+        let response = ProductResponse::from(model);
+        let json = serde_json::to_string(&response).unwrap();
+
+        assert!(json.contains("JSON Test"));
+        assert!(json.contains("https://json.test"));
+        assert!(json.contains(&id.to_string()));
+    }
+
+    #[test]
+    fn test_create_product_input_deserializes() {
+        let json =
+            r#"{"name":"Test","url":"https://test.com","description":"desc","notes":"note"}"#;
+        let input: CreateProductInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.name, "Test");
+        assert_eq!(input.url, "https://test.com");
+        assert_eq!(input.description, Some("desc".to_string()));
+        assert_eq!(input.notes, Some("note".to_string()));
+    }
+
+    #[test]
+    fn test_create_product_input_deserializes_minimal() {
+        let json = r#"{"name":"Test","url":"https://test.com"}"#;
+        let input: CreateProductInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.name, "Test");
+        assert_eq!(input.url, "https://test.com");
+        assert!(input.description.is_none());
+        assert!(input.notes.is_none());
+    }
+
+    #[test]
+    fn test_update_product_input_deserializes_partial() {
+        let json = r#"{"name":"Updated Name"}"#;
+        let input: UpdateProductInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.name, Some("Updated Name".to_string()));
+        assert!(input.url.is_none());
+        assert!(input.description.is_none());
+        assert!(input.notes.is_none());
+    }
+
+    #[test]
+    fn test_update_product_input_deserializes_all_fields() {
+        let json =
+            r#"{"name":"Name","url":"https://url.com","description":"desc","notes":"notes"}"#;
+        let input: UpdateProductInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.name, Some("Name".to_string()));
+        assert_eq!(input.url, Some("https://url.com".to_string()));
+        assert_eq!(input.description, Some("desc".to_string()));
+        assert_eq!(input.notes, Some("notes".to_string()));
+    }
+
+    #[test]
+    fn test_update_product_input_deserializes_empty() {
+        let json = r#"{}"#;
+        let input: UpdateProductInput = serde_json::from_str(json).unwrap();
+
+        assert!(input.name.is_none());
+        assert!(input.url.is_none());
+        assert!(input.description.is_none());
+        assert!(input.notes.is_none());
+    }
+
+    #[test]
+    fn test_product_response_timestamps_are_rfc3339() {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+        let model = ProductModel {
+            id,
+            name: "Timestamp Test".to_string(),
+            url: "https://time.test".to_string(),
+            description: None,
+            notes: None,
+            created_at: now,
+            updated_at: now,
+        };
+
+        let response = ProductResponse::from(model);
+
+        // RFC3339 format includes 'T' separator and timezone
+        assert!(response.created_at.contains('T'));
+        assert!(response.updated_at.contains('T'));
+    }
 }

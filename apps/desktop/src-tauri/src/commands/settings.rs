@@ -132,4 +132,164 @@ mod tests {
         assert!(response.enable_notifications);
         assert!(!response.sidebar_expanded);
     }
+
+    #[test]
+    fn test_settings_response_from_model_light_theme() {
+        let now = Utc::now();
+        let model = SettingModel {
+            id: 1,
+            theme: "light".to_string(),
+            show_in_tray: false,
+            launch_at_login: true,
+            enable_logging: false,
+            log_level: "error".to_string(),
+            enable_notifications: false,
+            sidebar_expanded: true,
+            updated_at: now,
+        };
+
+        let response = SettingsResponse::from(model);
+
+        assert_eq!(response.theme, "light");
+        assert!(!response.show_in_tray);
+        assert!(response.launch_at_login);
+        assert!(!response.enable_logging);
+        assert_eq!(response.log_level, "error");
+        assert!(!response.enable_notifications);
+        assert!(response.sidebar_expanded);
+    }
+
+    #[test]
+    fn test_settings_response_from_model_system_theme() {
+        let now = Utc::now();
+        let model = SettingModel {
+            id: 1,
+            theme: "system".to_string(),
+            show_in_tray: true,
+            launch_at_login: true,
+            enable_logging: true,
+            log_level: "debug".to_string(),
+            enable_notifications: true,
+            sidebar_expanded: true,
+            updated_at: now,
+        };
+
+        let response = SettingsResponse::from(model);
+
+        assert_eq!(response.theme, "system");
+        assert_eq!(response.log_level, "debug");
+    }
+
+    #[test]
+    fn test_settings_response_serializes_to_json() {
+        let now = Utc::now();
+        let model = SettingModel {
+            id: 1,
+            theme: "dark".to_string(),
+            show_in_tray: true,
+            launch_at_login: false,
+            enable_logging: true,
+            log_level: "info".to_string(),
+            enable_notifications: true,
+            sidebar_expanded: false,
+            updated_at: now,
+        };
+
+        let response = SettingsResponse::from(model);
+        let json = serde_json::to_string(&response).unwrap();
+
+        assert!(json.contains("\"theme\":\"dark\""));
+        assert!(json.contains("\"show_in_tray\":true"));
+        assert!(json.contains("\"log_level\":\"info\""));
+    }
+
+    #[test]
+    fn test_settings_response_timestamp_is_rfc3339() {
+        let now = Utc::now();
+        let model = SettingModel {
+            id: 1,
+            theme: "dark".to_string(),
+            show_in_tray: true,
+            launch_at_login: false,
+            enable_logging: true,
+            log_level: "info".to_string(),
+            enable_notifications: true,
+            sidebar_expanded: false,
+            updated_at: now,
+        };
+
+        let response = SettingsResponse::from(model);
+
+        // RFC3339 format includes 'T' separator
+        assert!(response.updated_at.contains('T'));
+    }
+
+    #[test]
+    fn test_update_settings_input_deserializes_partial() {
+        let json = r#"{"theme":"light"}"#;
+        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.theme, Some("light".to_string()));
+        assert!(input.show_in_tray.is_none());
+        assert!(input.launch_at_login.is_none());
+        assert!(input.enable_logging.is_none());
+        assert!(input.log_level.is_none());
+        assert!(input.enable_notifications.is_none());
+        assert!(input.sidebar_expanded.is_none());
+    }
+
+    #[test]
+    fn test_update_settings_input_deserializes_all_fields() {
+        let json = r#"{
+            "theme": "dark",
+            "show_in_tray": true,
+            "launch_at_login": false,
+            "enable_logging": true,
+            "log_level": "debug",
+            "enable_notifications": false,
+            "sidebar_expanded": true
+        }"#;
+        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.theme, Some("dark".to_string()));
+        assert_eq!(input.show_in_tray, Some(true));
+        assert_eq!(input.launch_at_login, Some(false));
+        assert_eq!(input.enable_logging, Some(true));
+        assert_eq!(input.log_level, Some("debug".to_string()));
+        assert_eq!(input.enable_notifications, Some(false));
+        assert_eq!(input.sidebar_expanded, Some(true));
+    }
+
+    #[test]
+    fn test_update_settings_input_deserializes_empty() {
+        let json = r#"{}"#;
+        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+
+        assert!(input.theme.is_none());
+        assert!(input.show_in_tray.is_none());
+        assert!(input.launch_at_login.is_none());
+        assert!(input.enable_logging.is_none());
+        assert!(input.log_level.is_none());
+        assert!(input.enable_notifications.is_none());
+        assert!(input.sidebar_expanded.is_none());
+    }
+
+    #[test]
+    fn test_update_settings_input_deserializes_booleans_only() {
+        let json = r#"{"show_in_tray":false,"launch_at_login":true}"#;
+        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+
+        assert!(input.theme.is_none());
+        assert_eq!(input.show_in_tray, Some(false));
+        assert_eq!(input.launch_at_login, Some(true));
+    }
+
+    #[test]
+    fn test_update_settings_input_deserializes_log_level_only() {
+        let json = r#"{"log_level":"trace"}"#;
+        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.log_level, Some("trace".to_string()));
+        assert!(input.theme.is_none());
+    }
 }
