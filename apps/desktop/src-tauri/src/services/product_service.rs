@@ -166,6 +166,54 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    async fn test_create_product_validates_url() {
+        let conn = setup_test_db().await;
+        let result =
+            ProductService::create(&conn, "Valid Name".to_string(), "".to_string(), None, None)
+                .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_create_product_success() {
+        let conn = setup_test_db().await;
+        let result = ProductService::create(
+            &conn,
+            "Test Product".to_string(),
+            "https://test.com".to_string(),
+            Some("A description".to_string()),
+            Some("Some notes".to_string()),
+        )
+        .await;
+
+        assert!(result.is_ok());
+        let product = result.unwrap();
+        assert_eq!(product.name, "Test Product");
+        assert_eq!(product.url, "https://test.com");
+        assert_eq!(product.description, Some("A description".to_string()));
+        assert_eq!(product.notes, Some("Some notes".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_create_product_minimal() {
+        let conn = setup_test_db().await;
+        let result = ProductService::create(
+            &conn,
+            "Minimal Product".to_string(),
+            "https://minimal.com".to_string(),
+            None,
+            None,
+        )
+        .await;
+
+        assert!(result.is_ok());
+        let product = result.unwrap();
+        assert_eq!(product.name, "Minimal Product");
+        assert!(product.description.is_none());
+        assert!(product.notes.is_none());
+    }
+
+    #[tokio::test]
     async fn test_get_by_id_not_found() {
         let conn = setup_test_db().await;
         let result = ProductService::get_by_id(&conn, Uuid::new_v4()).await;
@@ -173,9 +221,236 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    async fn test_get_by_id_success() {
+        let conn = setup_test_db().await;
+        let created = ProductService::create(
+            &conn,
+            "Find Me".to_string(),
+            "https://findme.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let found = ProductService::get_by_id(&conn, created.id).await;
+        assert!(found.is_ok());
+        assert_eq!(found.unwrap().name, "Find Me");
+    }
+
+    #[tokio::test]
+    async fn test_get_all_empty() {
+        let conn = setup_test_db().await;
+        let result = ProductService::get_all(&conn).await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_all_multiple() {
+        let conn = setup_test_db().await;
+
+        ProductService::create(
+            &conn,
+            "Product 1".to_string(),
+            "https://p1.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        ProductService::create(
+            &conn,
+            "Product 2".to_string(),
+            "https://p2.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        ProductService::create(
+            &conn,
+            "Product 3".to_string(),
+            "https://p3.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let result = ProductService::get_all(&conn).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_update_product_name() {
+        let conn = setup_test_db().await;
+        let created = ProductService::create(
+            &conn,
+            "Original".to_string(),
+            "https://original.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let updated = ProductService::update(
+            &conn,
+            created.id,
+            Some("Updated Name".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await;
+
+        assert!(updated.is_ok());
+        let product = updated.unwrap();
+        assert_eq!(product.name, "Updated Name");
+        assert_eq!(product.url, "https://original.com");
+    }
+
+    #[tokio::test]
+    async fn test_update_product_url() {
+        let conn = setup_test_db().await;
+        let created = ProductService::create(
+            &conn,
+            "Test".to_string(),
+            "https://old.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let updated = ProductService::update(
+            &conn,
+            created.id,
+            None,
+            Some("https://new.com".to_string()),
+            None,
+            None,
+        )
+        .await;
+
+        assert!(updated.is_ok());
+        let product = updated.unwrap();
+        assert_eq!(product.name, "Test");
+        assert_eq!(product.url, "https://new.com");
+    }
+
+    #[tokio::test]
+    async fn test_update_product_description() {
+        let conn = setup_test_db().await;
+        let created = ProductService::create(
+            &conn,
+            "Test".to_string(),
+            "https://test.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let updated = ProductService::update(
+            &conn,
+            created.id,
+            None,
+            None,
+            Some("New description".to_string()),
+            None,
+        )
+        .await;
+
+        assert!(updated.is_ok());
+        assert_eq!(
+            updated.unwrap().description,
+            Some("New description".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_update_product_not_found() {
+        let conn = setup_test_db().await;
+        let result = ProductService::update(
+            &conn,
+            Uuid::new_v4(),
+            Some("Name".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await;
+
+        assert!(matches!(result, Err(AppError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn test_update_validates_empty_name() {
+        let conn = setup_test_db().await;
+        let created = ProductService::create(
+            &conn,
+            "Test".to_string(),
+            "https://test.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let result =
+            ProductService::update(&conn, created.id, Some("".to_string()), None, None, None).await;
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+    }
+
+    #[tokio::test]
+    async fn test_update_validates_empty_url() {
+        let conn = setup_test_db().await;
+        let created = ProductService::create(
+            &conn,
+            "Test".to_string(),
+            "https://test.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let result =
+            ProductService::update(&conn, created.id, None, Some("".to_string()), None, None).await;
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+    }
+
+    #[tokio::test]
     async fn test_delete_not_found() {
         let conn = setup_test_db().await;
         let result = ProductService::delete(&conn, Uuid::new_v4()).await;
         assert!(matches!(result, Err(AppError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn test_delete_success() {
+        let conn = setup_test_db().await;
+        let created = ProductService::create(
+            &conn,
+            "To Delete".to_string(),
+            "https://delete.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let result = ProductService::delete(&conn, created.id).await;
+        assert!(result.is_ok());
+
+        // Verify it's actually deleted
+        let find_result = ProductService::get_by_id(&conn, created.id).await;
+        assert!(matches!(find_result, Err(AppError::NotFound(_))));
     }
 }
