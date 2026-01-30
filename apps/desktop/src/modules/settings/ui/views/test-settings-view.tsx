@@ -10,6 +10,7 @@ import {
 	useSettings,
 } from "@/modules/settings/hooks/useSettings";
 import { useTheme } from "@/modules/shared/providers/theme-provider";
+import { ErrorState } from "@/modules/shared/ui/components/error-state";
 
 interface LogEntry {
 	timestamp: Date;
@@ -105,8 +106,11 @@ export function TestSettingsView() {
 
 	if (!settings) {
 		return (
-			<div className="container mx-auto max-w-3xl px-4 py-6">
-				<p className="text-muted-foreground">Failed to load settings</p>
+			<div className="flex h-screen w-full flex-col items-center justify-center">
+				<ErrorState
+					title="Failed to load settings"
+					description="Please try again later"
+				/>
 			</div>
 		);
 	}
