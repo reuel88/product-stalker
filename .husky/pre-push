@@ -1,9 +1,18 @@
-pnpm run check
-pnpm run check-types
-pnpm run test
+# Run JS/TS checks in background
+(pnpm run check && pnpm run check-types && pnpm run test) &
+JS_PID=$!
 
-# Rust checks
-cd apps/desktop/src-tauri
-cargo fmt --check
-cargo clippy -- -D warnings
-cargo test
+# Run Rust checks in background
+(cd apps/desktop/src-tauri && cargo fmt --check && cargo clippy -- -D warnings && cargo test) &
+RUST_PID=$!
+
+# Wait for both and exit with error if either fails
+wait $JS_PID
+JS_EXIT=$?
+
+wait $RUST_PID
+RUST_EXIT=$?
+
+if [ $JS_EXIT -ne 0 ] || [ $RUST_EXIT -ne 0 ]; then
+  exit 1
+fi
