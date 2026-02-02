@@ -277,7 +277,8 @@ mod tests {
             </html>
         "#;
 
-        let result = ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+        let result =
+            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
         assert_eq!(
             result.raw_availability,
@@ -307,7 +308,8 @@ mod tests {
             </html>
         "#;
 
-        let result = ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+        let result =
+            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
         assert_eq!(result.status, AvailabilityStatus::OutOfStock);
     }
 
@@ -332,7 +334,8 @@ mod tests {
             </html>
         "#;
 
-        let result = ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+        let result =
+            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
         assert_eq!(result.status, AvailabilityStatus::BackOrder);
     }
 
@@ -365,7 +368,8 @@ mod tests {
             </html>
         "#;
 
-        let result = ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+        let result =
+            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
     }
 
@@ -396,7 +400,8 @@ mod tests {
             </html>
         "#;
 
-        let result = ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+        let result =
+            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
         // Should use first offer's availability
         assert_eq!(result.status, AvailabilityStatus::OutOfStock);
     }
@@ -506,7 +511,8 @@ mod tests {
             </html>
         "#;
 
-        let result = ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+        let result =
+            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
     }
 
@@ -530,7 +536,8 @@ mod tests {
             </html>
         "#;
 
-        let result = ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+        let result =
+            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
     }
 

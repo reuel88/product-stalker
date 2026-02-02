@@ -36,7 +36,6 @@ impl AvailabilityStatus {
             Self::Unknown => "unknown",
         }
     }
-
 }
 
 impl std::fmt::Display for AvailabilityStatus {

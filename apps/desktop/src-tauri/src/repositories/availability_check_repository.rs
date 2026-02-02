@@ -65,7 +65,6 @@ impl AvailabilityCheckRepository {
         let checks = query.all(conn).await?;
         Ok(checks)
     }
-
 }
 
 #[cfg(test)]
@@ -243,5 +242,4 @@ mod tests {
 
         assert_eq!(limited.len(), 3);
     }
-
 }
