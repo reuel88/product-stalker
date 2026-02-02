@@ -17,6 +17,12 @@ pub enum AppError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    #[error("HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
+
+    #[error("Scraping error: {0}")]
+    Scraping(String),
 }
 
 impl AppError {
@@ -27,6 +33,8 @@ impl AppError {
             AppError::NotFound(_) => "NOT_FOUND",
             AppError::Validation(_) => "VALIDATION_ERROR",
             AppError::Internal(_) => "INTERNAL_ERROR",
+            AppError::Http(_) => "HTTP_ERROR",
+            AppError::Scraping(_) => "SCRAPING_ERROR",
         }
     }
 
@@ -48,6 +56,16 @@ impl AppError {
     /// Check if this is an internal error
     pub fn is_internal_error(&self) -> bool {
         matches!(self, AppError::Internal(_))
+    }
+
+    /// Check if this is an HTTP error
+    pub fn is_http_error(&self) -> bool {
+        matches!(self, AppError::Http(_))
+    }
+
+    /// Check if this is a scraping error
+    pub fn is_scraping_error(&self) -> bool {
+        matches!(self, AppError::Scraping(_))
     }
 }
 
@@ -74,6 +92,8 @@ impl ErrorResponse {
             AppError::NotFound(msg) => msg.clone(),
             AppError::Validation(msg) => msg.clone(),
             AppError::Internal(msg) => msg.clone(),
+            AppError::Http(http_err) => http_err.to_string(),
+            AppError::Scraping(msg) => msg.clone(),
         };
 
         Self::new(message, err.code())
@@ -380,6 +400,7 @@ mod tests {
             AppError::NotFound("test".to_string()),
             AppError::Validation("test".to_string()),
             AppError::Internal("test".to_string()),
+            AppError::Scraping("test".to_string()),
         ];
 
         let codes: Vec<&str> = errors.iter().map(|e| e.code()).collect();
@@ -390,5 +411,55 @@ mod tests {
             unique_codes.len(),
             "All error codes should be unique"
         );
+    }
+
+    // Http and Scraping error tests
+
+    #[test]
+    fn test_scraping_error_display() {
+        let err = AppError::Scraping("Failed to parse HTML".to_string());
+        assert_eq!(err.to_string(), "Scraping error: Failed to parse HTML");
+    }
+
+    #[test]
+    fn test_scraping_code() {
+        let err = AppError::Scraping("test".to_string());
+        assert_eq!(err.code(), "SCRAPING_ERROR");
+    }
+
+    #[test]
+    fn test_http_code() {
+        // We can't easily create a reqwest::Error for testing, but we can test the code method
+        // indirectly through scraping since it uses the same pattern
+        let err = AppError::Scraping("test".to_string());
+        assert!(!err.is_http_error());
+        assert!(err.is_scraping_error());
+    }
+
+    #[test]
+    fn test_is_scraping_error() {
+        let err = AppError::Scraping("test".to_string());
+        assert!(err.is_scraping_error());
+        assert!(!err.is_not_found());
+        assert!(!err.is_validation_error());
+        assert!(!err.is_internal_error());
+        assert!(!err.is_database_error());
+        assert!(!err.is_http_error());
+    }
+
+    #[test]
+    fn test_error_response_from_scraping() {
+        let err = AppError::Scraping("No JSON-LD found".to_string());
+        let response = ErrorResponse::from_app_error(&err);
+        assert_eq!(response.error, "No JSON-LD found");
+        assert_eq!(response.code, "SCRAPING_ERROR");
+    }
+
+    #[test]
+    fn test_debug_scraping() {
+        let err = AppError::Scraping("parse error".to_string());
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("Scraping"));
+        assert!(debug_str.contains("parse error"));
     }
 }

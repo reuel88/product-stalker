@@ -6,6 +6,10 @@ describe("MESSAGES constant", () => {
 		expect(MESSAGES).toHaveProperty("PRODUCT");
 	});
 
+	it("should export AVAILABILITY messages", () => {
+		expect(MESSAGES).toHaveProperty("AVAILABILITY");
+	});
+
 	it("should export SETTINGS messages", () => {
 		expect(MESSAGES).toHaveProperty("SETTINGS");
 	});
@@ -54,6 +58,24 @@ describe("MESSAGES constant", () => {
 			expect(MESSAGES.SETTINGS.SAVED.length).toBeGreaterThan(0);
 			expect(typeof MESSAGES.SETTINGS.SAVE_FAILED).toBe("string");
 			expect(MESSAGES.SETTINGS.SAVE_FAILED.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("AVAILABILITY messages", () => {
+		it("should have status messages", () => {
+			expect(MESSAGES.AVAILABILITY).toHaveProperty("CHECKED");
+			expect(MESSAGES.AVAILABILITY).toHaveProperty("CHECK_FAILED");
+			expect(MESSAGES.AVAILABILITY).toHaveProperty("IN_STOCK");
+			expect(MESSAGES.AVAILABILITY).toHaveProperty("OUT_OF_STOCK");
+			expect(MESSAGES.AVAILABILITY).toHaveProperty("BACK_ORDER");
+			expect(MESSAGES.AVAILABILITY).toHaveProperty("UNKNOWN");
+		});
+
+		it("should have non-empty string messages", () => {
+			expect(typeof MESSAGES.AVAILABILITY.CHECKED).toBe("string");
+			expect(MESSAGES.AVAILABILITY.CHECKED.length).toBeGreaterThan(0);
+			expect(typeof MESSAGES.AVAILABILITY.IN_STOCK).toBe("string");
+			expect(MESSAGES.AVAILABILITY.IN_STOCK.length).toBeGreaterThan(0);
 		});
 	});
 

@@ -33,7 +33,14 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    // Future relations will go here (e.g., PriceHistory)
+    #[sea_orm(has_many = "super::availability_check::Entity")]
+    AvailabilityChecks,
+}
+
+impl Related<super::availability_check::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::AvailabilityChecks.def()
+    }
 }
 
 impl ActiveModelBehavior for ActiveModel {}
