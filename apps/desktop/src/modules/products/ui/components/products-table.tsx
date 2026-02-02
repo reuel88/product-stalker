@@ -16,6 +16,7 @@ import {
 	Pencil,
 	Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -33,14 +34,39 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { UI } from "@/constants";
+import { MESSAGES, UI } from "@/constants";
+import { useAvailability } from "@/modules/products/hooks/useAvailability";
 import type { ProductResponse } from "@/modules/products/types";
+import { AvailabilityBadge } from "./availability-badge";
 
 interface ProductsTableProps {
 	products: ProductResponse[];
 	isLoading?: boolean;
 	onEdit?: (product: ProductResponse) => void;
 	onDelete?: (product: ProductResponse) => void;
+}
+
+function AvailabilityCell({ productId }: { productId: string }) {
+	const { latestCheck, isChecking, checkAvailability } =
+		useAvailability(productId);
+
+	const handleCheck = async () => {
+		try {
+			await checkAvailability();
+			toast.success(MESSAGES.AVAILABILITY.CHECKED);
+		} catch {
+			toast.error(MESSAGES.AVAILABILITY.CHECK_FAILED);
+		}
+	};
+
+	return (
+		<AvailabilityBadge
+			status={latestCheck?.status ?? null}
+			checkedAt={latestCheck?.checked_at ?? null}
+			isChecking={isChecking}
+			onCheck={handleCheck}
+		/>
+	);
 }
 
 export function ProductsTable({
@@ -78,6 +104,11 @@ export function ProductsTable({
 					</button>
 				);
 			},
+		},
+		{
+			id: "availability",
+			header: "Availability",
+			cell: ({ row }) => <AvailabilityCell productId={row.original.id} />,
 		},
 		{
 			accessorKey: "description",
@@ -242,6 +273,7 @@ function ProductsTableSkeleton() {
 					<TableRow>
 						<TableHead>Name</TableHead>
 						<TableHead>URL</TableHead>
+						<TableHead>Availability</TableHead>
 						<TableHead>Description</TableHead>
 						<TableHead>Created</TableHead>
 						<TableHead />
@@ -256,6 +288,9 @@ function ProductsTableSkeleton() {
 							</TableCell>
 							<TableCell>
 								<Skeleton className="h-4 w-40" />
+							</TableCell>
+							<TableCell>
+								<Skeleton className="h-6 w-20" />
 							</TableCell>
 							<TableCell>
 								<Skeleton className="h-4 w-32" />

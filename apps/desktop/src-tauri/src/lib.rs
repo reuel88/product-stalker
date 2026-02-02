@@ -118,6 +118,10 @@ pub fn run() {
             commands::create_product,
             commands::update_product,
             commands::delete_product,
+            // Availability commands
+            commands::check_availability,
+            commands::get_latest_availability,
+            commands::get_availability_history,
             // Settings commands
             commands::get_settings,
             commands::update_settings,

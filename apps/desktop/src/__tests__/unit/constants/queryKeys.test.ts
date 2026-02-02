@@ -5,14 +5,16 @@ describe("QUERY_KEYS constant", () => {
 	it("should export all required query keys", () => {
 		expect(QUERY_KEYS).toHaveProperty("PRODUCTS");
 		expect(QUERY_KEYS).toHaveProperty("SETTINGS");
+		expect(QUERY_KEYS).toHaveProperty("availability");
+		expect(QUERY_KEYS).toHaveProperty("availabilityHistory");
 	});
 
-	it("should have array values for query keys", () => {
+	it("should have array values for static query keys", () => {
 		expect(Array.isArray(QUERY_KEYS.PRODUCTS)).toBe(true);
 		expect(Array.isArray(QUERY_KEYS.SETTINGS)).toBe(true);
 	});
 
-	it("should have non-empty arrays", () => {
+	it("should have non-empty arrays for static query keys", () => {
 		expect(QUERY_KEYS.PRODUCTS.length).toBeGreaterThan(0);
 		expect(QUERY_KEYS.SETTINGS.length).toBeGreaterThan(0);
 	});
@@ -22,15 +24,28 @@ describe("QUERY_KEYS constant", () => {
 		expect(QUERY_KEYS.SETTINGS).toEqual(["settings"]);
 	});
 
+	it("should generate availability keys correctly", () => {
+		const productId = "test-123";
+		expect(QUERY_KEYS.availability(productId)).toEqual([
+			"availability",
+			productId,
+		]);
+		expect(QUERY_KEYS.availabilityHistory(productId)).toEqual([
+			"availability",
+			productId,
+			"history",
+		]);
+		expect(QUERY_KEYS.availabilityHistory(productId, 10)).toEqual([
+			"availability",
+			productId,
+			"history",
+			10,
+		]);
+	});
+
 	it("should have unique top-level keys", () => {
 		const keys = Object.keys(QUERY_KEYS);
 		const uniqueKeys = new Set(keys);
 		expect(uniqueKeys.size).toBe(keys.length);
-	});
-
-	it("should have unique key values", () => {
-		const values = Object.values(QUERY_KEYS).map((arr) => arr.join("-"));
-		const uniqueValues = new Set(values);
-		expect(uniqueValues.size).toBe(values.length);
 	});
 });

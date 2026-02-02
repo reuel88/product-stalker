@@ -7,6 +7,14 @@ export const MESSAGES = {
 		UPDATE_FAILED: "Failed to update product",
 		DELETE_FAILED: "Failed to delete product",
 	},
+	AVAILABILITY: {
+		CHECKED: "Availability checked",
+		CHECK_FAILED: "Failed to check availability",
+		IN_STOCK: "In Stock",
+		OUT_OF_STOCK: "Out of Stock",
+		BACK_ORDER: "Back Order",
+		UNKNOWN: "Unknown",
+	},
 	SETTINGS: {
 		SAVED: "Settings saved",
 		SAVE_FAILED: "Failed to save settings",

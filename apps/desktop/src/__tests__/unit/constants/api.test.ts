@@ -7,6 +7,9 @@ describe("COMMANDS constant", () => {
 		expect(COMMANDS).toHaveProperty("CREATE_PRODUCT");
 		expect(COMMANDS).toHaveProperty("UPDATE_PRODUCT");
 		expect(COMMANDS).toHaveProperty("DELETE_PRODUCT");
+		expect(COMMANDS).toHaveProperty("CHECK_AVAILABILITY");
+		expect(COMMANDS).toHaveProperty("GET_LATEST_AVAILABILITY");
+		expect(COMMANDS).toHaveProperty("GET_AVAILABILITY_HISTORY");
 		expect(COMMANDS).toHaveProperty("GET_SETTINGS");
 		expect(COMMANDS).toHaveProperty("UPDATE_SETTINGS");
 		expect(COMMANDS).toHaveProperty("SEND_NOTIFICATION");
