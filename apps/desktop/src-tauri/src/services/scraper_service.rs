@@ -216,14 +216,29 @@ impl ScraperService {
 
         // If we have a variant ID, try to find the matching variant
         if let Some(vid) = variant_id {
+            // Dummy base for resolving relative URLs (host is irrelevant)
+            let base = Url::parse("http://localhost").unwrap();
+
             for variant in variants {
-                // Check if this variant's @id contains the variant ID
-                if let Some(id) = variant.get("@id").and_then(|i| i.as_str()) {
-                    if id.contains(&format!("variant={}", vid)) {
-                        if let Some(avail) = Self::get_availability_from_product(variant) {
-                            return Some(avail);
-                        }
-                    }
+                let Some(id) = variant.get("@id").and_then(|i| i.as_str()) else {
+                    continue;
+                };
+
+                // Parse as absolute URL first, fall back to relative
+                let Ok(parsed_url) = Url::parse(id).or_else(|_| base.join(id)) else {
+                    continue;
+                };
+
+                let matches_variant = parsed_url
+                    .query_pairs()
+                    .any(|(key, value)| key == "variant" && value == vid);
+
+                if !matches_variant {
+                    continue;
+                }
+
+                if let Some(avail) = Self::get_availability_from_product(variant) {
+                    return Some(avail);
                 }
             }
         }

@@ -24,7 +24,7 @@ Add web scraping functionality to check product availability from Shopify stores
 
 ## Implementation
 
-### Phase 1: Backend (Rust)
+### Phase 1: Backend (Rust) ✓ COMPLETE
 
 #### 1.1 Add Dependencies
 **File**: `apps/desktop/src-tauri/Cargo.toml`
@@ -95,7 +95,7 @@ Indexes on `product_id` and `checked_at`.
 
 ---
 
-### Phase 2: Frontend (React/TypeScript)
+### Phase 2: Frontend (React/TypeScript) ✓ COMPLETE
 
 #### 2.1 Types
 **Update**: `src/modules/products/types.ts`
@@ -181,7 +181,7 @@ export interface AvailabilityCheckResponse {
 
 ---
 
-## Future Enhancements (Phase 2+)
+## Future Enhancements
 
 - Background periodic checking with tokio tasks
 - Desktop notifications when products become available
