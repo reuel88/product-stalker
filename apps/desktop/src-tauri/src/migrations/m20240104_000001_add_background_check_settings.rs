@@ -38,7 +38,8 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // SQLite doesn't support DROP COLUMN directly, but sea-orm-migration handles this
+        // SQLite 3.35.0+ supports DROP COLUMN natively for columns without indexes,
+        // constraints, or references. This project bundles SQLite 3.46.0+ via sqlx-sqlite.
         manager
             .alter_table(
                 Table::alter()
