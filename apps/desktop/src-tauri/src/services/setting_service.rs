@@ -30,6 +30,11 @@ impl SettingService {
             Self::validate_log_level(level)?;
         }
 
+        // Validate background check interval if provided
+        if let Some(interval) = params.background_check_interval_minutes {
+            Self::validate_background_check_interval(interval)?;
+        }
+
         // Get existing settings
         let settings = SettingRepository::get_or_create(conn).await?;
 
@@ -55,6 +60,15 @@ impl SettingService {
                 level
             ))),
         }
+    }
+
+    fn validate_background_check_interval(interval: i32) -> Result<(), AppError> {
+        if interval <= 0 {
+            return Err(AppError::Validation(
+                "Background check interval must be a positive number of minutes".to_string(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -95,6 +109,28 @@ mod tests {
     #[test]
     fn test_validate_log_level_invalid() {
         let result = SettingService::validate_log_level("verbose");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_background_check_interval_valid() {
+        assert!(SettingService::validate_background_check_interval(15).is_ok());
+        assert!(SettingService::validate_background_check_interval(30).is_ok());
+        assert!(SettingService::validate_background_check_interval(60).is_ok());
+        assert!(SettingService::validate_background_check_interval(1440).is_ok());
+    }
+
+    #[test]
+    fn test_validate_background_check_interval_zero() {
+        let result = SettingService::validate_background_check_interval(0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_background_check_interval_negative() {
+        let result = SettingService::validate_background_check_interval(-1);
+        assert!(result.is_err());
+        let result = SettingService::validate_background_check_interval(-100);
         assert!(result.is_err());
     }
 }
@@ -350,5 +386,63 @@ mod integration_tests {
 
         let result = SettingService::update(&conn, params).await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_update_validates_background_check_interval_negative() {
+        let conn = setup_settings_db().await;
+        let params = UpdateSettingsParams {
+            theme: None,
+            show_in_tray: None,
+            launch_at_login: None,
+            enable_logging: None,
+            log_level: None,
+            enable_notifications: None,
+            sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: Some(-1),
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_update_validates_background_check_interval_zero() {
+        let conn = setup_settings_db().await;
+        let params = UpdateSettingsParams {
+            theme: None,
+            show_in_tray: None,
+            launch_at_login: None,
+            enable_logging: None,
+            log_level: None,
+            enable_notifications: None,
+            sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: Some(0),
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_update_background_check_interval_success() {
+        let conn = setup_settings_db().await;
+        let params = UpdateSettingsParams {
+            theme: None,
+            show_in_tray: None,
+            launch_at_login: None,
+            enable_logging: None,
+            log_level: None,
+            enable_notifications: None,
+            sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: Some(30),
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().background_check_interval_minutes, 30);
     }
 }

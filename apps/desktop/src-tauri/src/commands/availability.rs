@@ -2,12 +2,10 @@ use serde::Serialize;
 use tauri::State;
 use tauri_plugin_notification::NotificationExt;
 
-use crate::commands::should_send_notification;
 use crate::db::DbState;
 use crate::entities::prelude::AvailabilityCheckModel;
 use crate::error::AppError;
-use crate::repositories::ProductRepository;
-use crate::services::{AvailabilityService, BulkCheckSummary};
+use crate::services::{AvailabilityService, BulkCheckSummary, NotificationData};
 use crate::utils::parse_uuid;
 
 /// Response DTO for availability checks
@@ -46,34 +44,13 @@ pub async fn check_availability(
 ) -> Result<AvailabilityCheckResponse, AppError> {
     let uuid = parse_uuid(&product_id)?;
 
-    // Get previous status before checking
-    let previous_check = AvailabilityService::get_latest(db.conn(), uuid).await?;
-    let previous_status = previous_check.map(|c| c.status);
+    let result = AvailabilityService::check_product_with_notification(db.conn(), uuid).await?;
 
-    // Perform the check
-    let check = AvailabilityService::check_product(db.conn(), uuid).await?;
-
-    // Check if product is back in stock and send notification
-    if AvailabilityService::is_back_in_stock(&previous_status, &check.status)
-        && should_send_notification(db.conn()).await?
-    {
-        // Get product name for the notification
-        if let Ok(Some(product)) = ProductRepository::find_by_id(db.conn(), uuid).await {
-            if let Err(e) = app
-                .notification()
-                .builder()
-                .title("Product Back in Stock!")
-                .body(format!("{} is now available!", product.name))
-                .show()
-            {
-                log::warn!("Failed to send back-in-stock notification: {}", e);
-            } else {
-                log::info!("Sent back-in-stock notification for: {}", product.name);
-            }
-        }
+    if let Some(notification) = result.notification {
+        send_desktop_notification(&app, &notification);
     }
 
-    Ok(AvailabilityCheckResponse::from(check))
+    Ok(AvailabilityCheckResponse::from(result.check))
 }
 
 /// Get the latest availability check for a product
@@ -113,44 +90,28 @@ pub async fn check_all_availability(
     app: tauri::AppHandle,
     db: State<'_, DbState>,
 ) -> Result<BulkCheckSummary, AppError> {
-    let summary = AvailabilityService::check_all_products(db.conn()).await?;
+    let result = AvailabilityService::check_all_products_with_notification(db.conn()).await?;
 
-    // Send notifications for products that are back in stock
-    if summary.back_in_stock_count > 0 && should_send_notification(db.conn()).await? {
-        let back_in_stock_products: Vec<&str> = summary
-            .results
-            .iter()
-            .filter(|r| r.is_back_in_stock)
-            .map(|r| r.product_name.as_str())
-            .collect();
-
-        let notification_body = if back_in_stock_products.len() == 1 {
-            format!("{} is back in stock!", back_in_stock_products[0])
-        } else {
-            format!(
-                "{} products are back in stock: {}",
-                back_in_stock_products.len(),
-                back_in_stock_products.join(", ")
-            )
-        };
-
-        if let Err(e) = app
-            .notification()
-            .builder()
-            .title("Products Back in Stock!")
-            .body(&notification_body)
-            .show()
-        {
-            log::warn!("Failed to send back-in-stock notification: {}", e);
-        } else {
-            log::info!(
-                "Sent back-in-stock notification for {} product(s)",
-                back_in_stock_products.len()
-            );
-        }
+    if let Some(notification) = result.notification {
+        send_desktop_notification(&app, &notification);
     }
 
-    Ok(summary)
+    Ok(result.summary)
+}
+
+/// Send a desktop notification (Tauri-specific, kept in command layer)
+fn send_desktop_notification(app: &tauri::AppHandle, notification: &NotificationData) {
+    if let Err(e) = app
+        .notification()
+        .builder()
+        .title(&notification.title)
+        .body(&notification.body)
+        .show()
+    {
+        log::warn!("Failed to send notification: {}", e);
+    } else {
+        log::info!("Sent notification: {}", notification.title);
+    }
 }
 
 #[cfg(test)]
