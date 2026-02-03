@@ -9,6 +9,9 @@ mod repositories;
 mod services;
 mod utils;
 
+#[cfg(test)]
+mod test_utils;
+
 use std::sync::{Arc, Mutex};
 
 use db::DbState;
@@ -85,18 +88,16 @@ pub fn run() {
                 let autostart_manager = app.autolaunch();
                 let is_enabled = autostart_manager.is_enabled().unwrap_or(false);
 
-                if settings.launch_at_login && !is_enabled {
-                    if let Err(e) = autostart_manager.enable() {
-                        log::error!("Failed to enable autostart: {}", e);
-                    } else {
-                        log::info!("Autostart enabled");
-                    }
-                } else if !settings.launch_at_login && is_enabled {
-                    if let Err(e) = autostart_manager.disable() {
-                        log::error!("Failed to disable autostart: {}", e);
-                    } else {
-                        log::info!("Autostart disabled");
-                    }
+                match (settings.launch_at_login, is_enabled) {
+                    (true, false) => match autostart_manager.enable() {
+                        Ok(()) => log::info!("Autostart enabled"),
+                        Err(e) => log::error!("Failed to enable autostart: {}", e),
+                    },
+                    (false, true) => match autostart_manager.disable() {
+                        Ok(()) => log::info!("Autostart disabled"),
+                        Err(e) => log::error!("Failed to disable autostart: {}", e),
+                    },
+                    _ => {} // Already in sync
                 }
             }
 

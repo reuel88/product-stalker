@@ -70,49 +70,12 @@ impl AvailabilityCheckRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entities::availability_check::Entity as AvailabilityCheckEntity;
-    use crate::entities::product::Entity as ProductEntity;
-    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Schema};
-
-    async fn setup_test_db() -> DatabaseConnection {
-        let conn = Database::connect("sqlite::memory:").await.unwrap();
-        let schema = Schema::new(DatabaseBackend::Sqlite);
-
-        // Create products table first (for foreign key)
-        let stmt = schema.create_table_from_entity(ProductEntity);
-        conn.execute(conn.get_database_backend().build(&stmt))
-            .await
-            .unwrap();
-
-        // Create availability_checks table
-        let stmt = schema.create_table_from_entity(AvailabilityCheckEntity);
-        conn.execute(conn.get_database_backend().build(&stmt))
-            .await
-            .unwrap();
-
-        conn
-    }
-
-    async fn create_test_product(conn: &DatabaseConnection) -> Uuid {
-        use crate::repositories::ProductRepository;
-        let id = Uuid::new_v4();
-        ProductRepository::create(
-            conn,
-            id,
-            "Test Product".to_string(),
-            "https://example.com/product".to_string(),
-            None,
-            None,
-        )
-        .await
-        .unwrap();
-        id
-    }
+    use crate::test_utils::{create_test_product_default, setup_availability_db};
 
     #[tokio::test]
     async fn test_create_availability_check() {
-        let conn = setup_test_db().await;
-        let product_id = create_test_product(&conn).await;
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
         let id = Uuid::new_v4();
 
         let check = AvailabilityCheckRepository::create(
@@ -138,8 +101,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_availability_check_with_error() {
-        let conn = setup_test_db().await;
-        let product_id = create_test_product(&conn).await;
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
         let id = Uuid::new_v4();
 
         let check = AvailabilityCheckRepository::create(
@@ -163,8 +126,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_latest_for_product() {
-        let conn = setup_test_db().await;
-        let product_id = create_test_product(&conn).await;
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
 
         // Create multiple checks
         for i in 0..3 {
@@ -193,8 +156,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_latest_for_product_none() {
-        let conn = setup_test_db().await;
-        let product_id = create_test_product(&conn).await;
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
 
         let latest = AvailabilityCheckRepository::find_latest_for_product(&conn, product_id)
             .await
@@ -205,8 +168,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_all_for_product() {
-        let conn = setup_test_db().await;
-        let product_id = create_test_product(&conn).await;
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
 
         // Create 5 checks
         for _ in 0..5 {
@@ -225,8 +188,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_all_for_product_with_limit() {
-        let conn = setup_test_db().await;
-        let product_id = create_test_product(&conn).await;
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
 
         // Create 5 checks
         for _ in 0..5 {

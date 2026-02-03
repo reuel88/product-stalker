@@ -166,45 +166,11 @@ impl AvailabilityService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entities::availability_check::Entity as AvailabilityCheckEntity;
-    use crate::entities::product::Entity as ProductEntity;
-    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Schema};
-
-    async fn setup_test_db() -> DatabaseConnection {
-        let conn = Database::connect("sqlite::memory:").await.unwrap();
-        let schema = Schema::new(DatabaseBackend::Sqlite);
-
-        let stmt = schema.create_table_from_entity(ProductEntity);
-        conn.execute(conn.get_database_backend().build(&stmt))
-            .await
-            .unwrap();
-
-        let stmt = schema.create_table_from_entity(AvailabilityCheckEntity);
-        conn.execute(conn.get_database_backend().build(&stmt))
-            .await
-            .unwrap();
-
-        conn
-    }
-
-    async fn create_test_product(conn: &DatabaseConnection, url: &str) -> Uuid {
-        let id = Uuid::new_v4();
-        ProductRepository::create(
-            conn,
-            id,
-            "Test Product".to_string(),
-            url.to_string(),
-            None,
-            None,
-        )
-        .await
-        .unwrap();
-        id
-    }
+    use crate::test_utils::{create_test_product, setup_availability_db};
 
     #[tokio::test]
     async fn test_get_latest_none() {
-        let conn = setup_test_db().await;
+        let conn = setup_availability_db().await;
         let product_id = create_test_product(&conn, "https://example.com").await;
 
         let latest = AvailabilityService::get_latest(&conn, product_id)
@@ -216,7 +182,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_history_empty() {
-        let conn = setup_test_db().await;
+        let conn = setup_availability_db().await;
         let product_id = create_test_product(&conn, "https://example.com").await;
 
         let history = AvailabilityService::get_history(&conn, product_id, None)
@@ -228,7 +194,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_history_with_limit() {
-        let conn = setup_test_db().await;
+        let conn = setup_availability_db().await;
         let product_id = create_test_product(&conn, "https://example.com").await;
 
         // Create some check records directly
@@ -254,7 +220,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_product_not_found() {
-        let conn = setup_test_db().await;
+        let conn = setup_availability_db().await;
         let fake_id = Uuid::new_v4();
 
         let result = AvailabilityService::check_product(&conn, fake_id).await;

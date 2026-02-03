@@ -190,23 +190,12 @@ mod tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::entities::setting::Entity as Setting;
     use crate::repositories::{SettingRepository, UpdateSettingsParams};
-    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Schema};
-
-    async fn setup_test_db() -> DatabaseConnection {
-        let conn = Database::connect("sqlite::memory:").await.unwrap();
-        let schema = Schema::new(DatabaseBackend::Sqlite);
-        let stmt = schema.create_table_from_entity(Setting);
-        conn.execute(conn.get_database_backend().build(&stmt))
-            .await
-            .unwrap();
-        conn
-    }
+    use crate::test_utils::setup_settings_db;
 
     #[tokio::test]
     async fn test_check_notifications_enabled_default() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
 
         // Default settings have notifications enabled
         let enabled = check_notifications_enabled(&conn).await.unwrap();
@@ -215,7 +204,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_check_notifications_enabled_when_disabled() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
 
         // Create settings first
         let settings = SettingRepository::get_or_create(&conn).await.unwrap();
@@ -245,7 +234,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_should_send_notification_default() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
 
         let should_send = should_send_notification(&conn).await.unwrap();
         assert!(should_send);
@@ -253,7 +242,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_should_send_notification_when_disabled() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
 
         // Create and disable notifications
         let settings = SettingRepository::get_or_create(&conn).await.unwrap();
@@ -281,7 +270,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_notification_respects_setting_toggle() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
 
         // Initially enabled
         assert!(check_notifications_enabled(&conn).await.unwrap());

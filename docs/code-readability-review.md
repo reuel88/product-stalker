@@ -1,7 +1,7 @@
 # Code Readability Review - Product Stalker
 
-**Date:** 2026-02-03
-**Readability Score:** 7.5/10
+**Date:** 2026-02-04
+**Readability Score:** 8/10
 
 ## Summary
 
@@ -190,36 +190,18 @@ const diffDays = Math.floor(diffMs / MS_PER_DAY);
 
 ---
 
-### 2. Duplicated Test Database Setup Code
+### 2. ~~Duplicated Test Database Setup Code~~ (RESOLVED)
 
-**Files:**
-- `apps/desktop/src-tauri/src/services/product_service.rs` (lines 144-152)
-- `apps/desktop/src-tauri/src/services/availability_service.rs` (lines 83-98)
-- `apps/desktop/src-tauri/src/repositories/product_repository.rs` (lines 95-103)
-- `apps/desktop/src-tauri/src/repositories/availability_check_repository.rs` (lines 77-94)
+**Status:** Fixed in `src/test_utils.rs`
 
-The `setup_test_db()` function is duplicated across multiple test modules.
+The shared test utilities module now provides:
+- `setup_settings_db()` - Settings table only
+- `setup_products_db()` - Products table only
+- `setup_availability_db()` - Products + availability_checks tables
+- `create_test_product(conn, url)` - Helper to create test products
+- `create_test_product_default(conn)` - Helper with default URL
 
-**Suggested improvement:** Create a shared test utilities module:
-
-```rust
-// src/test_utils.rs (or #[cfg(test)] pub mod test_utils in lib.rs)
-#[cfg(test)]
-pub mod test_utils {
-    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, DatabaseConnection, Schema};
-
-    pub async fn setup_test_db() -> DatabaseConnection {
-        let conn = Database::connect("sqlite::memory:").await.unwrap();
-        let schema = Schema::new(DatabaseBackend::Sqlite);
-        // Create all tables...
-        conn
-    }
-
-    pub async fn create_test_product(conn: &DatabaseConnection, url: &str) -> Uuid {
-        // Shared helper
-    }
-}
-```
+All test modules now import from `crate::test_utils` instead of duplicating setup code.
 
 ---
 
@@ -340,8 +322,8 @@ const [dialogState, setDialogState] = useState<DialogState>({ type: 'closed' });
 - [x] Create UUID parsing utility to eliminate repetition in commands
 
 ### Medium Priority
-- [ ] Refactor `extract_availability` in `scraper_service.rs` for clarity
-- [ ] Create shared test utilities module in Rust
+- [x] Refactor `extract_availability` in `scraper_service.rs` for clarity
+- [x] Create shared test utilities module in Rust
 
 ### Low Priority
 - [ ] Add JSDoc comments to component props

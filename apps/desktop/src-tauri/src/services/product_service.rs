@@ -138,22 +138,11 @@ mod tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::entities::product::Entity as Product;
-    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Schema};
-
-    async fn setup_test_db() -> DatabaseConnection {
-        let conn = Database::connect("sqlite::memory:").await.unwrap();
-        let schema = Schema::new(DatabaseBackend::Sqlite);
-        let stmt = schema.create_table_from_entity(Product);
-        conn.execute(conn.get_database_backend().build(&stmt))
-            .await
-            .unwrap();
-        conn
-    }
+    use crate::test_utils::setup_products_db;
 
     #[tokio::test]
     async fn test_create_product_validates_name() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let result = ProductService::create(
             &conn,
             "".to_string(),
@@ -167,7 +156,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_create_product_validates_url() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let result =
             ProductService::create(&conn, "Valid Name".to_string(), "".to_string(), None, None)
                 .await;
@@ -176,7 +165,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_create_product_success() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let result = ProductService::create(
             &conn,
             "Test Product".to_string(),
@@ -196,7 +185,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_create_product_minimal() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let result = ProductService::create(
             &conn,
             "Minimal Product".to_string(),
@@ -215,14 +204,14 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_get_by_id_not_found() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let result = ProductService::get_by_id(&conn, Uuid::new_v4()).await;
         assert!(matches!(result, Err(AppError::NotFound(_))));
     }
 
     #[tokio::test]
     async fn test_get_by_id_success() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let created = ProductService::create(
             &conn,
             "Find Me".to_string(),
@@ -240,7 +229,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_get_all_empty() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let result = ProductService::get_all(&conn).await;
 
         assert!(result.is_ok());
@@ -249,7 +238,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_get_all_multiple() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
 
         ProductService::create(
             &conn,
@@ -286,7 +275,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_product_name() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let created = ProductService::create(
             &conn,
             "Original".to_string(),
@@ -315,7 +304,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_product_url() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let created = ProductService::create(
             &conn,
             "Test".to_string(),
@@ -344,7 +333,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_product_description() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let created = ProductService::create(
             &conn,
             "Test".to_string(),
@@ -374,7 +363,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_product_not_found() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let result = ProductService::update(
             &conn,
             Uuid::new_v4(),
@@ -390,7 +379,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_validates_empty_name() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let created = ProductService::create(
             &conn,
             "Test".to_string(),
@@ -409,7 +398,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_validates_empty_url() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let created = ProductService::create(
             &conn,
             "Test".to_string(),
@@ -428,14 +417,14 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_delete_not_found() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let result = ProductService::delete(&conn, Uuid::new_v4()).await;
         assert!(matches!(result, Err(AppError::NotFound(_))));
     }
 
     #[tokio::test]
     async fn test_delete_success() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let created = ProductService::create(
             &conn,
             "To Delete".to_string(),
