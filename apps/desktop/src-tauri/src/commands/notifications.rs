@@ -232,6 +232,8 @@ mod integration_tests {
                 enable_logging: None,
                 log_level: None,
                 sidebar_expanded: None,
+                background_check_enabled: None,
+                background_check_interval_minutes: None,
             },
         )
         .await
@@ -266,6 +268,8 @@ mod integration_tests {
                 enable_logging: None,
                 log_level: None,
                 sidebar_expanded: None,
+                background_check_enabled: None,
+                background_check_interval_minutes: None,
             },
         )
         .await
@@ -295,6 +299,8 @@ mod integration_tests {
                 enable_logging: None,
                 log_level: None,
                 sidebar_expanded: None,
+                background_check_enabled: None,
+                background_check_interval_minutes: None,
             },
         )
         .await
@@ -314,6 +320,8 @@ mod integration_tests {
                 enable_logging: None,
                 log_level: None,
                 sidebar_expanded: None,
+                background_check_enabled: None,
+                background_check_interval_minutes: None,
             },
         )
         .await

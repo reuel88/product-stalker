@@ -48,6 +48,8 @@ export function createMockSettings(
 		log_level: "info",
 		enable_notifications: true,
 		sidebar_expanded: true,
+		background_check_enabled: false,
+		background_check_interval_minutes: 60,
 		updated_at: new Date().toISOString(),
 		...overrides,
 	};

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 /// Settings entity
 ///
 /// Single-row settings table (id=1) for app-wide configuration.
-/// Stores theme, tray, autostart, logging, and notification preferences.
+/// Stores theme, tray, autostart, logging, notification, and background check preferences.
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "settings")]
 pub struct Model {
@@ -33,6 +33,12 @@ pub struct Model {
     /// Sidebar expanded state
     pub sidebar_expanded: bool,
 
+    /// Enable background periodic availability checking
+    pub background_check_enabled: bool,
+
+    /// Interval for background checks in minutes (15, 30, 60, 240, 1440)
+    pub background_check_interval_minutes: i32,
+
     /// Last update timestamp
     pub updated_at: DateTimeUtc,
 }
@@ -53,6 +59,8 @@ impl Default for Model {
             log_level: "info".to_string(),
             enable_notifications: true,
             sidebar_expanded: true,
+            background_check_enabled: false,
+            background_check_interval_minutes: 60, // Default to 1 hour
             updated_at: chrono::Utc::now(),
         }
     }
@@ -73,5 +81,7 @@ mod tests {
         assert_eq!(settings.log_level, "info");
         assert!(settings.enable_notifications);
         assert!(settings.sidebar_expanded);
+        assert!(!settings.background_check_enabled);
+        assert_eq!(settings.background_check_interval_minutes, 60);
     }
 }

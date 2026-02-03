@@ -183,11 +183,98 @@ export interface AvailabilityCheckResponse {
 
 ## Future Enhancements
 
-- Background periodic checking with tokio tasks
-- Desktop notifications when products become available
+- ~~Background periodic checking with tokio tasks~~ ✓ COMPLETE
+- ~~Desktop notifications when products become available~~ ✓ COMPLETE
+- ~~Bulk "Check All" operation~~ ✓ COMPLETE
 - Support for non-Shopify sites (different parsing strategies)
 - Price tracking from Schema.org data
-- Bulk "Check All" operation
+
+---
+
+## Phase 4: Enhanced Automation ✓ COMPLETE
+
+Implemented bulk checking, desktop notifications for back-in-stock products, and background periodic checking.
+
+### 4.1 Bulk "Check All" Operation
+
+**Backend:**
+- `AvailabilityService::check_all_products()` - Checks all products with 500ms rate limiting
+- `BulkCheckResult` and `BulkCheckSummary` types for response
+- `is_back_in_stock()` helper for status transition detection
+- `check_all_availability` Tauri command
+
+**Frontend:**
+- `useCheckAllAvailability` hook in `useAvailability.ts`
+- "Check All" button in products-view.tsx with loading spinner
+- Toast messages for bulk operation results
+
+### 4.2 Desktop Notifications (Back in Stock)
+
+**Backend:**
+- Status transition detection in both single and bulk check operations
+- Notifications sent via `tauri_plugin_notification` when:
+  - Single product check: product transitions to `in_stock` from any other status
+  - Bulk check: any products are back in stock (aggregated notification)
+- Respects `enable_notifications` setting
+
+### 4.3 Background Periodic Checking
+
+**Database Migration:** `m20240104_000001_add_background_check_settings.rs`
+- `background_check_enabled` (boolean, default: false)
+- `background_check_interval_minutes` (integer, default: 60)
+
+**Backend:**
+- `background/mod.rs` and `background/availability_checker.rs`
+- Spawned on app startup in `lib.rs`
+- Checks settings every 60 seconds when disabled
+- When enabled, performs bulk check at configured interval
+- Sends desktop notifications for back-in-stock products
+
+**Frontend:**
+- Updated `Settings` interface with new fields
+- "Background Checking" card in settings-view.tsx
+- Toggle switch for enable/disable
+- Interval selector: 15 min, 30 min, 1 hour, 4 hours, daily
+
+### Files Modified/Created
+
+**New Files:**
+| File | Purpose |
+|------|---------|
+| `src-tauri/src/background/mod.rs` | Background module |
+| `src-tauri/src/background/availability_checker.rs` | Periodic checker task |
+| `src-tauri/src/migrations/m20240104_000001_add_background_check_settings.rs` | Settings migration |
+
+**Modified Backend Files:**
+| File | Changes |
+|------|---------|
+| `src-tauri/src/lib.rs` | Added background module, spawn checker on startup |
+| `src-tauri/src/services/availability_service.rs` | Added bulk check, back-in-stock detection |
+| `src-tauri/src/services/mod.rs` | Export new types |
+| `src-tauri/src/commands/availability.rs` | Added check_all_availability with notifications |
+| `src-tauri/src/entities/setting.rs` | Added background check settings |
+| `src-tauri/src/repositories/setting_repository.rs` | Updated for new settings |
+| `src-tauri/src/services/setting_service.rs` | Updated for new settings |
+| `src-tauri/src/commands/settings.rs` | Updated DTOs |
+| `src-tauri/src/migrations/mod.rs` | Added new migration |
+| `src-tauri/src/migrations/migrator.rs` | Registered new migration |
+
+**Modified Frontend Files:**
+| File | Changes |
+|------|---------|
+| `src/constants/api.ts` | Added CHECK_ALL_AVAILABILITY |
+| `src/constants/messages.ts` | Added bulk check messages |
+| `src/modules/products/types.ts` | Added BulkCheckResult, BulkCheckSummary |
+| `src/modules/products/hooks/useAvailability.ts` | Added useCheckAllAvailability hook |
+| `src/modules/products/ui/views/products-view.tsx` | Added Check All button |
+| `src/modules/settings/hooks/useSettings.ts` | Added background check settings |
+| `src/modules/settings/ui/views/settings-view.tsx` | Added Background Checking card |
+
+### Verification
+
+1. **Bulk Check**: Click "Check All" button, verify all products update with toast message
+2. **Notifications**: Set a product to out_of_stock, check when it's in_stock, verify desktop notification
+3. **Background Checking**: Enable in settings, set interval to 15 minutes for testing, verify products auto-update
 
 ---
 

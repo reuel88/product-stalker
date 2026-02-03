@@ -1,11 +1,14 @@
 use serde::Serialize;
 use tauri::State;
-use uuid::Uuid;
+use tauri_plugin_notification::NotificationExt;
 
+use crate::commands::should_send_notification;
 use crate::db::DbState;
 use crate::entities::prelude::AvailabilityCheckModel;
 use crate::error::AppError;
-use crate::services::AvailabilityService;
+use crate::repositories::ProductRepository;
+use crate::services::{AvailabilityService, BulkCheckSummary};
+use crate::utils::parse_uuid;
 
 /// Response DTO for availability checks
 #[derive(Debug, Serialize)]
@@ -34,15 +37,42 @@ impl From<AvailabilityCheckModel> for AvailabilityCheckResponse {
 /// Check availability for a product
 ///
 /// Fetches the product's URL and parses Schema.org data to determine availability.
+/// Sends a desktop notification if the product is back in stock.
 #[tauri::command]
 pub async fn check_availability(
+    app: tauri::AppHandle,
     product_id: String,
     db: State<'_, DbState>,
 ) -> Result<AvailabilityCheckResponse, AppError> {
-    let uuid = Uuid::parse_str(&product_id)
-        .map_err(|_| AppError::Validation(format!("Invalid UUID: {}", product_id)))?;
+    let uuid = parse_uuid(&product_id)?;
 
+    // Get previous status before checking
+    let previous_check = AvailabilityService::get_latest(db.conn(), uuid).await?;
+    let previous_status = previous_check.map(|c| c.status);
+
+    // Perform the check
     let check = AvailabilityService::check_product(db.conn(), uuid).await?;
+
+    // Check if product is back in stock and send notification
+    if AvailabilityService::is_back_in_stock(&previous_status, &check.status)
+        && should_send_notification(db.conn()).await?
+    {
+        // Get product name for the notification
+        if let Ok(Some(product)) = ProductRepository::find_by_id(db.conn(), uuid).await {
+            if let Err(e) = app
+                .notification()
+                .builder()
+                .title("Product Back in Stock!")
+                .body(format!("{} is now available!", product.name))
+                .show()
+            {
+                log::warn!("Failed to send back-in-stock notification: {}", e);
+            } else {
+                log::info!("Sent back-in-stock notification for: {}", product.name);
+            }
+        }
+    }
+
     Ok(AvailabilityCheckResponse::from(check))
 }
 
@@ -52,8 +82,7 @@ pub async fn get_latest_availability(
     product_id: String,
     db: State<'_, DbState>,
 ) -> Result<Option<AvailabilityCheckResponse>, AppError> {
-    let uuid = Uuid::parse_str(&product_id)
-        .map_err(|_| AppError::Validation(format!("Invalid UUID: {}", product_id)))?;
+    let uuid = parse_uuid(&product_id)?;
 
     let check = AvailabilityService::get_latest(db.conn(), uuid).await?;
     Ok(check.map(AvailabilityCheckResponse::from))
@@ -66,8 +95,7 @@ pub async fn get_availability_history(
     limit: Option<u64>,
     db: State<'_, DbState>,
 ) -> Result<Vec<AvailabilityCheckResponse>, AppError> {
-    let uuid = Uuid::parse_str(&product_id)
-        .map_err(|_| AppError::Validation(format!("Invalid UUID: {}", product_id)))?;
+    let uuid = parse_uuid(&product_id)?;
 
     let checks = AvailabilityService::get_history(db.conn(), uuid, limit).await?;
     Ok(checks
@@ -76,10 +104,60 @@ pub async fn get_availability_history(
         .collect())
 }
 
+/// Check availability for all products
+///
+/// Performs a bulk availability check on all products with rate limiting.
+/// Sends desktop notifications for products that are back in stock.
+#[tauri::command]
+pub async fn check_all_availability(
+    app: tauri::AppHandle,
+    db: State<'_, DbState>,
+) -> Result<BulkCheckSummary, AppError> {
+    let summary = AvailabilityService::check_all_products(db.conn()).await?;
+
+    // Send notifications for products that are back in stock
+    if summary.back_in_stock_count > 0 && should_send_notification(db.conn()).await? {
+        let back_in_stock_products: Vec<&str> = summary
+            .results
+            .iter()
+            .filter(|r| r.is_back_in_stock)
+            .map(|r| r.product_name.as_str())
+            .collect();
+
+        let notification_body = if back_in_stock_products.len() == 1 {
+            format!("{} is back in stock!", back_in_stock_products[0])
+        } else {
+            format!(
+                "{} products are back in stock: {}",
+                back_in_stock_products.len(),
+                back_in_stock_products.join(", ")
+            )
+        };
+
+        if let Err(e) = app
+            .notification()
+            .builder()
+            .title("Products Back in Stock!")
+            .body(&notification_body)
+            .show()
+        {
+            log::warn!("Failed to send back-in-stock notification: {}", e);
+        } else {
+            log::info!(
+                "Sent back-in-stock notification for {} product(s)",
+                back_in_stock_products.len()
+            );
+        }
+    }
+
+    Ok(summary)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::Utc;
+    use uuid::Uuid;
 
     #[test]
     fn test_availability_check_response_from_model() {

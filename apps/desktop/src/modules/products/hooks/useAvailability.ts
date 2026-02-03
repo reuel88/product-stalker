@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 
 import { COMMANDS, QUERY_KEYS } from "@/constants";
-import type { AvailabilityCheckResponse } from "@/modules/products/types";
+import type {
+	AvailabilityCheckResponse,
+	BulkCheckSummary,
+} from "@/modules/products/types";
 
 export function useAvailability(productId: string) {
 	const queryClient = useQueryClient();
@@ -66,5 +69,25 @@ export function useAvailabilityHistory(productId: string, limit?: number) {
 		history,
 		isLoading,
 		error,
+	};
+}
+
+export function useCheckAllAvailability() {
+	const queryClient = useQueryClient();
+
+	const checkAllMutation = useMutation({
+		mutationFn: () => invoke<BulkCheckSummary>(COMMANDS.CHECK_ALL_AVAILABILITY),
+		onSuccess: () => {
+			// Invalidate all availability queries to refresh the UI
+			queryClient.invalidateQueries({
+				predicate: (query) => query.queryKey[0] === "availability",
+			});
+		},
+	});
+
+	return {
+		checkAllAvailability: checkAllMutation.mutateAsync,
+		isCheckingAll: checkAllMutation.isPending,
+		lastSummary: checkAllMutation.data,
 	};
 }

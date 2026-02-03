@@ -11,6 +11,8 @@ export interface Settings {
 	log_level: string;
 	enable_notifications: boolean;
 	sidebar_expanded: boolean;
+	background_check_enabled: boolean;
+	background_check_interval_minutes: number;
 	updated_at: string;
 }
 

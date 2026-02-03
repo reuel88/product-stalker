@@ -12,6 +12,8 @@ pub struct UpdateSettingsParams {
     pub log_level: Option<String>,
     pub enable_notifications: Option<bool>,
     pub sidebar_expanded: Option<bool>,
+    pub background_check_enabled: Option<bool>,
+    pub background_check_interval_minutes: Option<i32>,
 }
 
 /// Repository for settings data access
@@ -38,6 +40,8 @@ impl SettingRepository {
             log_level: Set(default.log_level),
             enable_notifications: Set(default.enable_notifications),
             sidebar_expanded: Set(default.sidebar_expanded),
+            background_check_enabled: Set(default.background_check_enabled),
+            background_check_interval_minutes: Set(default.background_check_interval_minutes),
             updated_at: Set(default.updated_at),
         };
 
@@ -73,6 +77,12 @@ impl SettingRepository {
         }
         if let Some(sidebar_expanded) = params.sidebar_expanded {
             active_model.sidebar_expanded = Set(sidebar_expanded);
+        }
+        if let Some(background_check_enabled) = params.background_check_enabled {
+            active_model.background_check_enabled = Set(background_check_enabled);
+        }
+        if let Some(background_check_interval_minutes) = params.background_check_interval_minutes {
+            active_model.background_check_interval_minutes = Set(background_check_interval_minutes);
         }
         active_model.updated_at = Set(chrono::Utc::now());
 
@@ -129,11 +139,41 @@ mod tests {
             log_level: None,
             enable_notifications: None,
             sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
         };
 
         let updated = SettingRepository::update(&conn, settings, params)
             .await
             .unwrap();
         assert_eq!(updated.theme, "dark");
+    }
+
+    #[tokio::test]
+    async fn test_update_background_check_settings() {
+        let conn = setup_test_db().await;
+        let settings = SettingRepository::get_or_create(&conn).await.unwrap();
+
+        // Verify defaults
+        assert!(!settings.background_check_enabled);
+        assert_eq!(settings.background_check_interval_minutes, 60);
+
+        let params = UpdateSettingsParams {
+            theme: None,
+            show_in_tray: None,
+            launch_at_login: None,
+            enable_logging: None,
+            log_level: None,
+            enable_notifications: None,
+            sidebar_expanded: None,
+            background_check_enabled: Some(true),
+            background_check_interval_minutes: Some(30),
+        };
+
+        let updated = SettingRepository::update(&conn, settings, params)
+            .await
+            .unwrap();
+        assert!(updated.background_check_enabled);
+        assert_eq!(updated.background_check_interval_minutes, 30);
     }
 }

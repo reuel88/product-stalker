@@ -1,10 +1,34 @@
+use std::time::Duration;
+
 use sea_orm::DatabaseConnection;
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::entities::prelude::AvailabilityCheckModel;
 use crate::error::AppError;
 use crate::repositories::{AvailabilityCheckRepository, ProductRepository};
 use crate::services::ScraperService;
+
+/// Result of a single product availability check in a bulk operation
+#[derive(Debug, Serialize)]
+pub struct BulkCheckResult {
+    pub product_id: String,
+    pub product_name: String,
+    pub status: String,
+    pub previous_status: Option<String>,
+    pub is_back_in_stock: bool,
+    pub error: Option<String>,
+}
+
+/// Summary of a bulk check operation
+#[derive(Debug, Serialize)]
+pub struct BulkCheckSummary {
+    pub total: usize,
+    pub successful: usize,
+    pub failed: usize,
+    pub back_in_stock_count: usize,
+    pub results: Vec<BulkCheckResult>,
+}
 
 /// Service layer for availability checking business logic
 pub struct AvailabilityService;
@@ -52,6 +76,72 @@ impl AvailabilityService {
                 )
                 .await
             }
+        }
+    }
+
+    /// Check availability for all products with rate limiting
+    ///
+    /// Returns a summary including which products are back in stock.
+    pub async fn check_all_products(
+        conn: &DatabaseConnection,
+    ) -> Result<BulkCheckSummary, AppError> {
+        let products = ProductRepository::find_all(conn).await?;
+        let total = products.len();
+        let mut results = Vec::with_capacity(total);
+        let mut successful = 0;
+        let mut failed = 0;
+        let mut back_in_stock_count = 0;
+
+        for product in products {
+            // Rate limiting: wait 500ms between requests
+            tokio::time::sleep(Duration::from_millis(500)).await;
+
+            // Get previous status before checking
+            let previous_check = Self::get_latest(conn, product.id).await?;
+            let previous_status = previous_check.map(|c| c.status);
+
+            // Check availability
+            let check_result = Self::check_product(conn, product.id).await;
+
+            let (status, error, is_back_in_stock) = match check_result {
+                Ok(check) => {
+                    successful += 1;
+                    let back_in_stock = Self::is_back_in_stock(&previous_status, &check.status);
+                    if back_in_stock {
+                        back_in_stock_count += 1;
+                    }
+                    (check.status, None, back_in_stock)
+                }
+                Err(e) => {
+                    failed += 1;
+                    ("unknown".to_string(), Some(e.to_string()), false)
+                }
+            };
+
+            results.push(BulkCheckResult {
+                product_id: product.id.to_string(),
+                product_name: product.name,
+                status,
+                previous_status,
+                is_back_in_stock,
+                error,
+            });
+        }
+
+        Ok(BulkCheckSummary {
+            total,
+            successful,
+            failed,
+            back_in_stock_count,
+            results,
+        })
+    }
+
+    /// Check if a product transitioned to back in stock
+    pub fn is_back_in_stock(previous_status: &Option<String>, new_status: &str) -> bool {
+        match previous_status {
+            Some(prev) => prev != "in_stock" && new_status == "in_stock",
+            None => false, // First check, not a transition
         }
     }
 
@@ -171,5 +261,47 @@ mod tests {
 
         assert!(result.is_err());
         assert!(matches!(result, Err(AppError::NotFound(_))));
+    }
+
+    #[test]
+    fn test_is_back_in_stock_from_out_of_stock() {
+        let previous = Some("out_of_stock".to_string());
+        let is_back = AvailabilityService::is_back_in_stock(&previous, "in_stock");
+        assert!(is_back);
+    }
+
+    #[test]
+    fn test_is_back_in_stock_from_back_order() {
+        let previous = Some("back_order".to_string());
+        let is_back = AvailabilityService::is_back_in_stock(&previous, "in_stock");
+        assert!(is_back);
+    }
+
+    #[test]
+    fn test_is_back_in_stock_from_unknown() {
+        let previous = Some("unknown".to_string());
+        let is_back = AvailabilityService::is_back_in_stock(&previous, "in_stock");
+        assert!(is_back);
+    }
+
+    #[test]
+    fn test_is_back_in_stock_already_in_stock() {
+        let previous = Some("in_stock".to_string());
+        let is_back = AvailabilityService::is_back_in_stock(&previous, "in_stock");
+        assert!(!is_back); // Not a transition
+    }
+
+    #[test]
+    fn test_is_back_in_stock_still_out_of_stock() {
+        let previous = Some("out_of_stock".to_string());
+        let is_back = AvailabilityService::is_back_in_stock(&previous, "out_of_stock");
+        assert!(!is_back);
+    }
+
+    #[test]
+    fn test_is_back_in_stock_no_previous() {
+        let previous: Option<String> = None;
+        let is_back = AvailabilityService::is_back_in_stock(&previous, "in_stock");
+        assert!(!is_back); // First check, not a transition
     }
 }

@@ -1,3 +1,4 @@
+mod background;
 mod commands;
 mod db;
 mod entities;
@@ -6,8 +7,9 @@ mod migrations;
 mod plugins;
 mod repositories;
 mod services;
+mod utils;
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use db::DbState;
 use tauri::tray::TrayIcon;
@@ -98,6 +100,11 @@ pub fn run() {
                 }
             }
 
+            // Spawn background availability checker
+            let conn_arc = Arc::new(conn);
+            background::spawn_background_checker(app.handle().clone(), conn_arc);
+            log::info!("Background availability checker spawned");
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -122,6 +129,7 @@ pub fn run() {
             commands::check_availability,
             commands::get_latest_availability,
             commands::get_availability_history,
+            commands::check_all_availability,
             // Settings commands
             commands::get_settings,
             commands::update_settings,
