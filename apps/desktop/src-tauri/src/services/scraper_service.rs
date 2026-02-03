@@ -124,87 +124,86 @@ impl ScraperService {
         })
     }
 
-    /// Extract availability from a JSON-LD value
+    /// Extract availability from a JSON-LD value, trying multiple known structures
     fn extract_availability(json: &serde_json::Value, variant_id: Option<&str>) -> Option<String> {
-        // Direct Product type
+        Self::try_extract_from_product(json)
+            .or_else(|| Self::try_extract_from_product_group(json, variant_id))
+            .or_else(|| Self::try_extract_from_graph(json, variant_id))
+            .or_else(|| Self::try_extract_from_array(json, variant_id))
+    }
+
+    /// Try to extract availability if the JSON is a Product type
+    fn try_extract_from_product(json: &serde_json::Value) -> Option<String> {
         if Self::is_product_type(json) {
-            if let Some(avail) = Self::get_availability_from_product(json) {
-                return Some(avail);
-            }
+            Self::get_availability_from_product(json)
+        } else {
+            None
         }
+    }
 
-        // ProductGroup with variants (Shopify style)
+    /// Try to extract availability if the JSON is a ProductGroup type
+    fn try_extract_from_product_group(
+        json: &serde_json::Value,
+        variant_id: Option<&str>,
+    ) -> Option<String> {
         if Self::is_product_group_type(json) {
-            if let Some(avail) = Self::get_availability_from_product_group(json, variant_id) {
-                return Some(avail);
-            }
+            Self::get_availability_from_product_group(json, variant_id)
+        } else {
+            None
         }
+    }
 
-        // Check @graph array
-        if let Some(graph) = json.get("@graph").and_then(|g| g.as_array()) {
-            for item in graph {
-                if Self::is_product_type(item) {
-                    if let Some(avail) = Self::get_availability_from_product(item) {
-                        return Some(avail);
-                    }
-                }
-                if Self::is_product_group_type(item) {
-                    if let Some(avail) = Self::get_availability_from_product_group(item, variant_id)
-                    {
-                        return Some(avail);
-                    }
-                }
-            }
+    /// Try to extract availability from a @graph array
+    fn try_extract_from_graph(
+        json: &serde_json::Value,
+        variant_id: Option<&str>,
+    ) -> Option<String> {
+        json.get("@graph")
+            .and_then(|g| g.as_array())
+            .and_then(|arr| Self::find_availability_in_items(arr, variant_id))
+    }
+
+    /// Try to extract availability from a direct JSON array
+    fn try_extract_from_array(
+        json: &serde_json::Value,
+        variant_id: Option<&str>,
+    ) -> Option<String> {
+        json.as_array()
+            .and_then(|arr| Self::find_availability_in_items(arr, variant_id))
+    }
+
+    /// Iterate through items looking for availability data
+    fn find_availability_in_items(
+        items: &[serde_json::Value],
+        variant_id: Option<&str>,
+    ) -> Option<String> {
+        items.iter().find_map(|item| {
+            Self::try_extract_from_product(item)
+                .or_else(|| Self::try_extract_from_product_group(item, variant_id))
+        })
+    }
+
+    /// Check if a JSON @type field matches the expected type
+    fn has_schema_type(json: &serde_json::Value, expected_type: &str) -> bool {
+        let Some(type_value) = json.get("@type") else {
+            return false;
+        };
+
+        match type_value {
+            serde_json::Value::String(s) => s == expected_type,
+            serde_json::Value::Array(arr) => arr.iter().any(|v| v.as_str() == Some(expected_type)),
+            _ => false,
         }
-
-        // Check if it's an array of items
-        if let Some(arr) = json.as_array() {
-            for item in arr {
-                if Self::is_product_type(item) {
-                    if let Some(avail) = Self::get_availability_from_product(item) {
-                        return Some(avail);
-                    }
-                }
-                if Self::is_product_group_type(item) {
-                    if let Some(avail) = Self::get_availability_from_product_group(item, variant_id)
-                    {
-                        return Some(avail);
-                    }
-                }
-            }
-        }
-
-        None
     }
 
     /// Check if a JSON value represents a Product type
     fn is_product_type(json: &serde_json::Value) -> bool {
-        json.get("@type")
-            .map(|t| {
-                if let Some(s) = t.as_str() {
-                    s == "Product"
-                } else if let Some(arr) = t.as_array() {
-                    arr.iter().any(|v| v.as_str() == Some("Product"))
-                } else {
-                    false
-                }
-            })
-            .unwrap_or(false)
+        Self::has_schema_type(json, "Product")
     }
 
     /// Check if a JSON value represents a ProductGroup type
     fn is_product_group_type(json: &serde_json::Value) -> bool {
-        json.get("@type")
-            .map(|t| {
-                if let Some(s) = t.as_str() {
-                    s == "ProductGroup"
-                } else if let Some(arr) = t.as_array() {
-                    arr.iter().any(|v| v.as_str() == Some("ProductGroup"))
-                } else {
-                    false
-                }
-            })
-            .unwrap_or(false)
+        Self::has_schema_type(json, "ProductGroup")
     }
 
     /// Get availability from a ProductGroup by matching variant ID

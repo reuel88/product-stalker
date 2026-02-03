@@ -49,22 +49,26 @@ pub fn init<R: Runtime>(app: &AppHandle<R>, visible: bool) -> Result<TrayIcon<R>
         })
         .on_tray_icon_event(|tray, event| {
             // Left-click toggles window visibility
-            if let TrayIconEvent::Click {
+            let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
                 ..
             } = event
-            {
-                if let Some(window) = tray.app_handle().get_webview_window("main") {
-                    if window.is_visible().unwrap_or(false) {
-                        let _ = window.hide();
-                        log::debug!("Window hidden via tray click");
-                    } else {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                        log::debug!("Window shown via tray click");
-                    }
-                }
+            else {
+                return;
+            };
+
+            let Some(window) = tray.app_handle().get_webview_window("main") else {
+                return;
+            };
+
+            if window.is_visible().unwrap_or(false) {
+                let _ = window.hide();
+                log::debug!("Window hidden via tray click");
+            } else {
+                let _ = window.show();
+                let _ = window.set_focus();
+                log::debug!("Window shown via tray click");
             }
         })
         .build(app)

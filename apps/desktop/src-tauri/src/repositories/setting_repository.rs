@@ -94,21 +94,11 @@ impl SettingRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Schema};
-
-    async fn setup_test_db() -> DatabaseConnection {
-        let conn = Database::connect("sqlite::memory:").await.unwrap();
-        let schema = Schema::new(DatabaseBackend::Sqlite);
-        let stmt = schema.create_table_from_entity(Setting);
-        conn.execute(conn.get_database_backend().build(&stmt))
-            .await
-            .unwrap();
-        conn
-    }
+    use crate::test_utils::setup_settings_db;
 
     #[tokio::test]
     async fn test_get_or_create_creates_defaults() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let settings = SettingRepository::get_or_create(&conn).await.unwrap();
 
         assert_eq!(settings.id, 1);
@@ -118,7 +108,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_or_create_returns_existing() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
 
         let first = SettingRepository::get_or_create(&conn).await.unwrap();
         let second = SettingRepository::get_or_create(&conn).await.unwrap();
@@ -128,7 +118,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_settings() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let settings = SettingRepository::get_or_create(&conn).await.unwrap();
 
         let params = UpdateSettingsParams {
@@ -151,7 +141,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_background_check_settings() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let settings = SettingRepository::get_or_create(&conn).await.unwrap();
 
         // Verify defaults

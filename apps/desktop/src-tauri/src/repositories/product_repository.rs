@@ -90,21 +90,11 @@ impl ProductRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Schema};
-
-    async fn setup_test_db() -> DatabaseConnection {
-        let conn = Database::connect("sqlite::memory:").await.unwrap();
-        let schema = Schema::new(DatabaseBackend::Sqlite);
-        let stmt = schema.create_table_from_entity(Product);
-        conn.execute(conn.get_database_backend().build(&stmt))
-            .await
-            .unwrap();
-        conn
-    }
+    use crate::test_utils::setup_products_db;
 
     #[tokio::test]
     async fn test_create_and_find_product() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let id = Uuid::new_v4();
 
         let created = ProductRepository::create(
@@ -127,14 +117,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_all_empty() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let products = ProductRepository::find_all(&conn).await.unwrap();
         assert!(products.is_empty());
     }
 
     #[tokio::test]
     async fn test_delete_product() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let id = Uuid::new_v4();
 
         ProductRepository::create(
@@ -157,7 +147,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_product() {
-        let conn = setup_test_db().await;
+        let conn = setup_products_db().await;
         let id = Uuid::new_v4();
 
         let created = ProductRepository::create(

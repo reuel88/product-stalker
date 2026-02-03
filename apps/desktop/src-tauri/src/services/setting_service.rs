@@ -102,22 +102,11 @@ mod tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::entities::setting::Entity as Setting;
-    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Schema};
-
-    async fn setup_test_db() -> DatabaseConnection {
-        let conn = Database::connect("sqlite::memory:").await.unwrap();
-        let schema = Schema::new(DatabaseBackend::Sqlite);
-        let stmt = schema.create_table_from_entity(Setting);
-        conn.execute(conn.get_database_backend().build(&stmt))
-            .await
-            .unwrap();
-        conn
-    }
+    use crate::test_utils::setup_settings_db;
 
     #[tokio::test]
     async fn test_get_creates_defaults() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let result = SettingService::get(&conn).await;
 
         assert!(result.is_ok());
@@ -128,7 +117,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_get_returns_same_settings() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
 
         let first = SettingService::get(&conn).await.unwrap();
         let second = SettingService::get(&conn).await.unwrap();
@@ -139,7 +128,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_validates_theme() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: Some("invalid".to_string()),
             show_in_tray: None,
@@ -158,7 +147,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_validates_log_level() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: None,
             show_in_tray: None,
@@ -177,7 +166,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_theme_success() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: Some("dark".to_string()),
             show_in_tray: None,
@@ -197,7 +186,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_log_level_success() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: None,
             show_in_tray: None,
@@ -217,7 +206,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_show_in_tray() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: None,
             show_in_tray: Some(false),
@@ -237,7 +226,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_launch_at_login() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: None,
             show_in_tray: None,
@@ -257,7 +246,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_enable_logging() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: None,
             show_in_tray: None,
@@ -277,7 +266,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_enable_notifications() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: None,
             show_in_tray: None,
@@ -297,7 +286,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_sidebar_expanded() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: None,
             show_in_tray: None,
@@ -317,7 +306,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_multiple_fields() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: Some("light".to_string()),
             show_in_tray: Some(true),
@@ -346,7 +335,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_update_no_fields_does_not_error() {
-        let conn = setup_test_db().await;
+        let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: None,
             show_in_tray: None,

@@ -11,7 +11,8 @@
 			"Bash(cargo fmt:*)",
 			"Bash(pnpm run test)",
 			"Bash(pnpm run check:*)",
-			"Bash(pnpm run check-types:*)"
+			"Bash(pnpm run check-types:*)",
+			"Bash(cargo clippy:*)"
 		]
 	}
 }
