@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use uuid::Uuid;
 
 use crate::db::DbState;
 use crate::entities::prelude::ProductModel;
 use crate::error::AppError;
 use crate::services::ProductService;
+use crate::utils::parse_uuid;
 
 /// Input for creating a product
 #[derive(Debug, Deserialize)]
@@ -61,8 +61,7 @@ pub async fn get_products(db: State<'_, DbState>) -> Result<Vec<ProductResponse>
 /// Get a single product by ID
 #[tauri::command]
 pub async fn get_product(id: String, db: State<'_, DbState>) -> Result<ProductResponse, AppError> {
-    let uuid =
-        Uuid::parse_str(&id).map_err(|_| AppError::Validation(format!("Invalid UUID: {}", id)))?;
+    let uuid = parse_uuid(&id)?;
 
     let product = ProductService::get_by_id(db.conn(), uuid).await?;
     Ok(ProductResponse::from(product))
@@ -93,8 +92,7 @@ pub async fn update_product(
     input: UpdateProductInput,
     db: State<'_, DbState>,
 ) -> Result<ProductResponse, AppError> {
-    let uuid =
-        Uuid::parse_str(&id).map_err(|_| AppError::Validation(format!("Invalid UUID: {}", id)))?;
+    let uuid = parse_uuid(&id)?;
 
     let product = ProductService::update(
         db.conn(),
@@ -112,8 +110,7 @@ pub async fn update_product(
 /// Delete a product
 #[tauri::command]
 pub async fn delete_product(id: String, db: State<'_, DbState>) -> Result<(), AppError> {
-    let uuid =
-        Uuid::parse_str(&id).map_err(|_| AppError::Validation(format!("Invalid UUID: {}", id)))?;
+    let uuid = parse_uuid(&id)?;
 
     ProductService::delete(db.conn(), uuid).await?;
     Ok(())
@@ -123,6 +120,7 @@ pub async fn delete_product(id: String, db: State<'_, DbState>) -> Result<(), Ap
 mod tests {
     use super::*;
     use chrono::Utc;
+    use uuid::Uuid;
 
     #[test]
     fn test_product_response_from_model() {

@@ -148,6 +148,8 @@ mod integration_tests {
             log_level: None,
             enable_notifications: None,
             sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -165,6 +167,8 @@ mod integration_tests {
             log_level: Some("invalid_level".to_string()),
             enable_notifications: None,
             sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -182,6 +186,8 @@ mod integration_tests {
             log_level: None,
             enable_notifications: None,
             sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -200,6 +206,8 @@ mod integration_tests {
             log_level: Some("debug".to_string()),
             enable_notifications: None,
             sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -218,6 +226,8 @@ mod integration_tests {
             log_level: None,
             enable_notifications: None,
             sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -236,6 +246,8 @@ mod integration_tests {
             log_level: None,
             enable_notifications: None,
             sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -254,6 +266,8 @@ mod integration_tests {
             log_level: None,
             enable_notifications: None,
             sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -272,6 +286,8 @@ mod integration_tests {
             log_level: None,
             enable_notifications: Some(false),
             sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -290,6 +306,8 @@ mod integration_tests {
             log_level: None,
             enable_notifications: None,
             sidebar_expanded: Some(true),
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -308,6 +326,8 @@ mod integration_tests {
             log_level: Some("trace".to_string()),
             enable_notifications: Some(true),
             sidebar_expanded: Some(true),
+            background_check_enabled: Some(true),
+            background_check_interval_minutes: Some(30),
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -320,6 +340,8 @@ mod integration_tests {
         assert_eq!(settings.log_level, "trace");
         assert!(settings.enable_notifications);
         assert!(settings.sidebar_expanded);
+        assert!(settings.background_check_enabled);
+        assert_eq!(settings.background_check_interval_minutes, 30);
     }
 
     #[tokio::test]
@@ -333,6 +355,8 @@ mod integration_tests {
             log_level: None,
             enable_notifications: None,
             sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
         };
 
         let result = SettingService::update(&conn, params).await;

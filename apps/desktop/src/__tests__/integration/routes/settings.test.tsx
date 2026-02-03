@@ -187,7 +187,7 @@ describe("SettingsComponent", () => {
 			});
 
 			// Get all switches
-			// Order: show_in_tray, launch_at_login, enable_logging, enable_notifications, sidebar_expanded
+			// Order: show_in_tray, launch_at_login, enable_logging, enable_notifications, background_check_enabled, sidebar_expanded
 			const switches = screen.getAllByRole("switch");
 			await user.click(switches[3]);
 
@@ -268,9 +268,9 @@ describe("SettingsComponent", () => {
 				expect(screen.getByText("Sidebar expanded")).toBeInTheDocument();
 			});
 
-			// switch index 4 is sidebar_expanded
+			// switch index 5 is sidebar_expanded (after background_check_enabled)
 			const switches = screen.getAllByRole("switch");
-			await user.click(switches[4]);
+			await user.click(switches[5]);
 
 			await waitFor(() => {
 				expect(getMockedInvoke()).toHaveBeenCalledWith(

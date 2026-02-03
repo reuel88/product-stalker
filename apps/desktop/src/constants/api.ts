@@ -6,6 +6,7 @@ export const COMMANDS = {
 	CHECK_AVAILABILITY: "check_availability",
 	GET_LATEST_AVAILABILITY: "get_latest_availability",
 	GET_AVAILABILITY_HISTORY: "get_availability_history",
+	CHECK_ALL_AVAILABILITY: "check_all_availability",
 	GET_SETTINGS: "get_settings",
 	UPDATE_SETTINGS: "update_settings",
 	SEND_NOTIFICATION: "send_notification",

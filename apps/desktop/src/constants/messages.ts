@@ -10,6 +10,9 @@ export const MESSAGES = {
 	AVAILABILITY: {
 		CHECKED: "Availability checked",
 		CHECK_FAILED: "Failed to check availability",
+		CHECK_ALL_COMPLETE: "All products checked",
+		CHECK_ALL_FAILED: "Failed to check all products",
+		BACK_IN_STOCK: "Back in stock!",
 		IN_STOCK: "In Stock",
 		OUT_OF_STOCK: "Out of Stock",
 		BACK_ORDER: "Back Order",

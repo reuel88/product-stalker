@@ -336,8 +336,8 @@ const [dialogState, setDialogState] = useState<DialogState>({ type: 'closed' });
 ## Action Items
 
 ### High Priority
-- [ ] Extract shared `ProductFormDialog` component from `products-view.tsx`
-- [ ] Create UUID parsing utility to eliminate repetition in commands
+- [x] Extract shared `ProductFormDialog` component from `products-view.tsx`
+- [x] Create UUID parsing utility to eliminate repetition in commands
 
 ### Medium Priority
 - [ ] Refactor `extract_availability` in `scraper_service.rs` for clarity

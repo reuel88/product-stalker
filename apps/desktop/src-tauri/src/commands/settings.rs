@@ -18,6 +18,8 @@ pub struct UpdateSettingsInput {
     pub log_level: Option<String>,
     pub enable_notifications: Option<bool>,
     pub sidebar_expanded: Option<bool>,
+    pub background_check_enabled: Option<bool>,
+    pub background_check_interval_minutes: Option<i32>,
 }
 
 /// Response DTO for settings
@@ -30,6 +32,8 @@ pub struct SettingsResponse {
     pub log_level: String,
     pub enable_notifications: bool,
     pub sidebar_expanded: bool,
+    pub background_check_enabled: bool,
+    pub background_check_interval_minutes: i32,
     pub updated_at: String,
 }
 
@@ -43,6 +47,8 @@ impl From<SettingModel> for SettingsResponse {
             log_level: model.log_level,
             enable_notifications: model.enable_notifications,
             sidebar_expanded: model.sidebar_expanded,
+            background_check_enabled: model.background_check_enabled,
+            background_check_interval_minutes: model.background_check_interval_minutes,
             updated_at: model.updated_at.to_rfc3339(),
         }
     }
@@ -91,6 +97,8 @@ pub async fn update_settings(
         log_level: input.log_level,
         enable_notifications: input.enable_notifications,
         sidebar_expanded: input.sidebar_expanded,
+        background_check_enabled: input.background_check_enabled,
+        background_check_interval_minutes: input.background_check_interval_minutes,
     };
 
     let settings = SettingService::update(db.conn(), params).await?;
@@ -119,6 +127,8 @@ mod tests {
             log_level: "info".to_string(),
             enable_notifications: true,
             sidebar_expanded: false,
+            background_check_enabled: false,
+            background_check_interval_minutes: 60,
             updated_at: now,
         };
 
@@ -131,6 +141,8 @@ mod tests {
         assert_eq!(response.log_level, "info");
         assert!(response.enable_notifications);
         assert!(!response.sidebar_expanded);
+        assert!(!response.background_check_enabled);
+        assert_eq!(response.background_check_interval_minutes, 60);
     }
 
     #[test]
@@ -145,6 +157,8 @@ mod tests {
             log_level: "error".to_string(),
             enable_notifications: false,
             sidebar_expanded: true,
+            background_check_enabled: true,
+            background_check_interval_minutes: 30,
             updated_at: now,
         };
 
@@ -157,6 +171,8 @@ mod tests {
         assert_eq!(response.log_level, "error");
         assert!(!response.enable_notifications);
         assert!(response.sidebar_expanded);
+        assert!(response.background_check_enabled);
+        assert_eq!(response.background_check_interval_minutes, 30);
     }
 
     #[test]
@@ -171,6 +187,8 @@ mod tests {
             log_level: "debug".to_string(),
             enable_notifications: true,
             sidebar_expanded: true,
+            background_check_enabled: false,
+            background_check_interval_minutes: 60,
             updated_at: now,
         };
 
@@ -192,6 +210,8 @@ mod tests {
             log_level: "info".to_string(),
             enable_notifications: true,
             sidebar_expanded: false,
+            background_check_enabled: false,
+            background_check_interval_minutes: 60,
             updated_at: now,
         };
 
@@ -201,6 +221,8 @@ mod tests {
         assert!(json.contains("\"theme\":\"dark\""));
         assert!(json.contains("\"show_in_tray\":true"));
         assert!(json.contains("\"log_level\":\"info\""));
+        assert!(json.contains("\"background_check_enabled\":false"));
+        assert!(json.contains("\"background_check_interval_minutes\":60"));
     }
 
     #[test]
@@ -215,6 +237,8 @@ mod tests {
             log_level: "info".to_string(),
             enable_notifications: true,
             sidebar_expanded: false,
+            background_check_enabled: false,
+            background_check_interval_minutes: 60,
             updated_at: now,
         };
 
@@ -236,6 +260,8 @@ mod tests {
         assert!(input.log_level.is_none());
         assert!(input.enable_notifications.is_none());
         assert!(input.sidebar_expanded.is_none());
+        assert!(input.background_check_enabled.is_none());
+        assert!(input.background_check_interval_minutes.is_none());
     }
 
     #[test]
@@ -247,7 +273,9 @@ mod tests {
             "enable_logging": true,
             "log_level": "debug",
             "enable_notifications": false,
-            "sidebar_expanded": true
+            "sidebar_expanded": true,
+            "background_check_enabled": true,
+            "background_check_interval_minutes": 30
         }"#;
         let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
 
@@ -258,6 +286,8 @@ mod tests {
         assert_eq!(input.log_level, Some("debug".to_string()));
         assert_eq!(input.enable_notifications, Some(false));
         assert_eq!(input.sidebar_expanded, Some(true));
+        assert_eq!(input.background_check_enabled, Some(true));
+        assert_eq!(input.background_check_interval_minutes, Some(30));
     }
 
     #[test]
@@ -272,6 +302,8 @@ mod tests {
         assert!(input.log_level.is_none());
         assert!(input.enable_notifications.is_none());
         assert!(input.sidebar_expanded.is_none());
+        assert!(input.background_check_enabled.is_none());
+        assert!(input.background_check_interval_minutes.is_none());
     }
 
     #[test]
@@ -290,6 +322,16 @@ mod tests {
         let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.log_level, Some("trace".to_string()));
+        assert!(input.theme.is_none());
+    }
+
+    #[test]
+    fn test_update_settings_input_deserializes_background_check_only() {
+        let json = r#"{"background_check_enabled":true,"background_check_interval_minutes":15}"#;
+        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.background_check_enabled, Some(true));
+        assert_eq!(input.background_check_interval_minutes, Some(15));
         assert!(input.theme.is_none());
     }
 }

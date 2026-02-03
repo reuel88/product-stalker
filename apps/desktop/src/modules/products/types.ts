@@ -22,3 +22,20 @@ export interface AvailabilityCheckResponse {
 	error_message: string | null;
 	checked_at: string;
 }
+
+export interface BulkCheckResult {
+	product_id: string;
+	product_name: string;
+	status: string;
+	previous_status: string | null;
+	is_back_in_stock: boolean;
+	error: string | null;
+}
+
+export interface BulkCheckSummary {
+	total: number;
+	successful: number;
+	failed: number;
+	back_in_stock_count: number;
+	results: BulkCheckResult[];
+}

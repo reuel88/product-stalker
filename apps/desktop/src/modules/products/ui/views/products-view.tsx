@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,15 +17,14 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { MESSAGES } from "@/constants";
+import { useCheckAllAvailability } from "@/modules/products/hooks/useAvailability";
 import {
 	type CreateProductInput,
 	useProducts,
 } from "@/modules/products/hooks/useProducts";
 import type { ProductResponse } from "@/modules/products/types";
+import { ProductFormDialog } from "@/modules/products/ui/components/product-form-dialog";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
 import { ErrorState } from "@/modules/shared/ui/components/error-state";
 
@@ -41,6 +40,8 @@ export function ProductsView() {
 		deleteProduct,
 		isDeleting,
 	} = useProducts();
+
+	const { checkAllAvailability, isCheckingAll } = useCheckAllAvailability();
 
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -135,6 +136,23 @@ export function ProductsView() {
 		}
 	};
 
+	const handleCheckAll = async () => {
+		try {
+			const summary = await checkAllAvailability();
+			if (summary.back_in_stock_count > 0) {
+				toast.success(
+					`${MESSAGES.AVAILABILITY.CHECK_ALL_COMPLETE} - ${summary.back_in_stock_count} product(s) back in stock!`,
+				);
+			} else {
+				toast.success(
+					`${MESSAGES.AVAILABILITY.CHECK_ALL_COMPLETE} (${summary.successful}/${summary.total} successful)`,
+				);
+			}
+		} catch {
+			toast.error(MESSAGES.AVAILABILITY.CHECK_ALL_FAILED);
+		}
+	};
+
 	if (error) {
 		return (
 			<div className="flex h-screen w-full flex-col items-center justify-center">
@@ -150,10 +168,23 @@ export function ProductsView() {
 		<div className="container mx-auto max-w-4xl overflow-y-auto px-4 py-6">
 			<div className="mb-6 flex items-center justify-between">
 				<h1 className="font-semibold text-xl">Products</h1>
-				<Button size="sm" onClick={() => setCreateDialogOpen(true)}>
-					<Plus className="size-4" />
-					Add Product
-				</Button>
+				<div className="flex gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={handleCheckAll}
+						disabled={isCheckingAll || !products?.length}
+					>
+						<RefreshCw
+							className={`size-4 ${isCheckingAll ? "animate-spin" : ""}`}
+						/>
+						{isCheckingAll ? "Checking..." : "Check All"}
+					</Button>
+					<Button size="sm" onClick={() => setCreateDialogOpen(true)}>
+						<Plus className="size-4" />
+						Add Product
+					</Button>
+				</div>
 			</div>
 
 			<Card>
@@ -174,135 +205,34 @@ export function ProductsView() {
 			</Card>
 
 			{/* Create Dialog */}
-			<Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Add Product</DialogTitle>
-						<DialogDescription>Add a new product to track</DialogDescription>
-					</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<div className="grid gap-2">
-							<Label htmlFor="create-name">Name</Label>
-							<Input
-								id="create-name"
-								value={formData.name}
-								onChange={(e) =>
-									setFormData({ ...formData, name: e.target.value })
-								}
-								placeholder="Product name"
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="create-url">URL</Label>
-							<Input
-								id="create-url"
-								value={formData.url}
-								onChange={(e) =>
-									setFormData({ ...formData, url: e.target.value })
-								}
-								placeholder="https://example.com/product"
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="create-description">Description</Label>
-							<Textarea
-								id="create-description"
-								value={formData.description || ""}
-								onChange={(e) =>
-									setFormData({ ...formData, description: e.target.value })
-								}
-								placeholder="Optional description"
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="create-notes">Notes</Label>
-							<Textarea
-								id="create-notes"
-								value={formData.notes || ""}
-								onChange={(e) =>
-									setFormData({ ...formData, notes: e.target.value })
-								}
-								placeholder="Optional notes"
-							/>
-						</div>
-					</div>
-					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setCreateDialogOpen(false)}
-						>
-							Cancel
-						</Button>
-						<Button onClick={handleCreate} disabled={isCreating}>
-							{isCreating ? "Creating..." : "Create"}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<ProductFormDialog
+				open={createDialogOpen}
+				onOpenChange={setCreateDialogOpen}
+				title="Add Product"
+				description="Add a new product to track"
+				formData={formData}
+				onFormChange={setFormData}
+				onSubmit={handleCreate}
+				isSubmitting={isCreating}
+				submitLabel="Create"
+				submittingLabel="Creating..."
+				idPrefix="create"
+			/>
 
 			{/* Edit Dialog */}
-			<Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Edit Product</DialogTitle>
-						<DialogDescription>Update product details</DialogDescription>
-					</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<div className="grid gap-2">
-							<Label htmlFor="edit-name">Name</Label>
-							<Input
-								id="edit-name"
-								value={formData.name}
-								onChange={(e) =>
-									setFormData({ ...formData, name: e.target.value })
-								}
-								placeholder="Product name"
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="edit-url">URL</Label>
-							<Input
-								id="edit-url"
-								value={formData.url}
-								onChange={(e) =>
-									setFormData({ ...formData, url: e.target.value })
-								}
-								placeholder="https://example.com/product"
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="edit-description">Description</Label>
-							<Textarea
-								id="edit-description"
-								value={formData.description || ""}
-								onChange={(e) =>
-									setFormData({ ...formData, description: e.target.value })
-								}
-								placeholder="Optional description"
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="edit-notes">Notes</Label>
-							<Textarea
-								id="edit-notes"
-								value={formData.notes || ""}
-								onChange={(e) =>
-									setFormData({ ...formData, notes: e.target.value })
-								}
-								placeholder="Optional notes"
-							/>
-						</div>
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-							Cancel
-						</Button>
-						<Button onClick={handleUpdate} disabled={isUpdating}>
-							{isUpdating ? "Saving..." : "Save"}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<ProductFormDialog
+				open={editDialogOpen}
+				onOpenChange={setEditDialogOpen}
+				title="Edit Product"
+				description="Update product details"
+				formData={formData}
+				onFormChange={setFormData}
+				onSubmit={handleUpdate}
+				isSubmitting={isUpdating}
+				submitLabel="Save"
+				submittingLabel="Saving..."
+				idPrefix="edit"
+			/>
 
 			{/* Delete Confirmation Dialog */}
 			<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
