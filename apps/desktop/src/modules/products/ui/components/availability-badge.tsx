@@ -45,6 +45,9 @@ export function AvailabilityBadge({
 
 	const formatCheckedAt = (dateStr: string) => {
 		const date = new Date(dateStr);
+		if (Number.isNaN(date.getTime())) {
+			return "Unknown";
+		}
 		const now = new Date();
 		const diffMs = now.getTime() - date.getTime();
 		const diffMins = Math.floor(diffMs / 60000);

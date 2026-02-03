@@ -28,6 +28,10 @@
    pnpm dev:desktop
    ```
 
+## Dependencies
+
+- **Biome:** When bumping `@biomejs/biome` in `package.json`, update the `@biomejs+biome@X.Y.Z` segment in every path under `biome.lsp.bin` in `.vscode/settings.json` so the LSP keeps working.
+
 ## Branch Naming
 
 Use descriptive branch names with prefixes:

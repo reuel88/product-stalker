@@ -11,5 +11,15 @@
 	"biome.configurationPath": "./biome.json",
 	"biome.lsp.trace.server": "verbose",
 	"biome.requireConfiguration": true,
-	"biome.lsp.bin": "./node_modules/@biomejs/biome/bin/biome"
+	// When bumping @biomejs/biome in package.json, update the @biomejs+biome@X.Y.Z segment in every path below so the LSP keeps working.
+	"biome.lsp.bin": {
+		"win32-x64": "./node_modules/.pnpm/@biomejs+biome@2.3.13/node_modules/@biomejs/cli-win32-x64/biome.exe",
+		"win32-arm64": "./node_modules/.pnpm/@biomejs+biome@2.3.13/node_modules/@biomejs/cli-win32-arm64/biome.exe",
+		"darwin-arm64": "./node_modules/.pnpm/@biomejs+biome@2.3.13/node_modules/@biomejs/cli-darwin-arm64/biome",
+		"darwin-x64": "./node_modules/.pnpm/@biomejs+biome@2.3.13/node_modules/@biomejs/cli-darwin-x64/biome",
+		"linux-x64": "./node_modules/.pnpm/@biomejs+biome@2.3.13/node_modules/@biomejs/cli-linux-x64/biome",
+		"linux-arm64": "./node_modules/.pnpm/@biomejs+biome@2.3.13/node_modules/@biomejs/cli-linux-arm64/biome",
+		"linux-x64-musl": "./node_modules/.pnpm/@biomejs+biome@2.3.13/node_modules/@biomejs/cli-linux-x64-musl/biome",
+		"linux-arm64-musl": "./node_modules/.pnpm/@biomejs+biome@2.3.13/node_modules/@biomejs/cli-linux-arm64-musl/biome"
+	}
 }
