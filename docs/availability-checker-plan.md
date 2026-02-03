@@ -149,8 +149,9 @@ export interface AvailabilityCheckResponse {
 | `src/modules/products/ui/components/availability-badge.tsx` | UI component |
 
 ### Modified Files (16)
+
 | File | Changes |
-|------|---------|
+| --- | --- |
 | `Cargo.toml` | Add reqwest, scraper |
 | `src-tauri/src/error.rs` | Add Http, Scraping errors |
 | `src-tauri/src/entities/mod.rs` | Export entity |
@@ -217,9 +218,9 @@ Use `headless_chrome` or `chromiumoxide` crate to run a real browser:
 
 **Dependencies:**
 ```toml
-headless_chrome = "1.0"
+headless_chrome = "1.0.20"
 # or
-chromiumoxide = "0.7"
+chromiumoxide = "0.8.0"
 ```
 
 **Implementation:**
@@ -282,6 +283,40 @@ fn is_cloudflare_challenge(status: u16, body: &str) -> bool {
 - `fetch_page(url)` - Navigate and wait for content
 - Timeout handling (longer than HTTP - 60s)
 - Browser cleanup on app exit
+
+##### 3.3.1 Design Decisions
+
+Design decisions for `HeadlessService` and `fetch_page` behavior. Each decision below includes expected configuration knobs and failure modes for implementers.
+
+**1. Platform-specific browser binary detection**
+
+- **Decision**: How `HeadlessService` locates Chrome/Chromium on Windows, macOS, and Linux. Check `CHROME_PATH` (or equivalent) env first; then common install paths (e.g. Windows: Program Files, Registry; macOS: `/Applications/Google Chrome.app`; Linux: `google-chrome`, `chromium`, `chromium-browser` via `which` or standard paths).
+- **Configuration knobs**: `chrome_path` (optional override), `prefer_chromium` (bool, try Chromium before Chrome on Linux).
+- **Failure modes**: Binary not found → fail initialization with clear error; wrong architecture → same; insufficient permissions → same. No silent fallback to a wrong binary.
+
+**2. Browser download/installation fallback policy**
+
+- **Decision**: When no suitable binary is found, choose one of: **fail** (return error, clear message + install link; recommended for Phase 3), **prompt** (show dialog with install link), or **auto-download** (download Chromium to app data; higher complexity). Document trade-offs: fail is simplest; auto-download improves UX but adds size/network/versioning concerns.
+- **Configuration knobs**: `browser_fallback_policy`: `fail` | `prompt` | `auto_download` (if supported later).
+- **Failure modes**: User dismisses prompt → treat as fail for that session; auto-download: disk space/network failure → fail with message; version mismatch after download → fail or retry download.
+
+**3. Concurrency model for `fetch_page`**
+
+- **Decision**: Use a **single browser process with multiple tabs** (recommended for Phase 3): one Chrome instance, one tab per in-flight `fetch_page`. Schedule requests via a semaphore or bounded queue so that at most N tabs are open. Alternative: multiple browser instances only if single-process limits are hit (document as future option).
+- **Configuration knobs**: `max_concurrent_tabs` (max tabs open at once), `browser_instance_mode`: `single` | `multi` (if both supported later).
+- **Failure modes**: Tab limit reached → queue or return "busy" / capacity error; browser crash → fail in-flight requests and recreate browser on next use; starvation → document queue policy (FIFO).
+
+**4. Resource limits and throttling**
+
+- **Decision**: Enforce max concurrent headless sessions/tabs (e.g. `max_tabs`). When at capacity, apply **backpressure**: either queue with a max depth and reject new requests with "capacity exceeded", or wait. Optionally **evict** idle tabs (e.g. LRU or oldest-first) when approaching limit to avoid OOM.
+- **Configuration knobs**: `max_tabs`, `max_queue_depth` (if queuing), `tab_idle_ttl_sec` (close idle tabs after N seconds), `eviction_policy`: `lru` | `oldest` | `none`.
+- **Failure modes**: OOM → reduce `max_tabs` or enable eviction; slow responses under load → backpressure + clear errors; queue full → return "capacity exceeded" (or similar) to caller.
+
+**5. CAPTCHA and interactive bot challenges**
+
+- **Decision**: When the headless page requires CAPTCHA or interactive verification (e.g. Cloudflare challenge that does not auto-resolve), **surface to callers** via a structured result (e.g. `ChallengeRequired { url, kind }`) so the UI can show "manual check required" or open the URL in the user's browser. Optionally support **fallback to manual review**: open URL in default browser or mark product as "manual check required".
+- **Configuration knobs**: `on_challenge`: `return_error` | `open_external_browser` | `manual_review`.
+- **Failure modes**: Challenge never resolved → return structured error; external browser not available when `open_external_browser` → fall back to `return_error`; caller ignores challenge result → document that UI must handle `ChallengeRequired`.
 
 #### 3.4 Unified Scraper
 **Update**: `src-tauri/src/services/scraper_service.rs`

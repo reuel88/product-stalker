@@ -25,6 +25,17 @@ impl ScraperService {
 
     /// Check availability by fetching a URL and parsing Schema.org data
     pub async fn check_availability(url: &str) -> Result<ScrapingResult, AppError> {
+        let parsed =
+            Url::parse(url).map_err(|e| AppError::Validation(format!("Invalid URL: {}", e)))?;
+
+        let scheme = parsed.scheme();
+        if scheme != "http" && scheme != "https" {
+            return Err(AppError::Validation(format!(
+                "Unsupported URL scheme '{}'. Only http and https are allowed.",
+                scheme
+            )));
+        }
+
         let html = Self::fetch_page(url).await?;
         Self::parse_schema_org_with_url(&html, url)
     }
@@ -712,5 +723,46 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
+    }
+
+    #[tokio::test]
+    async fn test_check_availability_rejects_file_scheme() {
+        let result = ScraperService::check_availability("file:///etc/passwd").await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            AppError::Validation(msg) => {
+                assert!(msg.contains("Unsupported URL scheme"));
+                assert!(msg.contains("file"));
+            }
+            _ => panic!("Expected Validation error, got {:?}", err),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_availability_rejects_data_scheme() {
+        let result = ScraperService::check_availability("data:text/html,<h1>Hello</h1>").await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            AppError::Validation(msg) => {
+                assert!(msg.contains("Unsupported URL scheme"));
+                assert!(msg.contains("data"));
+            }
+            _ => panic!("Expected Validation error, got {:?}", err),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_availability_rejects_invalid_url() {
+        let result = ScraperService::check_availability("not a valid url").await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            AppError::Validation(msg) => {
+                assert!(msg.contains("Invalid URL"));
+            }
+            _ => panic!("Expected Validation error, got {:?}", err),
+        }
     }
 }
