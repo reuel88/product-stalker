@@ -205,4 +205,194 @@ mod tests {
 
         assert_eq!(limited.len(), 3);
     }
+
+    #[tokio::test]
+    async fn test_find_all_for_product_empty() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
+
+        let all = AvailabilityCheckRepository::find_all_for_product(&conn, product_id, None)
+            .await
+            .unwrap();
+
+        assert!(all.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_find_all_for_product_ordered_by_latest() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
+
+        // Create checks with different statuses to track order
+        let statuses = ["out_of_stock", "back_order", "in_stock"];
+        for status in statuses {
+            let id = Uuid::new_v4();
+            AvailabilityCheckRepository::create(&conn, id, product_id, status, None, None)
+                .await
+                .unwrap();
+            // Small delay to ensure different timestamps
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        }
+
+        let all = AvailabilityCheckRepository::find_all_for_product(&conn, product_id, None)
+            .await
+            .unwrap();
+
+        assert_eq!(all.len(), 3);
+        // Most recent should be first
+        assert_eq!(all[0].status, "in_stock");
+        assert_eq!(all[2].status, "out_of_stock");
+    }
+
+    #[tokio::test]
+    async fn test_create_with_all_statuses() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
+
+        let statuses = ["in_stock", "out_of_stock", "back_order", "unknown"];
+        for status in statuses {
+            let id = Uuid::new_v4();
+            let check =
+                AvailabilityCheckRepository::create(&conn, id, product_id, status, None, None)
+                    .await
+                    .unwrap();
+            assert_eq!(check.status, status);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_find_all_for_different_products() {
+        let conn = setup_availability_db().await;
+
+        // Create two products
+        let product1_id =
+            crate::test_utils::create_test_product(&conn, "https://product1.com").await;
+        let product2_id =
+            crate::test_utils::create_test_product(&conn, "https://product2.com").await;
+
+        // Create checks for product1
+        for _ in 0..3 {
+            AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product1_id,
+                "in_stock",
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        }
+
+        // Create checks for product2
+        for _ in 0..2 {
+            AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product2_id,
+                "out_of_stock",
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        }
+
+        // Verify each product has correct number of checks
+        let product1_checks =
+            AvailabilityCheckRepository::find_all_for_product(&conn, product1_id, None)
+                .await
+                .unwrap();
+        let product2_checks =
+            AvailabilityCheckRepository::find_all_for_product(&conn, product2_id, None)
+                .await
+                .unwrap();
+
+        assert_eq!(product1_checks.len(), 3);
+        assert_eq!(product2_checks.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_find_latest_does_not_return_other_products_checks() {
+        let conn = setup_availability_db().await;
+
+        // Create two products
+        let product1_id =
+            crate::test_utils::create_test_product(&conn, "https://product1.com").await;
+        let product2_id =
+            crate::test_utils::create_test_product(&conn, "https://product2.com").await;
+
+        // Create check for product1
+        AvailabilityCheckRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            product1_id,
+            "in_stock",
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        // Check that product2 has no latest check
+        let latest = AvailabilityCheckRepository::find_latest_for_product(&conn, product2_id)
+            .await
+            .unwrap();
+
+        assert!(latest.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_create_with_raw_availability_variants() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
+
+        let raw_values = [
+            "http://schema.org/InStock",
+            "https://schema.org/OutOfStock",
+            "InStock",
+            "BackOrder",
+        ];
+
+        for raw in raw_values {
+            let check = AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product_id,
+                "in_stock",
+                Some(raw.to_string()),
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(check.raw_availability, Some(raw.to_string()));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_find_all_with_limit_zero() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
+
+        // Create some checks
+        for _ in 0..3 {
+            AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product_id,
+                "in_stock",
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        }
+
+        // Limit of 0 should return empty
+        let limited = AvailabilityCheckRepository::find_all_for_product(&conn, product_id, Some(0))
+            .await
+            .unwrap();
+
+        assert!(limited.is_empty());
+    }
 }

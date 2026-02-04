@@ -84,4 +84,120 @@ mod tests {
         assert!(!settings.background_check_enabled);
         assert_eq!(settings.background_check_interval_minutes, 60);
     }
+
+    #[test]
+    fn test_settings_clone() {
+        let settings = Model::default();
+        let cloned = settings.clone();
+        assert_eq!(settings.id, cloned.id);
+        assert_eq!(settings.theme, cloned.theme);
+        assert_eq!(settings.show_in_tray, cloned.show_in_tray);
+    }
+
+    #[test]
+    fn test_settings_debug() {
+        let settings = Model::default();
+        let debug_str = format!("{:?}", settings);
+        assert!(debug_str.contains("Model"));
+        assert!(debug_str.contains("system"));
+        assert!(debug_str.contains("info"));
+    }
+
+    #[test]
+    fn test_settings_partial_eq() {
+        let settings1 = Model::default();
+        let settings2 = Model::default();
+        // They have the same values except potentially updated_at
+        // Since updated_at is generated at construction, they should still be eq
+        // if created in quick succession
+        assert_eq!(settings1.id, settings2.id);
+        assert_eq!(settings1.theme, settings2.theme);
+    }
+
+    #[test]
+    fn test_settings_serialize() {
+        let settings = Model::default();
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(json.contains("\"id\":1"));
+        assert!(json.contains("\"theme\":\"system\""));
+        assert!(json.contains("\"show_in_tray\":true"));
+        assert!(json.contains("\"launch_at_login\":false"));
+        assert!(json.contains("\"enable_logging\":true"));
+        assert!(json.contains("\"log_level\":\"info\""));
+        assert!(json.contains("\"enable_notifications\":true"));
+        assert!(json.contains("\"sidebar_expanded\":true"));
+        assert!(json.contains("\"background_check_enabled\":false"));
+        assert!(json.contains("\"background_check_interval_minutes\":60"));
+    }
+
+    #[test]
+    fn test_settings_deserialize() {
+        let json = r#"{
+            "id": 1,
+            "theme": "dark",
+            "show_in_tray": false,
+            "launch_at_login": true,
+            "enable_logging": false,
+            "log_level": "debug",
+            "enable_notifications": false,
+            "sidebar_expanded": false,
+            "background_check_enabled": true,
+            "background_check_interval_minutes": 30,
+            "updated_at": "2024-01-01T00:00:00Z"
+        }"#;
+        let settings: Model = serde_json::from_str(json).unwrap();
+        assert_eq!(settings.id, 1);
+        assert_eq!(settings.theme, "dark");
+        assert!(!settings.show_in_tray);
+        assert!(settings.launch_at_login);
+        assert!(!settings.enable_logging);
+        assert_eq!(settings.log_level, "debug");
+        assert!(!settings.enable_notifications);
+        assert!(!settings.sidebar_expanded);
+        assert!(settings.background_check_enabled);
+        assert_eq!(settings.background_check_interval_minutes, 30);
+    }
+
+    #[test]
+    fn test_default_has_valid_updated_at() {
+        let settings = Model::default();
+        // updated_at should be set and recent
+        assert!(!settings.updated_at.to_rfc3339().is_empty());
+    }
+
+    #[test]
+    fn test_settings_different_themes() {
+        let mut settings = Model::default();
+
+        settings.theme = "light".to_string();
+        assert_eq!(settings.theme, "light");
+
+        settings.theme = "dark".to_string();
+        assert_eq!(settings.theme, "dark");
+
+        settings.theme = "system".to_string();
+        assert_eq!(settings.theme, "system");
+    }
+
+    #[test]
+    fn test_settings_different_log_levels() {
+        let mut settings = Model::default();
+
+        let log_levels = ["error", "warn", "info", "debug", "trace"];
+        for level in log_levels {
+            settings.log_level = level.to_string();
+            assert_eq!(settings.log_level, level);
+        }
+    }
+
+    #[test]
+    fn test_settings_background_check_intervals() {
+        let mut settings = Model::default();
+
+        let intervals = [15, 30, 60, 240, 1440];
+        for interval in intervals {
+            settings.background_check_interval_minutes = interval;
+            assert_eq!(settings.background_check_interval_minutes, interval);
+        }
+    }
 }

@@ -152,4 +152,114 @@ mod tests {
         assert_eq!(format!("{}", AvailabilityStatus::BackOrder), "back_order");
         assert_eq!(format!("{}", AvailabilityStatus::Unknown), "unknown");
     }
+
+    #[test]
+    fn test_from_schema_org_case_insensitive() {
+        // Test uppercase
+        assert_eq!(
+            AvailabilityStatus::from_schema_org("INSTOCK"),
+            AvailabilityStatus::InStock
+        );
+        assert_eq!(
+            AvailabilityStatus::from_schema_org("OUTOFSTOCK"),
+            AvailabilityStatus::OutOfStock
+        );
+        // Test mixed case
+        assert_eq!(
+            AvailabilityStatus::from_schema_org("InStock"),
+            AvailabilityStatus::InStock
+        );
+        assert_eq!(
+            AvailabilityStatus::from_schema_org("BackOrder"),
+            AvailabilityStatus::BackOrder
+        );
+    }
+
+    #[test]
+    fn test_from_schema_org_preorder() {
+        assert_eq!(
+            AvailabilityStatus::from_schema_org("http://schema.org/PreOrder"),
+            AvailabilityStatus::BackOrder
+        );
+        assert_eq!(
+            AvailabilityStatus::from_schema_org("PreOrder"),
+            AvailabilityStatus::BackOrder
+        );
+        assert_eq!(
+            AvailabilityStatus::from_schema_org("preorder"),
+            AvailabilityStatus::BackOrder
+        );
+    }
+
+    #[test]
+    fn test_as_str() {
+        assert_eq!(AvailabilityStatus::InStock.as_str(), "in_stock");
+        assert_eq!(AvailabilityStatus::OutOfStock.as_str(), "out_of_stock");
+        assert_eq!(AvailabilityStatus::BackOrder.as_str(), "back_order");
+        assert_eq!(AvailabilityStatus::Unknown.as_str(), "unknown");
+    }
+
+    #[test]
+    fn test_availability_status_clone() {
+        let status = AvailabilityStatus::InStock;
+        let cloned = status.clone();
+        assert_eq!(status, cloned);
+    }
+
+    #[test]
+    fn test_availability_status_debug() {
+        let status = AvailabilityStatus::InStock;
+        let debug_str = format!("{:?}", status);
+        assert!(debug_str.contains("InStock"));
+    }
+
+    #[test]
+    fn test_availability_status_serialize() {
+        let status = AvailabilityStatus::InStock;
+        let json = serde_json::to_string(&status).unwrap();
+        assert_eq!(json, "\"in_stock\"");
+
+        let status = AvailabilityStatus::OutOfStock;
+        let json = serde_json::to_string(&status).unwrap();
+        assert_eq!(json, "\"out_of_stock\"");
+    }
+
+    #[test]
+    fn test_availability_status_deserialize() {
+        let status: AvailabilityStatus = serde_json::from_str("\"in_stock\"").unwrap();
+        assert_eq!(status, AvailabilityStatus::InStock);
+
+        let status: AvailabilityStatus = serde_json::from_str("\"out_of_stock\"").unwrap();
+        assert_eq!(status, AvailabilityStatus::OutOfStock);
+
+        let status: AvailabilityStatus = serde_json::from_str("\"back_order\"").unwrap();
+        assert_eq!(status, AvailabilityStatus::BackOrder);
+
+        let status: AvailabilityStatus = serde_json::from_str("\"unknown\"").unwrap();
+        assert_eq!(status, AvailabilityStatus::Unknown);
+    }
+
+    #[test]
+    fn test_availability_status_partial_eq() {
+        assert_eq!(AvailabilityStatus::InStock, AvailabilityStatus::InStock);
+        assert_ne!(AvailabilityStatus::InStock, AvailabilityStatus::OutOfStock);
+    }
+
+    #[test]
+    fn test_from_schema_org_with_partial_match() {
+        // Should match even with extra text
+        assert_eq!(
+            AvailabilityStatus::from_schema_org("http://schema.org/InStock#fragment"),
+            AvailabilityStatus::InStock
+        );
+    }
+
+    #[test]
+    fn test_from_schema_org_with_whitespace() {
+        // Whitespace shouldn't break the match since we check contains
+        assert_eq!(
+            AvailabilityStatus::from_schema_org("  InStock  "),
+            AvailabilityStatus::InStock
+        );
+    }
 }

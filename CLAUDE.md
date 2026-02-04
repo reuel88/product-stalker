@@ -25,13 +25,24 @@ pnpm -F desktop test:integration  # Run integration tests only
 cd apps/desktop/src-tauri
 cargo fmt --check         # Check formatting (cargo fmt to auto-fix)
 cargo clippy -- -D warnings  # Linter - treats warnings as errors
-cargo test                # Run tests
+cargo test                # Run all tests (~300 tests)
+cargo test <module_name>  # Run tests for specific module (e.g., cargo test services::availability_service)
 cargo llvm-cov --fail-under-lines 50  # Coverage check (Windows)
 ```
 
 ### Coverage Thresholds
-- **Frontend (Vitest):** 80% for statements, branches, functions, lines
-- **Rust:** 50% line coverage
+- **Frontend (Vitest):**
+  - Unit tests: 80% for statements, branches, functions, lines
+  - Integration tests: 60% for statements, branches, functions, lines
+- **Rust:** 50% line coverage (use `cargo llvm-cov --text` to see detailed report)
+
+### Rust Test Structure
+Tests are co-located with source code using `#[cfg(test)]` modules:
+- **Unit tests** (`mod tests`): Test individual functions, validation, serialization
+- **Integration tests** (`mod integration_tests`): Test database operations using in-memory SQLite
+- **Test utilities** (`src/test_utils.rs`): Shared helpers for setting up test databases
+
+Note: `cargo llvm-cov` may have issues on Windows ARM64 due to profraw data problems. If coverage fails, use `cargo test` to verify tests pass.
 
 ## Architecture
 
@@ -79,6 +90,12 @@ Each feature module in `src/modules/` follows: `hooks/`, `types.ts`, `ui/compone
 - `docs/` - Documentation
 - `refactor/` - Code refactoring
 - `chore/` - Maintenance
+
+## Development Workflow
+
+### Test Requirements
+- After creating, updating, or deleting any feature, write tests for it before considering the work complete
+- Follow TDD when possible, but at minimum ensure test coverage for all new/changed functionality
 
 ## Key Patterns
 
