@@ -15,14 +15,12 @@
 			"Bash(pnpm -F desktop test:*)",
 			"Bash(pnpm -F desktop run check-types)",
 			"Bash(pnpm -F desktop vitest *)",
-			"Bash(cargo test*)",
+			"Bash(cargo build*)",
 			"Bash(cargo check*)",
-			"Bash(cargo fmt*)",
 			"Bash(cargo clippy*)",
-			"Bash(cargo llvm-cov*)",
-			"Bash(npx vitest *)",
-			"Bash(cargo build:*)",
-			"Bash(pnpm run test:unit:*)"
+			"Bash(cargo fmt*)",
+			"Bash(cargo test*)",
+			"Bash(cargo llvm-cov*)"
 		]
 	}
 }

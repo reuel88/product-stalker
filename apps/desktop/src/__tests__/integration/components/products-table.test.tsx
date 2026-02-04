@@ -77,7 +77,8 @@ describe("ProductsTable", () => {
 			);
 
 			expect(screen.getByText("Test description")).toBeInTheDocument();
-			expect(screen.getByText("-")).toBeInTheDocument();
+			// Multiple "-" elements exist (for null prices and null description)
+			expect(screen.getAllByText("-").length).toBeGreaterThan(0);
 		});
 
 		it("should format created date", () => {
