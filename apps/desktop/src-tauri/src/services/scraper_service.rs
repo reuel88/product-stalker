@@ -66,15 +66,18 @@ impl ScraperService {
                 }
                 Self::parse_schema_org_with_url(&html, url)
             }
-            Err(AppError::Scraping(msg)) if msg.contains("403") || msg.contains("503") => {
+            Err(AppError::HttpStatus {
+                status,
+                url: failed_url,
+            }) if status == 403 || status == 503 => {
                 // Likely bot protection - try headless
                 log::info!(
                     "HTTP request blocked ({}) for {}, trying headless",
-                    msg,
-                    url
+                    status,
+                    failed_url
                 );
                 if enable_headless {
-                    Self::try_headless_fallback(url).await
+                    Self::try_headless_fallback(&failed_url).await
                 } else {
                     Err(AppError::BotProtection(
                         "This site has bot protection. Enable headless browser in settings to check this site.".to_string()
@@ -177,11 +180,10 @@ impl ScraperService {
             .await?;
 
         if !response.status().is_success() {
-            return Err(AppError::Scraping(format!(
-                "HTTP {} for URL: {}",
-                response.status(),
-                url
-            )));
+            return Err(AppError::HttpStatus {
+                status: response.status().as_u16(),
+                url: url.to_string(),
+            });
         }
 
         let html = response.text().await?;
