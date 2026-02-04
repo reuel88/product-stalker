@@ -1,20 +1,20 @@
 {
 	"permissions": {
 		"allow": [
-			"WebFetch(domain:raw.githubusercontent.com)",
-			"WebFetch(domain:api.github.com)",
+			"WebSearch",
 			"WebFetch(domain:github.com)",
+			"WebFetch(domain:api.github.com)",
+			"WebFetch(domain:raw.githubusercontent.com)",
 			"WebFetch(domain:v2.tauri.app)",
-			"Bash(pnpm test:*)",
-			"Bash(pnpm check:*)",
-			"Bash(cargo test:*)",
-			"Bash(cargo fmt:*)",
 			"Bash(pnpm run test)",
+			"Bash(pnpm run test:*)",
 			"Bash(pnpm run check:*)",
 			"Bash(pnpm run check-types:*)",
-			"Bash(cargo clippy:*)",
-			"WebSearch",
-			"Bash(cargo check:*)"
+			"Bash(pnpm -F desktop test:*)",
+			"Bash(cargo test:*)",
+			"Bash(cargo check:*)",
+			"Bash(cargo fmt:*)",
+			"Bash(cargo clippy:*)"
 		]
 	}
 }

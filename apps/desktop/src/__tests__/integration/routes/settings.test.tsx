@@ -199,6 +199,37 @@ describe("SettingsComponent", () => {
 			});
 		});
 
+		it("should toggle background_check_enabled setting", async () => {
+			const settings = createMockSettings({ background_check_enabled: false });
+			const updatedSettings = createMockSettings({
+				background_check_enabled: true,
+			});
+			mockInvokeMultiple({
+				[COMMANDS.GET_SETTINGS]: settings,
+				[COMMANDS.GET_CURRENT_VERSION]: "1.0.0",
+				[COMMANDS.UPDATE_SETTINGS]: updatedSettings,
+			});
+
+			const { user } = render(<SettingsView />);
+
+			await waitFor(() => {
+				expect(
+					screen.getByText("Enable background checking"),
+				).toBeInTheDocument();
+			});
+
+			// switch index 4 is background_check_enabled
+			const switches = screen.getAllByRole("switch");
+			await user.click(switches[4]);
+
+			await waitFor(() => {
+				expect(getMockedInvoke()).toHaveBeenCalledWith(
+					COMMANDS.UPDATE_SETTINGS,
+					{ input: { background_check_enabled: true } },
+				);
+			});
+		});
+
 		it("should toggle launch_at_login setting", async () => {
 			const settings = createMockSettings({ launch_at_login: false });
 			const updatedSettings = createMockSettings({ launch_at_login: true });

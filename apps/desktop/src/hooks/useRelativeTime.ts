@@ -22,7 +22,10 @@ export function useRelativeTime(dateStr: string | null): string {
 	);
 
 	useEffect(() => {
-		if (!dateStr) return;
+		if (!dateStr) {
+			setRelativeTime("");
+			return;
+		}
 
 		// Update immediately
 		setRelativeTime(formatRelativeTime(dateStr));

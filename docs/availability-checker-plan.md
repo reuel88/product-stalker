@@ -239,6 +239,7 @@ Implemented bulk checking, desktop notifications for back-in-stock products, and
 ### Files Modified/Created
 
 **New Files:**
+
 | File | Purpose |
 |------|---------|
 | `src-tauri/src/background/mod.rs` | Background module |
@@ -246,6 +247,7 @@ Implemented bulk checking, desktop notifications for back-in-stock products, and
 | `src-tauri/src/migrations/m20240104_000001_add_background_check_settings.rs` | Settings migration |
 
 **Modified Backend Files:**
+
 | File | Changes |
 |------|---------|
 | `src-tauri/src/lib.rs` | Added background module, spawn checker on startup |
@@ -260,6 +262,7 @@ Implemented bulk checking, desktop notifications for back-in-stock products, and
 | `src-tauri/src/migrations/migrator.rs` | Registered new migration |
 
 **Modified Frontend Files:**
+
 | File | Changes |
 |------|---------|
 | `src/constants/api.ts` | Added CHECK_ALL_AVAILABILITY |
