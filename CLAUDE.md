@@ -62,6 +62,9 @@ Each feature module in `src/modules/` follows: `hooks/`, `types.ts`, `ui/compone
 - Quotes: Double quotes
 - Tailwind class sorting enabled (clsx, cva, cn functions)
 
+### React/JSX
+- Use `cn()` utility from `@/lib/utils` for dynamic classNames instead of string concatenation
+
 ### Rust
 - Clippy treats all warnings as errors
 - Use `AppError` for all error returns (defined in `src/error.rs`)

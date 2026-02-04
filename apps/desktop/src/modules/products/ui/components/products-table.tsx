@@ -96,7 +96,7 @@ export function ProductsTable({
 					<button
 						type="button"
 						onClick={() => openUrl(url)}
-						className="inline-flex items-center gap-1 text-primary hover:underline"
+						className="inline-flex items-center gap-1 text-left text-primary hover:underline"
 						title={url}
 					>
 						{truncated}

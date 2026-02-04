@@ -28,6 +28,19 @@ import { ProductFormDialog } from "@/modules/products/ui/components/product-form
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
 import { ErrorState } from "@/modules/shared/ui/components/error-state";
 
+type DialogState =
+	| { type: "closed" }
+	| { type: "create"; formData: CreateProductInput }
+	| { type: "edit"; product: ProductResponse; formData: CreateProductInput }
+	| { type: "delete"; product: ProductResponse };
+
+const initialFormData: CreateProductInput = {
+	name: "",
+	url: "",
+	description: "",
+	notes: "",
+};
+
 export function ProductsView() {
 	const {
 		products,
@@ -43,24 +56,24 @@ export function ProductsView() {
 
 	const { checkAllAvailability, isCheckingAll } = useCheckAllAvailability();
 
-	const [createDialogOpen, setCreateDialogOpen] = useState(false);
-	const [editDialogOpen, setEditDialogOpen] = useState(false);
-	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-	const [selectedProduct, setSelectedProduct] =
-		useState<ProductResponse | null>(null);
-
-	const [formData, setFormData] = useState<CreateProductInput>({
-		name: "",
-		url: "",
-		description: "",
-		notes: "",
+	const [dialogState, setDialogState] = useState<DialogState>({
+		type: "closed",
 	});
 
-	const resetForm = () => {
-		setFormData({ name: "", url: "", description: "", notes: "" });
+	const closeDialog = () => setDialogState({ type: "closed" });
+
+	const updateFormData = (formData: CreateProductInput) => {
+		if (dialogState.type === "create") {
+			setDialogState({ type: "create", formData });
+		} else if (dialogState.type === "edit") {
+			setDialogState({ ...dialogState, formData });
+		}
 	};
 
 	const handleCreate = async () => {
+		if (dialogState.type !== "create") return;
+		const { formData } = dialogState;
+
 		if (!formData.name || !formData.url) {
 			toast.error(MESSAGES.VALIDATION.NAME_URL_REQUIRED);
 			return;
@@ -74,26 +87,29 @@ export function ProductsView() {
 				notes: formData.notes || null,
 			});
 			toast.success(MESSAGES.PRODUCT.CREATED);
-			setCreateDialogOpen(false);
-			resetForm();
+			closeDialog();
 		} catch {
 			toast.error(MESSAGES.PRODUCT.CREATE_FAILED);
 		}
 	};
 
 	const handleEdit = (product: ProductResponse) => {
-		setSelectedProduct(product);
-		setFormData({
-			name: product.name,
-			url: product.url,
-			description: product.description || "",
-			notes: product.notes || "",
+		setDialogState({
+			type: "edit",
+			product,
+			formData: {
+				name: product.name,
+				url: product.url,
+				description: product.description || "",
+				notes: product.notes || "",
+			},
 		});
-		setEditDialogOpen(true);
 	};
 
 	const handleUpdate = async () => {
-		if (!selectedProduct) return;
+		if (dialogState.type !== "edit") return;
+		const { product, formData } = dialogState;
+
 		if (!formData.name || !formData.url) {
 			toast.error(MESSAGES.VALIDATION.NAME_URL_REQUIRED);
 			return;
@@ -101,7 +117,7 @@ export function ProductsView() {
 
 		try {
 			await updateProduct({
-				id: selectedProduct.id,
+				id: product.id,
 				input: {
 					name: formData.name,
 					url: formData.url,
@@ -110,27 +126,23 @@ export function ProductsView() {
 				},
 			});
 			toast.success(MESSAGES.PRODUCT.UPDATED);
-			setEditDialogOpen(false);
-			setSelectedProduct(null);
-			resetForm();
+			closeDialog();
 		} catch {
 			toast.error(MESSAGES.PRODUCT.UPDATE_FAILED);
 		}
 	};
 
 	const handleDeleteClick = (product: ProductResponse) => {
-		setSelectedProduct(product);
-		setDeleteDialogOpen(true);
+		setDialogState({ type: "delete", product });
 	};
 
 	const handleDelete = async () => {
-		if (!selectedProduct) return;
+		if (dialogState.type !== "delete") return;
 
 		try {
-			await deleteProduct(selectedProduct.id);
+			await deleteProduct(dialogState.product.id);
 			toast.success(MESSAGES.PRODUCT.DELETED);
-			setDeleteDialogOpen(false);
-			setSelectedProduct(null);
+			closeDialog();
 		} catch {
 			toast.error(MESSAGES.PRODUCT.DELETE_FAILED);
 		}
@@ -180,7 +192,12 @@ export function ProductsView() {
 						/>
 						{isCheckingAll ? "Checking..." : "Check All"}
 					</Button>
-					<Button size="sm" onClick={() => setCreateDialogOpen(true)}>
+					<Button
+						size="sm"
+						onClick={() =>
+							setDialogState({ type: "create", formData: initialFormData })
+						}
+					>
 						<Plus className="size-4" />
 						Add Product
 					</Button>
@@ -206,12 +223,14 @@ export function ProductsView() {
 
 			{/* Create Dialog */}
 			<ProductFormDialog
-				open={createDialogOpen}
-				onOpenChange={setCreateDialogOpen}
+				open={dialogState.type === "create"}
+				onOpenChange={(open) => !open && closeDialog()}
 				title="Add Product"
 				description="Add a new product to track"
-				formData={formData}
-				onFormChange={setFormData}
+				formData={
+					dialogState.type === "create" ? dialogState.formData : initialFormData
+				}
+				onFormChange={updateFormData}
 				onSubmit={handleCreate}
 				isSubmitting={isCreating}
 				submitLabel="Create"
@@ -221,12 +240,14 @@ export function ProductsView() {
 
 			{/* Edit Dialog */}
 			<ProductFormDialog
-				open={editDialogOpen}
-				onOpenChange={setEditDialogOpen}
+				open={dialogState.type === "edit"}
+				onOpenChange={(open) => !open && closeDialog()}
 				title="Edit Product"
 				description="Update product details"
-				formData={formData}
-				onFormChange={setFormData}
+				formData={
+					dialogState.type === "edit" ? dialogState.formData : initialFormData
+				}
+				onFormChange={updateFormData}
 				onSubmit={handleUpdate}
 				isSubmitting={isUpdating}
 				submitLabel="Save"
@@ -235,20 +256,21 @@ export function ProductsView() {
 			/>
 
 			{/* Delete Confirmation Dialog */}
-			<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+			<Dialog
+				open={dialogState.type === "delete"}
+				onOpenChange={(open) => !open && closeDialog()}
+			>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>Delete Product</DialogTitle>
 						<DialogDescription>
-							Are you sure you want to delete "{selectedProduct?.name}"? This
-							action cannot be undone.
+							Are you sure you want to delete "
+							{dialogState.type === "delete" ? dialogState.product.name : ""}
+							"? This action cannot be undone.
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setDeleteDialogOpen(false)}
-						>
+						<Button variant="outline" onClick={closeDialog}>
 							Cancel
 						</Button>
 						<Button
