@@ -126,14 +126,22 @@ impl AvailabilityService {
 
             let (status, error, is_back_in_stock) = match check_result {
                 Ok(check) => {
-                    successful += 1;
-                    let back_in_stock = Self::is_back_in_stock(&previous_status, &check.status);
-                    if back_in_stock {
-                        back_in_stock_count += 1;
+                    if check.error_message.is_some() {
+                        // Scraper failed but record was created
+                        failed += 1;
+                        (check.status, check.error_message, false)
+                    } else {
+                        // True success
+                        successful += 1;
+                        let back_in_stock = Self::is_back_in_stock(&previous_status, &check.status);
+                        if back_in_stock {
+                            back_in_stock_count += 1;
+                        }
+                        (check.status, None, back_in_stock)
                     }
-                    (check.status, None, back_in_stock)
                 }
                 Err(e) => {
+                    // Database/infrastructure error
                     failed += 1;
                     ("unknown".to_string(), Some(e.to_string()), false)
                 }
