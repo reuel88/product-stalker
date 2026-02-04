@@ -17,6 +17,12 @@ export const MESSAGES = {
 		OUT_OF_STOCK: "Out of Stock",
 		BACK_ORDER: "Back Order",
 		UNKNOWN: "Unknown",
+		BOT_PROTECTION:
+			"This site has bot protection. Enable headless browser in settings to check this site.",
+		CHROME_NOT_FOUND:
+			"Chrome/Chromium not found. Please install Chrome to check this site.",
+		CAPTCHA_REQUIRED:
+			"This site requires manual verification. Please check the product page directly.",
 	},
 	SETTINGS: {
 		SAVED: "Settings saved",

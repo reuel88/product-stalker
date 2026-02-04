@@ -54,6 +54,7 @@ export function createMockSettings(
 		sidebar_expanded: true,
 		background_check_enabled: false,
 		background_check_interval_minutes: 60,
+		enable_headless_browser: true,
 		updated_at: new Date().toISOString(),
 		...overrides,
 	};

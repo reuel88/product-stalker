@@ -20,6 +20,7 @@ pub struct UpdateSettingsInput {
     pub sidebar_expanded: Option<bool>,
     pub background_check_enabled: Option<bool>,
     pub background_check_interval_minutes: Option<i32>,
+    pub enable_headless_browser: Option<bool>,
 }
 
 /// Response DTO for settings
@@ -34,6 +35,7 @@ pub struct SettingsResponse {
     pub sidebar_expanded: bool,
     pub background_check_enabled: bool,
     pub background_check_interval_minutes: i32,
+    pub enable_headless_browser: bool,
     pub updated_at: String,
 }
 
@@ -49,6 +51,7 @@ impl From<SettingModel> for SettingsResponse {
             sidebar_expanded: model.sidebar_expanded,
             background_check_enabled: model.background_check_enabled,
             background_check_interval_minutes: model.background_check_interval_minutes,
+            enable_headless_browser: model.enable_headless_browser,
             updated_at: model.updated_at.to_rfc3339(),
         }
     }
@@ -99,6 +102,7 @@ pub async fn update_settings(
         sidebar_expanded: input.sidebar_expanded,
         background_check_enabled: input.background_check_enabled,
         background_check_interval_minutes: input.background_check_interval_minutes,
+        enable_headless_browser: input.enable_headless_browser,
     };
 
     let settings = SettingService::update(db.conn(), params).await?;
@@ -129,6 +133,7 @@ mod tests {
             sidebar_expanded: false,
             background_check_enabled: false,
             background_check_interval_minutes: 60,
+            enable_headless_browser: true,
             updated_at: now,
         };
 
@@ -143,6 +148,7 @@ mod tests {
         assert!(!response.sidebar_expanded);
         assert!(!response.background_check_enabled);
         assert_eq!(response.background_check_interval_minutes, 60);
+        assert!(response.enable_headless_browser);
     }
 
     #[test]
@@ -159,6 +165,7 @@ mod tests {
             sidebar_expanded: true,
             background_check_enabled: true,
             background_check_interval_minutes: 30,
+            enable_headless_browser: false,
             updated_at: now,
         };
 
@@ -173,6 +180,7 @@ mod tests {
         assert!(response.sidebar_expanded);
         assert!(response.background_check_enabled);
         assert_eq!(response.background_check_interval_minutes, 30);
+        assert!(!response.enable_headless_browser);
     }
 
     #[test]
@@ -189,6 +197,7 @@ mod tests {
             sidebar_expanded: true,
             background_check_enabled: false,
             background_check_interval_minutes: 60,
+            enable_headless_browser: true,
             updated_at: now,
         };
 
@@ -212,6 +221,7 @@ mod tests {
             sidebar_expanded: false,
             background_check_enabled: false,
             background_check_interval_minutes: 60,
+            enable_headless_browser: true,
             updated_at: now,
         };
 
@@ -223,6 +233,7 @@ mod tests {
         assert!(json.contains("\"log_level\":\"info\""));
         assert!(json.contains("\"background_check_enabled\":false"));
         assert!(json.contains("\"background_check_interval_minutes\":60"));
+        assert!(json.contains("\"enable_headless_browser\":true"));
     }
 
     #[test]
@@ -239,6 +250,7 @@ mod tests {
             sidebar_expanded: false,
             background_check_enabled: false,
             background_check_interval_minutes: 60,
+            enable_headless_browser: true,
             updated_at: now,
         };
 
@@ -262,6 +274,7 @@ mod tests {
         assert!(input.sidebar_expanded.is_none());
         assert!(input.background_check_enabled.is_none());
         assert!(input.background_check_interval_minutes.is_none());
+        assert!(input.enable_headless_browser.is_none());
     }
 
     #[test]
@@ -275,7 +288,8 @@ mod tests {
             "enable_notifications": false,
             "sidebar_expanded": true,
             "background_check_enabled": true,
-            "background_check_interval_minutes": 30
+            "background_check_interval_minutes": 30,
+            "enable_headless_browser": false
         }"#;
         let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
 
@@ -288,6 +302,7 @@ mod tests {
         assert_eq!(input.sidebar_expanded, Some(true));
         assert_eq!(input.background_check_enabled, Some(true));
         assert_eq!(input.background_check_interval_minutes, Some(30));
+        assert_eq!(input.enable_headless_browser, Some(false));
     }
 
     #[test]
@@ -304,6 +319,7 @@ mod tests {
         assert!(input.sidebar_expanded.is_none());
         assert!(input.background_check_enabled.is_none());
         assert!(input.background_check_interval_minutes.is_none());
+        assert!(input.enable_headless_browser.is_none());
     }
 
     #[test]
@@ -333,5 +349,15 @@ mod tests {
         assert_eq!(input.background_check_enabled, Some(true));
         assert_eq!(input.background_check_interval_minutes, Some(15));
         assert!(input.theme.is_none());
+    }
+
+    #[test]
+    fn test_update_settings_input_deserializes_headless_browser_only() {
+        let json = r#"{"enable_headless_browser":false}"#;
+        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.enable_headless_browser, Some(false));
+        assert!(input.theme.is_none());
+        assert!(input.background_check_enabled.is_none());
     }
 }

@@ -2,6 +2,7 @@ mod m20240101_000001_create_products_table;
 mod m20240102_000001_create_settings_table;
 mod m20240103_000001_create_availability_checks_table;
 mod m20240104_000001_add_background_check_settings;
+mod m20240105_000001_add_headless_browser_setting;
 mod migrator;
 
 pub use migrator::Migrator;

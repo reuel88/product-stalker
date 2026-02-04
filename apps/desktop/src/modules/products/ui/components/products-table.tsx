@@ -52,8 +52,13 @@ function AvailabilityCell({ productId }: { productId: string }) {
 
 	const handleCheck = async () => {
 		try {
-			await checkAvailability();
-			toast.success(MESSAGES.AVAILABILITY.CHECKED);
+			const result = await checkAvailability();
+			// Show error from the check result if there's an error message
+			if (result.error_message) {
+				toast.error(result.error_message);
+			} else {
+				toast.success(MESSAGES.AVAILABILITY.CHECKED);
+			}
 		} catch {
 			toast.error(MESSAGES.AVAILABILITY.CHECK_FAILED);
 		}
@@ -63,6 +68,7 @@ function AvailabilityCell({ productId }: { productId: string }) {
 		<AvailabilityBadge
 			status={latestCheck?.status ?? null}
 			checkedAt={latestCheck?.checked_at ?? null}
+			errorMessage={latestCheck?.error_message}
 			isChecking={isChecking}
 			onCheck={handleCheck}
 		/>

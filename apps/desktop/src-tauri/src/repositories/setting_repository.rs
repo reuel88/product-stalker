@@ -14,6 +14,7 @@ pub struct UpdateSettingsParams {
     pub sidebar_expanded: Option<bool>,
     pub background_check_enabled: Option<bool>,
     pub background_check_interval_minutes: Option<i32>,
+    pub enable_headless_browser: Option<bool>,
 }
 
 /// Repository for settings data access
@@ -42,6 +43,7 @@ impl SettingRepository {
             sidebar_expanded: Set(default.sidebar_expanded),
             background_check_enabled: Set(default.background_check_enabled),
             background_check_interval_minutes: Set(default.background_check_interval_minutes),
+            enable_headless_browser: Set(default.enable_headless_browser),
             updated_at: Set(default.updated_at),
         };
 
@@ -83,6 +85,9 @@ impl SettingRepository {
         }
         if let Some(background_check_interval_minutes) = params.background_check_interval_minutes {
             active_model.background_check_interval_minutes = Set(background_check_interval_minutes);
+        }
+        if let Some(enable_headless_browser) = params.enable_headless_browser {
+            active_model.enable_headless_browser = Set(enable_headless_browser);
         }
         active_model.updated_at = Set(chrono::Utc::now());
 
@@ -131,6 +136,7 @@ mod tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: None,
+            enable_headless_browser: None,
         };
 
         let updated = SettingRepository::update(&conn, settings, params)
@@ -158,6 +164,7 @@ mod tests {
             sidebar_expanded: None,
             background_check_enabled: Some(true),
             background_check_interval_minutes: Some(30),
+            enable_headless_browser: None,
         };
 
         let updated = SettingRepository::update(&conn, settings, params)
@@ -165,5 +172,32 @@ mod tests {
             .unwrap();
         assert!(updated.background_check_enabled);
         assert_eq!(updated.background_check_interval_minutes, 30);
+    }
+
+    #[tokio::test]
+    async fn test_update_headless_browser_setting() {
+        let conn = setup_settings_db().await;
+        let settings = SettingRepository::get_or_create(&conn).await.unwrap();
+
+        // Verify default is true
+        assert!(settings.enable_headless_browser);
+
+        let params = UpdateSettingsParams {
+            theme: None,
+            show_in_tray: None,
+            launch_at_login: None,
+            enable_logging: None,
+            log_level: None,
+            enable_notifications: None,
+            sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
+            enable_headless_browser: Some(false),
+        };
+
+        let updated = SettingRepository::update(&conn, settings, params)
+            .await
+            .unwrap();
+        assert!(!updated.enable_headless_browser);
     }
 }
