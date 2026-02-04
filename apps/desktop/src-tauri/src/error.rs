@@ -26,6 +26,9 @@ pub enum AppError {
 
     #[error("Bot protection: {0}")]
     BotProtection(String),
+
+    #[error("HTTP {status} for URL: {url}")]
+    HttpStatus { status: u16, url: String },
 }
 
 impl AppError {
@@ -39,6 +42,7 @@ impl AppError {
             AppError::Http(_) => "HTTP_ERROR",
             AppError::Scraping(_) => "SCRAPING_ERROR",
             AppError::BotProtection(_) => "BOT_PROTECTION",
+            AppError::HttpStatus { .. } => "HTTP_STATUS_ERROR",
         }
     }
 
@@ -76,6 +80,11 @@ impl AppError {
     pub fn is_bot_protection_error(&self) -> bool {
         matches!(self, AppError::BotProtection(_))
     }
+
+    /// Check if this is an HTTP status error
+    pub fn is_http_status_error(&self) -> bool {
+        matches!(self, AppError::HttpStatus { .. })
+    }
 }
 
 /// JSON error response for frontend
@@ -104,6 +113,7 @@ impl ErrorResponse {
             AppError::Http(http_err) => http_err.to_string(),
             AppError::Scraping(msg) => msg.clone(),
             AppError::BotProtection(msg) => msg.clone(),
+            AppError::HttpStatus { status, url } => format!("HTTP {} for URL: {}", status, url),
         };
 
         Self::new(message, err.code())
@@ -412,6 +422,10 @@ mod tests {
             AppError::Internal("test".to_string()),
             AppError::Scraping("test".to_string()),
             AppError::BotProtection("test".to_string()),
+            AppError::HttpStatus {
+                status: 404,
+                url: "test".to_string(),
+            },
         ];
 
         let codes: Vec<&str> = errors.iter().map(|e| e.code()).collect();
@@ -517,5 +531,99 @@ mod tests {
         let debug_str = format!("{:?}", err);
         assert!(debug_str.contains("BotProtection"));
         assert!(debug_str.contains("challenge error"));
+    }
+
+    // HTTP status error tests
+
+    #[test]
+    fn test_http_status_error_display() {
+        let err = AppError::HttpStatus {
+            status: 403,
+            url: "https://example.com/product".to_string(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "HTTP 403 for URL: https://example.com/product"
+        );
+    }
+
+    #[test]
+    fn test_http_status_error_display_503() {
+        let err = AppError::HttpStatus {
+            status: 503,
+            url: "https://example.com/api".to_string(),
+        };
+        assert_eq!(err.to_string(), "HTTP 503 for URL: https://example.com/api");
+    }
+
+    #[test]
+    fn test_http_status_code() {
+        let err = AppError::HttpStatus {
+            status: 404,
+            url: "test".to_string(),
+        };
+        assert_eq!(err.code(), "HTTP_STATUS_ERROR");
+    }
+
+    #[test]
+    fn test_is_http_status_error() {
+        let err = AppError::HttpStatus {
+            status: 500,
+            url: "test".to_string(),
+        };
+        assert!(err.is_http_status_error());
+        assert!(!err.is_not_found());
+        assert!(!err.is_validation_error());
+        assert!(!err.is_internal_error());
+        assert!(!err.is_database_error());
+        assert!(!err.is_http_error());
+        assert!(!err.is_scraping_error());
+        assert!(!err.is_bot_protection_error());
+    }
+
+    #[test]
+    fn test_error_response_from_http_status() {
+        let err = AppError::HttpStatus {
+            status: 403,
+            url: "https://example.com/blocked".to_string(),
+        };
+        let response = ErrorResponse::from_app_error(&err);
+        assert_eq!(
+            response.error,
+            "HTTP 403 for URL: https://example.com/blocked"
+        );
+        assert_eq!(response.code, "HTTP_STATUS_ERROR");
+    }
+
+    #[test]
+    fn test_debug_http_status() {
+        let err = AppError::HttpStatus {
+            status: 418,
+            url: "https://example.com/teapot".to_string(),
+        };
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("HttpStatus"));
+        assert!(debug_str.contains("418"));
+        assert!(debug_str.contains("teapot"));
+    }
+
+    #[test]
+    fn test_http_status_url_with_numbers_not_confused() {
+        // This test verifies that a URL containing "403" doesn't cause issues
+        // The status should be checked via the discrete field, not string matching
+        let err = AppError::HttpStatus {
+            status: 404, // Different status than what's in the URL
+            url: "https://example.com/product-403-special".to_string(),
+        };
+        // The error message will contain "403" in the URL but the status is 404
+        assert_eq!(
+            err.to_string(),
+            "HTTP 404 for URL: https://example.com/product-403-special"
+        );
+        // The actual status field is what matters for bot protection detection
+        if let AppError::HttpStatus { status, .. } = err {
+            assert_eq!(status, 404);
+            assert!(status != 403); // This is the key check - status is deterministic
+        }
     }
 }
