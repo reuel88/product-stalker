@@ -177,7 +177,7 @@ export function ProductsView() {
 	}
 
 	return (
-		<div className="container mx-auto max-w-4xl overflow-y-auto px-4 py-6">
+		<div className="container mx-auto overflow-y-auto px-4 py-6">
 			<div className="mb-6 flex items-center justify-between">
 				<h1 className="font-semibold text-xl">Products</h1>
 				<div className="flex gap-2">

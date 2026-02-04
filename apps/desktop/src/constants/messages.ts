@@ -24,6 +24,10 @@ export const MESSAGES = {
 		CAPTCHA_REQUIRED:
 			"This site requires manual verification. Please check the product page directly.",
 	},
+	PRICE: {
+		NO_PRICE: "-",
+		PRICE_DROP: "Price drop!",
+	},
 	SETTINGS: {
 		SAVED: "Settings saved",
 		SAVE_FAILED: "Failed to save settings",

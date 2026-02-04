@@ -66,6 +66,15 @@ pub struct Model {
 
     /// When the check was performed
     pub checked_at: DateTimeUtc,
+
+    /// Price in cents (smallest currency unit)
+    pub price_cents: Option<i64>,
+
+    /// ISO 4217 currency code (e.g., USD, EUR, AUD)
+    pub price_currency: Option<String>,
+
+    /// Original schema.org price value for debugging
+    pub raw_price: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -7,11 +7,20 @@ use super::HeadlessService;
 use crate::entities::availability_check::AvailabilityStatus;
 use crate::error::AppError;
 
+/// Price information extracted from Schema.org data
+#[derive(Debug, Clone, Default)]
+pub struct PriceInfo {
+    pub price_cents: Option<i64>,
+    pub price_currency: Option<String>,
+    pub raw_price: Option<String>,
+}
+
 /// Result of a scraping operation
 #[derive(Debug, Clone)]
 pub struct ScrapingResult {
     pub status: AvailabilityStatus,
     pub raw_availability: Option<String>,
+    pub price: PriceInfo,
 }
 
 /// Service for scraping product availability from web pages
@@ -213,10 +222,13 @@ impl ScraperService {
             // Try to parse as JSON
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_text) {
                 // Check if it's a Product, ProductGroup, or has @graph with products
-                if let Some(availability) = Self::extract_availability(&json, variant_id) {
+                if let Some((availability, price)) =
+                    Self::extract_availability_and_price(&json, variant_id)
+                {
                     return Ok(ScrapingResult {
                         status: AvailabilityStatus::from_schema_org(&availability),
                         raw_availability: Some(availability),
+                        price,
                     });
                 }
             }
@@ -238,62 +250,109 @@ impl ScraperService {
         })
     }
 
-    /// Extract availability from a JSON-LD value, trying multiple known structures
-    fn extract_availability(json: &serde_json::Value, variant_id: Option<&str>) -> Option<String> {
-        Self::try_extract_from_product(json)
-            .or_else(|| Self::try_extract_from_product_group(json, variant_id))
-            .or_else(|| Self::try_extract_from_graph(json, variant_id))
-            .or_else(|| Self::try_extract_from_array(json, variant_id))
+    /// Parse a price string to cents (smallest currency unit)
+    /// Handles formats like "789.00", "1,234.56", "789", "789.9"
+    pub fn parse_price_to_cents(price_str: &str) -> Option<i64> {
+        // Remove currency symbols, whitespace, and thousand separators
+        let cleaned: String = price_str
+            .chars()
+            .filter(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
+
+        if cleaned.is_empty() {
+            return None;
+        }
+
+        // Parse as float and convert to cents
+        let price: f64 = cleaned.parse().ok()?;
+        Some((price * 100.0).round() as i64)
     }
 
-    /// Try to extract availability if the JSON is a Product type
-    fn try_extract_from_product(json: &serde_json::Value) -> Option<String> {
+    /// Extract price info from an offer object
+    fn get_price_from_offer(offer: &serde_json::Value) -> PriceInfo {
+        let raw_price = offer.get("price").and_then(|p| match p {
+            serde_json::Value::String(s) => Some(s.clone()),
+            serde_json::Value::Number(n) => Some(n.to_string()),
+            _ => None,
+        });
+
+        let price_currency = offer
+            .get("priceCurrency")
+            .and_then(|c| c.as_str())
+            .map(|s| s.to_string());
+
+        let price_cents = raw_price
+            .as_ref()
+            .and_then(|p| Self::parse_price_to_cents(p));
+
+        PriceInfo {
+            price_cents,
+            price_currency,
+            raw_price,
+        }
+    }
+
+    /// Extract availability and price from a JSON-LD value, trying multiple known structures
+    fn extract_availability_and_price(
+        json: &serde_json::Value,
+        variant_id: Option<&str>,
+    ) -> Option<(String, PriceInfo)> {
+        Self::try_extract_from_product_with_price(json)
+            .or_else(|| Self::try_extract_from_product_group_with_price(json, variant_id))
+            .or_else(|| Self::try_extract_from_graph_with_price(json, variant_id))
+            .or_else(|| Self::try_extract_from_array_with_price(json, variant_id))
+    }
+
+    /// Try to extract availability and price if the JSON is a Product type
+    fn try_extract_from_product_with_price(
+        json: &serde_json::Value,
+    ) -> Option<(String, PriceInfo)> {
         if Self::is_product_type(json) {
-            Self::get_availability_from_product(json)
+            Self::get_availability_and_price_from_product(json)
         } else {
             None
         }
     }
 
-    /// Try to extract availability if the JSON is a ProductGroup type
-    fn try_extract_from_product_group(
+    /// Try to extract availability and price if the JSON is a ProductGroup type
+    fn try_extract_from_product_group_with_price(
         json: &serde_json::Value,
         variant_id: Option<&str>,
-    ) -> Option<String> {
+    ) -> Option<(String, PriceInfo)> {
         if Self::is_product_group_type(json) {
-            Self::get_availability_from_product_group(json, variant_id)
+            Self::get_availability_and_price_from_product_group(json, variant_id)
         } else {
             None
         }
     }
 
-    /// Try to extract availability from a @graph array
-    fn try_extract_from_graph(
+    /// Try to extract availability and price from a @graph array
+    fn try_extract_from_graph_with_price(
         json: &serde_json::Value,
         variant_id: Option<&str>,
-    ) -> Option<String> {
+    ) -> Option<(String, PriceInfo)> {
         json.get("@graph")
             .and_then(|g| g.as_array())
-            .and_then(|arr| Self::find_availability_in_items(arr, variant_id))
+            .and_then(|arr| Self::find_availability_and_price_in_items(arr, variant_id))
     }
 
-    /// Try to extract availability from a direct JSON array
-    fn try_extract_from_array(
+    /// Try to extract availability and price from a direct JSON array
+    fn try_extract_from_array_with_price(
         json: &serde_json::Value,
         variant_id: Option<&str>,
-    ) -> Option<String> {
+    ) -> Option<(String, PriceInfo)> {
         json.as_array()
-            .and_then(|arr| Self::find_availability_in_items(arr, variant_id))
+            .and_then(|arr| Self::find_availability_and_price_in_items(arr, variant_id))
     }
 
-    /// Iterate through items looking for availability data
-    fn find_availability_in_items(
+    /// Iterate through items looking for availability and price data
+    fn find_availability_and_price_in_items(
         items: &[serde_json::Value],
         variant_id: Option<&str>,
-    ) -> Option<String> {
+    ) -> Option<(String, PriceInfo)> {
         items.iter().find_map(|item| {
-            Self::try_extract_from_product(item)
-                .or_else(|| Self::try_extract_from_product_group(item, variant_id))
+            Self::try_extract_from_product_with_price(item)
+                .or_else(|| Self::try_extract_from_product_group_with_price(item, variant_id))
         })
     }
 
@@ -320,11 +379,11 @@ impl ScraperService {
         Self::has_schema_type(json, "ProductGroup")
     }
 
-    /// Get availability from a ProductGroup by matching variant ID
-    fn get_availability_from_product_group(
+    /// Get availability and price from a ProductGroup by matching variant ID
+    fn get_availability_and_price_from_product_group(
         product_group: &serde_json::Value,
         variant_id: Option<&str>,
-    ) -> Option<String> {
+    ) -> Option<(String, PriceInfo)> {
         let variants = product_group.get("hasVariant")?.as_array()?;
 
         // If we have a variant ID, try to find the matching variant
@@ -350,36 +409,40 @@ impl ScraperService {
                     continue;
                 }
 
-                if let Some(avail) = Self::get_availability_from_product(variant) {
-                    return Some(avail);
+                if let Some(result) = Self::get_availability_and_price_from_product(variant) {
+                    return Some(result);
                 }
             }
         }
 
-        // Fallback: return first variant's availability
+        // Fallback: return first variant's availability and price
         for variant in variants {
-            if let Some(avail) = Self::get_availability_from_product(variant) {
-                return Some(avail);
+            if let Some(result) = Self::get_availability_and_price_from_product(variant) {
+                return Some(result);
             }
         }
 
         None
     }
 
-    /// Get availability string from a Product JSON object
-    fn get_availability_from_product(product: &serde_json::Value) -> Option<String> {
-        // Try offers.availability first (single offer)
+    /// Get availability and price from a Product JSON object
+    fn get_availability_and_price_from_product(
+        product: &serde_json::Value,
+    ) -> Option<(String, PriceInfo)> {
+        // Try offers first (single offer)
         if let Some(offers) = product.get("offers") {
             // Single offer object
             if let Some(avail) = offers.get("availability").and_then(|a| a.as_str()) {
-                return Some(avail.to_string());
+                let price = Self::get_price_from_offer(offers);
+                return Some((avail.to_string(), price));
             }
 
-            // Array of offers - use first one
+            // Array of offers - use first one with availability
             if let Some(arr) = offers.as_array() {
                 for offer in arr {
                     if let Some(avail) = offer.get("availability").and_then(|a| a.as_str()) {
-                        return Some(avail.to_string());
+                        let price = Self::get_price_from_offer(offer);
+                        return Some((avail.to_string(), price));
                     }
                 }
             }
@@ -995,5 +1058,172 @@ mod tests {
     fn test_is_cloudflare_challenge_case_insensitive() {
         let body = r#"<html><body>JUST A MOMENT...</body></html>"#;
         assert!(ScraperService::is_cloudflare_challenge(403, body));
+    }
+
+    // Price parsing tests
+
+    #[test]
+    fn test_parse_price_to_cents_simple() {
+        assert_eq!(ScraperService::parse_price_to_cents("789.00"), Some(78900));
+        assert_eq!(ScraperService::parse_price_to_cents("99.99"), Some(9999));
+        assert_eq!(ScraperService::parse_price_to_cents("49.99"), Some(4999));
+    }
+
+    #[test]
+    fn test_parse_price_to_cents_with_thousands() {
+        assert_eq!(
+            ScraperService::parse_price_to_cents("1,234.56"),
+            Some(123456)
+        );
+        assert_eq!(
+            ScraperService::parse_price_to_cents("10,000.00"),
+            Some(1000000)
+        );
+    }
+
+    #[test]
+    fn test_parse_price_to_cents_no_decimals() {
+        assert_eq!(ScraperService::parse_price_to_cents("789"), Some(78900));
+        assert_eq!(ScraperService::parse_price_to_cents("100"), Some(10000));
+    }
+
+    #[test]
+    fn test_parse_price_to_cents_single_decimal() {
+        assert_eq!(ScraperService::parse_price_to_cents("789.9"), Some(78990));
+        assert_eq!(ScraperService::parse_price_to_cents("99.5"), Some(9950));
+    }
+
+    #[test]
+    fn test_parse_price_to_cents_with_currency_symbol() {
+        assert_eq!(ScraperService::parse_price_to_cents("$789.00"), Some(78900));
+        assert_eq!(ScraperService::parse_price_to_cents("€99.99"), Some(9999));
+    }
+
+    #[test]
+    fn test_parse_price_to_cents_empty() {
+        assert_eq!(ScraperService::parse_price_to_cents(""), None);
+        assert_eq!(ScraperService::parse_price_to_cents("   "), None);
+    }
+
+    #[test]
+    fn test_price_extraction_from_product() {
+        let html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script type="application/ld+json">
+                {
+                    "@type": "Product",
+                    "name": "Test Product",
+                    "offers": {
+                        "@type": "Offer",
+                        "availability": "http://schema.org/InStock",
+                        "price": "789.00",
+                        "priceCurrency": "USD"
+                    }
+                }
+                </script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+
+        let result =
+            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+        assert_eq!(result.price.price_cents, Some(78900));
+        assert_eq!(result.price.price_currency, Some("USD".to_string()));
+        assert_eq!(result.price.raw_price, Some("789.00".to_string()));
+    }
+
+    #[test]
+    fn test_price_extraction_from_shopify_product_group() {
+        let html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script type="application/ld+json">
+                {
+                    "@type": "ProductGroup",
+                    "hasVariant": [
+                        {
+                            "@id": "/products/test?variant=123#variant",
+                            "@type": "Product",
+                            "offers": {
+                                "availability": "http://schema.org/InStock",
+                                "price": "1,299.00",
+                                "priceCurrency": "AUD"
+                            }
+                        }
+                    ]
+                }
+                </script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+
+        let result = ScraperService::parse_schema_org_with_url(
+            html,
+            "https://example.com/products/test?variant=123",
+        )
+        .unwrap();
+        assert_eq!(result.price.price_cents, Some(129900));
+        assert_eq!(result.price.price_currency, Some("AUD".to_string()));
+    }
+
+    #[test]
+    fn test_price_extraction_with_numeric_price() {
+        let html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script type="application/ld+json">
+                {
+                    "@type": "Product",
+                    "name": "Test Product",
+                    "offers": {
+                        "availability": "http://schema.org/InStock",
+                        "price": 49.99,
+                        "priceCurrency": "EUR"
+                    }
+                }
+                </script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+
+        let result =
+            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+        assert_eq!(result.price.price_cents, Some(4999));
+        assert_eq!(result.price.price_currency, Some("EUR".to_string()));
+        assert_eq!(result.price.raw_price, Some("49.99".to_string()));
+    }
+
+    #[test]
+    fn test_price_extraction_no_price() {
+        let html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script type="application/ld+json">
+                {
+                    "@type": "Product",
+                    "name": "Test Product",
+                    "offers": {
+                        "availability": "http://schema.org/InStock"
+                    }
+                }
+                </script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+
+        let result =
+            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+        assert_eq!(result.price.price_cents, None);
+        assert_eq!(result.price.price_currency, None);
+        assert_eq!(result.price.raw_price, None);
     }
 }

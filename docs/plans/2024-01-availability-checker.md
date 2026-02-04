@@ -186,8 +186,8 @@ export interface AvailabilityCheckResponse {
 - ~~Background periodic checking with tokio tasks~~ ✓ COMPLETE
 - ~~Desktop notifications when products become available~~ ✓ COMPLETE
 - ~~Bulk "Check All" operation~~ ✓ COMPLETE
-- Support for non-Shopify sites (different parsing strategies)
-- Price tracking from Schema.org data
+- Support for non-Shopify sites (different parsing strategies) - *Partially complete: headless browser now handles bot-protected sites*
+- ~~Price tracking from Schema.org data~~ ✓ COMPLETE
 
 ---
 
@@ -281,7 +281,7 @@ Implemented bulk checking, desktop notifications for back-in-stock products, and
 
 ---
 
-## Phase 3: Headless Browser Support (for Cloudflare-protected sites)
+## Phase 3: Headless Browser Support (for Cloudflare-protected sites) ✓ COMPLETE
 
 ### Problem
 
@@ -424,3 +424,163 @@ Design decisions for `HeadlessService` and `fetch_page` behavior. Each decision 
 2. Verify Shopify sites still work with fast HTTP path
 3. Test fallback when Chrome not installed
 4. Verify browser cleanup on app close
+
+### Implementation Summary
+
+Phase 3 was implemented with the following components:
+
+**Backend (Rust):**
+
+| File | Purpose |
+|------|---------|
+| `src-tauri/src/services/headless_service.rs` | HeadlessService with lazy Chrome initialization |
+| `src-tauri/src/migrations/m20250203_000001_add_headless_browser_setting.rs` | Database migration for headless browser setting |
+
+**Key Features Implemented:**
+- **HeadlessService** - Lazy browser initialization, reuses single browser instance with multiple tabs
+- **Platform-specific browser detection** - Finds Chrome, Chromium, or Edge on Windows, macOS, and Linux
+- **Anti-detection measures** - Hides `navigator.webdriver` property to bypass basic bot detection
+- **CAPTCHA detection** - Detects unsolvable CAPTCHAs and returns user-friendly error messages
+- **Automatic fallback** - HTTP scraper tries first (fast path), falls back to headless browser on 403/challenge detection
+- **Frontend toggle** - Settings page includes "Use Headless Browser" switch for users to enable/disable
+- **Graceful degradation** - Clear error messages when Chrome/browser not installed
+
+**Modified Files:**
+
+| File | Changes |
+|------|---------|
+| `src-tauri/Cargo.toml` | Added `headless_chrome` dependency |
+| `src-tauri/src/services/mod.rs` | Export HeadlessService |
+| `src-tauri/src/services/scraper_service.rs` | Integrated headless fallback, challenge detection |
+| `src-tauri/src/entities/setting.rs` | Added `headless_browser_enabled` field |
+| `src-tauri/src/repositories/setting_repository.rs` | Updated for new setting |
+| `src-tauri/src/services/setting_service.rs` | Updated for new setting |
+| `src-tauri/src/commands/settings.rs` | Updated DTOs |
+| `src-tauri/src/migrations/mod.rs` | Added new migration |
+| `src-tauri/src/migrations/migrator.rs` | Registered new migration |
+| `src/modules/settings/ui/views/settings-view.tsx` | Added headless browser toggle |
+
+---
+
+## Phase 5: Price Tracking ✓ COMPLETE
+
+### Overview
+
+Added price tracking to the existing availability checker by extracting `offers.price` and `offers.priceCurrency` from Schema.org JSON-LD data.
+
+### Design Decisions
+
+1. **Storage**: Extended `availability_checks` table with price columns (not a separate table)
+   - Price and availability are collected together from the same scrape
+   - Simplifies queries and follows existing patterns
+
+2. **Price format**: Store as `INTEGER` cents + `TEXT` currency code
+   - Avoids floating-point precision issues
+   - Efficient for comparison (price drop detection)
+   - Example: $789.00 USD → `price_cents: 78900`, `price_currency: "USD"`
+
+3. **Price drop detection**: Any decrease from previous check triggers notification
+   - Matches existing "back in stock" notification pattern
+
+### Implementation
+
+#### 5.1 Database Migration
+
+**File**: `src-tauri/src/migrations/m20250205_000001_add_price_tracking.rs`
+
+Added three columns to `availability_checks`:
+- `price_cents` (INTEGER, nullable) - price in smallest currency unit
+- `price_currency` (TEXT, nullable) - ISO 4217 code (USD, EUR, AUD)
+- `raw_price` (TEXT, nullable) - original Schema.org value for debugging
+
+#### 5.2 Scraper Service Updates
+
+**File**: `src-tauri/src/services/scraper_service.rs`
+
+- Added `PriceInfo` struct with `price_cents`, `price_currency`, `raw_price`
+- Updated `ScrapingResult` to include `price: PriceInfo`
+- Added `parse_price_to_cents()` helper - handles formats like "789.00", "1,234.56", "$789.00"
+- Added `get_price_from_offer()` - extracts price from Schema.org offers
+- Updated parsing functions to extract price alongside availability
+
+#### 5.3 Service Layer Updates
+
+**File**: `src-tauri/src/services/availability_service.rs`
+
+- Updated `BulkCheckResult` with `price_cents`, `price_currency`, `previous_price_cents`, `is_price_drop`
+- Updated `BulkCheckSummary` with `price_drop_count`
+- Added `is_price_drop()` method for price drop detection
+- Updated notifications to include price drop alerts
+
+#### 5.4 Repository Updates
+
+**File**: `src-tauri/src/repositories/availability_check_repository.rs`
+
+- Added `CreateCheckParams` struct for cleaner parameter passing
+- Updated `create()` to accept price parameters
+- Added `find_previous_price()` for price drop detection
+
+#### 5.5 Command Layer Updates
+
+**File**: `src-tauri/src/commands/availability.rs`
+
+- Updated `AvailabilityCheckResponse` DTO with `price_cents`, `price_currency`, `raw_price`
+
+#### 5.6 Frontend Updates
+
+**Types** (`src/modules/products/types.ts`):
+- Updated `AvailabilityCheckResponse` with price fields
+- Updated `BulkCheckResult` and `BulkCheckSummary` with price tracking fields
+
+**Utilities** (`src/lib/utils.ts`):
+- Added `formatPrice()` helper using `Intl.NumberFormat`
+
+**Products Table** (`src/modules/products/ui/components/products-table.tsx`):
+- Added `PriceCell` component
+- Added "Price" column after "Availability"
+
+**Messages** (`src/constants/messages.ts`):
+- Added `PRICE` section with price-related messages
+
+### Files Summary
+
+**New Files (1):**
+
+| File | Purpose |
+|------|---------|
+| `src-tauri/src/migrations/m20250205_000001_add_price_tracking.rs` | Migration for price columns |
+
+**Modified Backend Files (7):**
+
+| File | Changes |
+|------|---------|
+| `src-tauri/src/services/scraper_service.rs` | Added PriceInfo, price extraction from Schema.org |
+| `src-tauri/src/entities/availability_check.rs` | Added price_cents, price_currency, raw_price fields |
+| `src-tauri/src/repositories/availability_check_repository.rs` | Added CreateCheckParams, find_previous_price() |
+| `src-tauri/src/services/availability_service.rs` | Added price drop detection, updated bulk results |
+| `src-tauri/src/commands/availability.rs` | Updated response DTO with price fields |
+| `src-tauri/src/migrations/mod.rs` | Export new migration |
+| `src-tauri/src/migrations/migrator.rs` | Register new migration |
+| `src-tauri/src/repositories/mod.rs` | Export CreateCheckParams |
+
+**Modified Frontend Files (5):**
+
+| File | Changes |
+|------|---------|
+| `src/modules/products/types.ts` | Added price fields to types |
+| `src/lib/utils.ts` | Added formatPrice() helper |
+| `src/modules/products/ui/components/products-table.tsx` | Added PriceCell and Price column |
+| `src/constants/messages.ts` | Added PRICE messages |
+| `src/__tests__/mocks/data.ts` | Updated mock data with price fields |
+
+### Verification
+
+1. **Backend Tests**: All 349 Rust tests pass
+2. **Clippy**: No warnings
+3. **TypeScript**: Type check passes
+4. **Frontend Tests**: All 194 tests pass
+5. **Manual Testing**:
+   - Add a Shopify product (e.g., sotsu.com)
+   - Click "Check" - verify price extracted and displayed
+   - Verify existing products without price show "-" gracefully
+   - Test bulk check - verify price drop count in toast

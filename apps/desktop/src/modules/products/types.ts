@@ -21,6 +21,9 @@ export interface AvailabilityCheckResponse {
 	raw_availability: string | null;
 	error_message: string | null;
 	checked_at: string;
+	price_cents: number | null;
+	price_currency: string | null;
+	raw_price: string | null;
 }
 
 export interface BulkCheckResult {
@@ -29,6 +32,10 @@ export interface BulkCheckResult {
 	status: string;
 	previous_status: string | null;
 	is_back_in_stock: boolean;
+	price_cents: number | null;
+	price_currency: string | null;
+	previous_price_cents: number | null;
+	is_price_drop: boolean;
 	error: string | null;
 }
 
@@ -37,5 +44,6 @@ export interface BulkCheckSummary {
 	successful: number;
 	failed: number;
 	back_in_stock_count: number;
+	price_drop_count: number;
 	results: BulkCheckResult[];
 }
