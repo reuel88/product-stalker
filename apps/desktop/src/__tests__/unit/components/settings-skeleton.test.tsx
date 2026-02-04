@@ -7,10 +7,9 @@ describe("SettingsSkeleton", () => {
 		it("should render 5 skeleton cards", () => {
 			const { container } = render(<SettingsSkeleton />);
 
-			// Each card is wrapped in a div with Card component
-			const cards = container.querySelectorAll('[class*="rounded-"]');
-			// We expect multiple rounded elements (cards and skeleton items)
-			expect(cards.length).toBeGreaterThan(0);
+			// Each Card has data-slot="card"
+			const cards = container.querySelectorAll('[data-slot="card"]');
+			expect(cards.length).toBe(5);
 		});
 
 		it("should render skeleton elements", () => {
