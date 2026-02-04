@@ -97,6 +97,30 @@ Each feature module in `src/modules/` follows: `hooks/`, `types.ts`, `ui/compone
 - After creating, updating, or deleting any feature, write tests for it before considering the work complete
 - Follow TDD when possible, but at minimum ensure test coverage for all new/changed functionality
 
+### Documentation & Planning
+Use `docs/` for detailed specs and decisions; use GitHub Issues for task tracking.
+
+```
+docs/
+├── decisions/    # Architecture Decision Records (ADRs) - permanent
+├── guides/       # Setup guides, reference docs - permanent
+├── plans/        # Implementation specs - archive after completion
+```
+
+**When to use what:**
+| Situation | Tool |
+|-----------|------|
+| Track a bug or feature request | GitHub Issue |
+| Complex feature needing detailed spec | `docs/plans/` (link from issue) |
+| Architectural choice with trade-offs | `docs/decisions/` |
+| Setup instructions, maintenance procedures | `docs/guides/` |
+
+**Workflow:**
+1. Create GitHub Issue for trackable work
+2. For complex features, write a plan in `docs/plans/YYYY-MM-feature-name.md`
+3. Link the plan from the issue
+4. Record significant architectural decisions in `docs/decisions/NNNN-title.md`
+
 ## Key Patterns
 
 ### Rust Database Access
