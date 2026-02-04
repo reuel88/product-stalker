@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 
+const MS_PER_MINUTE = 60_000;
+const MS_PER_HOUR = 3_600_000;
+const MS_PER_DAY = 86_400_000;
+
 function formatRelativeTime(dateStr: string): string {
 	const date = new Date(dateStr);
 	if (Number.isNaN(date.getTime())) return "Unknown";
 
 	const now = new Date();
 	const diffMs = now.getTime() - date.getTime();
-	const diffMins = Math.floor(diffMs / 60000);
-	const diffHours = Math.floor(diffMs / 3600000);
-	const diffDays = Math.floor(diffMs / 86400000);
+	const diffMins = Math.floor(diffMs / MS_PER_MINUTE);
+	const diffHours = Math.floor(diffMs / MS_PER_HOUR);
+	const diffDays = Math.floor(diffMs / MS_PER_DAY);
 
 	if (diffMins < 1) return "Just now";
 	if (diffMins < 60) return `${diffMins}m ago`;
@@ -33,7 +37,7 @@ export function useRelativeTime(dateStr: string | null): string {
 		// Update every minute
 		const interval = setInterval(() => {
 			setRelativeTime(formatRelativeTime(dateStr));
-		}, 60000);
+		}, MS_PER_MINUTE);
 
 		return () => clearInterval(interval);
 	}, [dateStr]);

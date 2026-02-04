@@ -3,6 +3,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MESSAGES } from "@/constants";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
+import { cn } from "@/lib/utils";
 import type { AvailabilityStatus } from "@/modules/products/types";
 
 interface AvailabilityBadgeProps {
@@ -50,7 +51,10 @@ export function AvailabilityBadge({
 			{config ? (
 				<div className="flex flex-col items-start gap-0.5">
 					<span
-						className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium text-xs ${config.className}`}
+						className={cn(
+							"inline-flex w-full items-center overflow-hidden text-ellipsis text-nowrap rounded-full px-2 py-0.5 font-medium text-xs",
+							config.className,
+						)}
 					>
 						{config.label}
 					</span>
