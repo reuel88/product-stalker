@@ -174,4 +174,4 @@ This setup is only needed once when configuring a new repository fork:
 
 3. Update `apps/desktop/src-tauri/tauri.conf.json` with the public key
 
-See `docs/MAINTAINERS.md` for detailed signing key management, troubleshooting, and key rotation procedures.
+See `docs/guides/release-signing.md` for detailed signing key management, troubleshooting, and key rotation procedures.

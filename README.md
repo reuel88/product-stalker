@@ -77,3 +77,9 @@ For an interactive test UI:
 ```bash
 pnpm -F desktop test:ui
 ```
+
+## Documentation
+
+- [Developer guides](./docs/guides/) - Setup and maintenance procedures
+- [Implementation plans](./docs/plans/) - Technical specifications
+- [Architecture decisions](./docs/decisions/) - ADRs
