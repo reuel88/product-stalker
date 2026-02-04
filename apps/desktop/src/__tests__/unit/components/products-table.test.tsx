@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UI } from "@/constants";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
-import {
-	createMockAvailabilityCheck,
-	createMockProduct,
-	createMockProducts,
-} from "../../mocks/data";
+import { createMockProduct, createMockProducts } from "../../mocks/data";
 import { getMockedInvoke, mockInvokeMultiple } from "../../mocks/tauri";
 import { render, screen, waitFor } from "../../test-utils";
 

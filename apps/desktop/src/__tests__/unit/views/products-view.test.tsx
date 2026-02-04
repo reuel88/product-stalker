@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { COMMANDS, MESSAGES } from "@/constants";
+import { beforeEach, describe, expect, it } from "vitest";
+import { COMMANDS } from "@/constants";
 import { ProductsView } from "@/modules/products/ui/views/products-view";
 import {
 	createMockBulkCheckSummary,
