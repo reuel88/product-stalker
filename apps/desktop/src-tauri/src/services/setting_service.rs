@@ -175,6 +175,7 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: None,
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -194,6 +195,7 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: None,
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -213,6 +215,7 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: None,
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -233,6 +236,7 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: None,
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -253,6 +257,7 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: None,
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -273,6 +278,7 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: None,
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -293,6 +299,7 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: None,
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -313,6 +320,7 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: None,
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -333,6 +341,7 @@ mod integration_tests {
             sidebar_expanded: Some(true),
             background_check_enabled: None,
             background_check_interval_minutes: None,
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -353,6 +362,7 @@ mod integration_tests {
             sidebar_expanded: Some(true),
             background_check_enabled: Some(true),
             background_check_interval_minutes: Some(30),
+            enable_headless_browser: Some(false),
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -367,6 +377,7 @@ mod integration_tests {
         assert!(settings.sidebar_expanded);
         assert!(settings.background_check_enabled);
         assert_eq!(settings.background_check_interval_minutes, 30);
+        assert!(!settings.enable_headless_browser);
     }
 
     #[tokio::test]
@@ -382,6 +393,7 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: None,
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -401,6 +413,7 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: Some(-1),
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -420,6 +433,7 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: Some(0),
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -439,10 +453,32 @@ mod integration_tests {
             sidebar_expanded: None,
             background_check_enabled: None,
             background_check_interval_minutes: Some(30),
+            enable_headless_browser: None,
         };
 
         let result = SettingService::update(&conn, params).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().background_check_interval_minutes, 30);
+    }
+
+    #[tokio::test]
+    async fn test_update_headless_browser_success() {
+        let conn = setup_settings_db().await;
+        let params = UpdateSettingsParams {
+            theme: None,
+            show_in_tray: None,
+            launch_at_login: None,
+            enable_logging: None,
+            log_level: None,
+            enable_notifications: None,
+            sidebar_expanded: None,
+            background_check_enabled: None,
+            background_check_interval_minutes: None,
+            enable_headless_browser: Some(false),
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_ok());
+        assert!(!result.unwrap().enable_headless_browser);
     }
 }

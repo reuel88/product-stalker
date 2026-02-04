@@ -68,9 +68,14 @@ impl AvailabilityService {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Product not found: {}", product_id)))?;
 
+        // Get the headless browser setting
+        let settings = SettingService::get(conn).await?;
+        let enable_headless = settings.enable_headless_browser;
+
         // Attempt to check availability
         let check_id = Uuid::new_v4();
-        let result = ScraperService::check_availability(&product.url).await;
+        let result =
+            ScraperService::check_availability_with_headless(&product.url, enable_headless).await;
 
         match result {
             Ok(scraping_result) => {

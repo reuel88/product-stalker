@@ -13,6 +13,7 @@ export interface Settings {
 	sidebar_expanded: boolean;
 	background_check_enabled: boolean;
 	background_check_interval_minutes: number;
+	enable_headless_browser: boolean;
 	updated_at: string;
 }
 

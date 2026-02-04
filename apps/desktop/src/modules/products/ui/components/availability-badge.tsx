@@ -9,6 +9,7 @@ import type { AvailabilityStatus } from "@/modules/products/types";
 interface AvailabilityBadgeProps {
 	status: AvailabilityStatus | null;
 	checkedAt: string | null;
+	errorMessage?: string | null;
 	isChecking?: boolean;
 	onCheck?: () => void;
 }
@@ -40,11 +41,15 @@ const statusConfig: Record<
 export function AvailabilityBadge({
 	status,
 	checkedAt,
+	errorMessage,
 	isChecking,
 	onCheck,
 }: AvailabilityBadgeProps) {
 	const config = status ? statusConfig[status] : null;
 	const relativeTime = useRelativeTime(checkedAt);
+
+	// Show error message as tooltip when status is unknown and there's an error
+	const showError = status === "unknown" && errorMessage;
 
 	return (
 		<div className="flex items-center gap-2">
@@ -54,12 +59,20 @@ export function AvailabilityBadge({
 						className={cn(
 							"inline-flex w-full items-center overflow-hidden text-ellipsis text-nowrap rounded-full px-2 py-0.5 font-medium text-xs",
 							config.className,
+							showError && "cursor-help",
 						)}
+						title={showError ? errorMessage : undefined}
 					>
 						{config.label}
 					</span>
 					{checkedAt && (
-						<span className="text-[10px] text-muted-foreground">
+						<span
+							className={cn(
+								"text-[10px] text-muted-foreground",
+								showError && "cursor-help",
+							)}
+							title={showError ? errorMessage : undefined}
+						>
 							{relativeTime}
 						</span>
 					)}

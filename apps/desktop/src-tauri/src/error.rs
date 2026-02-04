@@ -23,6 +23,9 @@ pub enum AppError {
 
     #[error("Scraping error: {0}")]
     Scraping(String),
+
+    #[error("Bot protection: {0}")]
+    BotProtection(String),
 }
 
 impl AppError {
@@ -35,6 +38,7 @@ impl AppError {
             AppError::Internal(_) => "INTERNAL_ERROR",
             AppError::Http(_) => "HTTP_ERROR",
             AppError::Scraping(_) => "SCRAPING_ERROR",
+            AppError::BotProtection(_) => "BOT_PROTECTION",
         }
     }
 
@@ -67,6 +71,11 @@ impl AppError {
     pub fn is_scraping_error(&self) -> bool {
         matches!(self, AppError::Scraping(_))
     }
+
+    /// Check if this is a bot protection error
+    pub fn is_bot_protection_error(&self) -> bool {
+        matches!(self, AppError::BotProtection(_))
+    }
 }
 
 /// JSON error response for frontend
@@ -94,6 +103,7 @@ impl ErrorResponse {
             AppError::Internal(msg) => msg.clone(),
             AppError::Http(http_err) => http_err.to_string(),
             AppError::Scraping(msg) => msg.clone(),
+            AppError::BotProtection(msg) => msg.clone(),
         };
 
         Self::new(message, err.code())
@@ -401,6 +411,7 @@ mod tests {
             AppError::Validation("test".to_string()),
             AppError::Internal("test".to_string()),
             AppError::Scraping("test".to_string()),
+            AppError::BotProtection("test".to_string()),
         ];
 
         let codes: Vec<&str> = errors.iter().map(|e| e.code()).collect();
@@ -461,5 +472,50 @@ mod tests {
         let debug_str = format!("{:?}", err);
         assert!(debug_str.contains("Scraping"));
         assert!(debug_str.contains("parse error"));
+    }
+
+    // Bot protection error tests
+
+    #[test]
+    fn test_bot_protection_error_display() {
+        let err = AppError::BotProtection("Cloudflare challenge detected".to_string());
+        assert_eq!(
+            err.to_string(),
+            "Bot protection: Cloudflare challenge detected"
+        );
+    }
+
+    #[test]
+    fn test_bot_protection_code() {
+        let err = AppError::BotProtection("test".to_string());
+        assert_eq!(err.code(), "BOT_PROTECTION");
+    }
+
+    #[test]
+    fn test_is_bot_protection_error() {
+        let err = AppError::BotProtection("test".to_string());
+        assert!(err.is_bot_protection_error());
+        assert!(!err.is_not_found());
+        assert!(!err.is_validation_error());
+        assert!(!err.is_internal_error());
+        assert!(!err.is_database_error());
+        assert!(!err.is_http_error());
+        assert!(!err.is_scraping_error());
+    }
+
+    #[test]
+    fn test_error_response_from_bot_protection() {
+        let err = AppError::BotProtection("Chrome required".to_string());
+        let response = ErrorResponse::from_app_error(&err);
+        assert_eq!(response.error, "Chrome required");
+        assert_eq!(response.code, "BOT_PROTECTION");
+    }
+
+    #[test]
+    fn test_debug_bot_protection() {
+        let err = AppError::BotProtection("challenge error".to_string());
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("BotProtection"));
+        assert!(debug_str.contains("challenge error"));
     }
 }

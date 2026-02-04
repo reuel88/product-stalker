@@ -3,6 +3,7 @@ use std::time::Duration;
 use scraper::{Html, Selector};
 use url::Url;
 
+use super::HeadlessService;
 use crate::entities::availability_check::AvailabilityStatus;
 use crate::error::AppError;
 
@@ -24,7 +25,19 @@ impl ScraperService {
     const USER_AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     /// Check availability by fetching a URL and parsing Schema.org data
+    ///
+    /// Uses HTTP as the fast path. Falls back to headless browser if bot
+    /// protection (Cloudflare, etc.) is detected and headless is enabled.
+    #[allow(dead_code)]
     pub async fn check_availability(url: &str) -> Result<ScrapingResult, AppError> {
+        Self::check_availability_with_headless(url, true).await
+    }
+
+    /// Check availability with control over headless fallback
+    pub async fn check_availability_with_headless(
+        url: &str,
+        enable_headless: bool,
+    ) -> Result<ScrapingResult, AppError> {
         let parsed =
             Url::parse(url).map_err(|e| AppError::Validation(format!("Invalid URL: {}", e)))?;
 
@@ -36,11 +49,109 @@ impl ScraperService {
             )));
         }
 
-        let html = Self::fetch_page(url).await?;
-        Self::parse_schema_org_with_url(&html, url)
+        // Try HTTP first (fast path)
+        match Self::fetch_page(url).await {
+            Ok(html) => {
+                log::debug!("HTTP fetch succeeded for {}, checking for challenge", url);
+                // Check for challenge in successful response (some return 200 with challenge)
+                if Self::is_cloudflare_challenge(200, &html) {
+                    log::info!("Detected bot protection challenge for {}", url);
+                    if enable_headless {
+                        log::info!("Attempting headless fallback for {}", url);
+                        return Self::try_headless_fallback(url).await;
+                    }
+                    return Err(AppError::BotProtection(
+                        "This site has bot protection. Enable headless browser in settings to check this site.".to_string()
+                    ));
+                }
+                Self::parse_schema_org_with_url(&html, url)
+            }
+            Err(AppError::Scraping(msg)) if msg.contains("403") || msg.contains("503") => {
+                // Likely bot protection - try headless
+                log::info!(
+                    "HTTP request blocked ({}) for {}, trying headless",
+                    msg,
+                    url
+                );
+                if enable_headless {
+                    Self::try_headless_fallback(url).await
+                } else {
+                    Err(AppError::BotProtection(
+                        "This site has bot protection. Enable headless browser in settings to check this site.".to_string()
+                    ))
+                }
+            }
+            Err(e) => {
+                log::error!("HTTP fetch failed for {}: {}", url, e);
+                Err(e)
+            }
+        }
     }
 
-    /// Fetch a page's HTML content
+    /// Check if the response is a Cloudflare challenge page or other bot protection
+    fn is_cloudflare_challenge(status: u16, body: &str) -> bool {
+        // Check for common Cloudflare challenge indicators
+        let is_challenge_status = status == 403 || status == 503;
+        let body_lower = body.to_lowercase();
+
+        // If the page has product data (JSON-LD), it's not a challenge page
+        let has_product_data = body_lower.contains("application/ld+json");
+
+        // Cloudflare-specific indicators (strong signals)
+        let cloudflare_indicators = body_lower.contains("just a moment...")
+            || body_lower.contains("cf-browser-verification")
+            || body_lower.contains("_cf_chl_opt")
+            || body_lower.contains("checking your browser")
+            || body_lower.contains("ray id:")
+            || body_lower.contains("cf-challenge")
+            || body_lower.contains("__cf_bm")
+            || body_lower.contains("cloudflare");
+
+        // Explicit bot protection indicators (strong signals)
+        let explicit_bot_protection = body_lower.contains("bot detected")
+            || body_lower.contains("please verify you are a human")
+            || body_lower.contains("enable javascript and cookies")
+            || body_lower.contains("pardon our interruption");
+
+        // Check for minimal HTML (likely a challenge page, not real content)
+        let is_minimal_page =
+            !has_product_data && (body.len() < 5000 || !body_lower.contains("<body"));
+
+        // A 403/503 with strong challenge indicators is a challenge
+        // Note: "access denied" alone is too broad - legitimate 403s often have this
+        if is_challenge_status {
+            // If we have product data, it's not a challenge
+            if has_product_data {
+                return false;
+            }
+            cloudflare_indicators || explicit_bot_protection || is_minimal_page
+        } else {
+            // For 200 responses, require strong indicators
+            cloudflare_indicators || explicit_bot_protection
+        }
+    }
+
+    /// Try to fetch page using headless browser
+    ///
+    /// Runs the blocking headless browser operations on a dedicated thread pool
+    /// to avoid blocking the async runtime.
+    async fn try_headless_fallback(url: &str) -> Result<ScrapingResult, AppError> {
+        let url_owned = url.to_string();
+        let url_for_parse = url.to_string();
+        let result = tokio::task::spawn_blocking(move || {
+            let mut headless = HeadlessService::new();
+            headless.fetch_page(&url_owned)
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("Headless task failed: {}", e)))?;
+
+        match result {
+            Ok(html) => Self::parse_schema_org_with_url(&html, &url_for_parse),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Fetch a page's HTML content using HTTP
     async fn fetch_page(url: &str) -> Result<String, AppError> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(Self::TIMEOUT_SECS))
@@ -778,5 +889,108 @@ mod tests {
             }
             _ => panic!("Expected Validation error, got {:?}", err),
         }
+    }
+
+    // Cloudflare challenge detection tests
+
+    #[test]
+    fn test_is_cloudflare_challenge_detects_just_a_moment() {
+        let body = r#"
+            <!DOCTYPE html>
+            <html>
+            <head><title>Just a moment...</title></head>
+            <body>
+                <div>Checking your browser before accessing the website.</div>
+            </body>
+            </html>
+        "#;
+        assert!(ScraperService::is_cloudflare_challenge(403, body));
+    }
+
+    #[test]
+    fn test_is_cloudflare_challenge_detects_cf_browser_verification() {
+        let body = r#"
+            <!DOCTYPE html>
+            <html>
+            <head><title>Loading</title></head>
+            <body>
+                <div id="cf-browser-verification">Please wait...</div>
+            </body>
+            </html>
+        "#;
+        assert!(ScraperService::is_cloudflare_challenge(403, body));
+    }
+
+    #[test]
+    fn test_is_cloudflare_challenge_detects_cf_chl_opt() {
+        let body = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script>window._cf_chl_opt = {...}</script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+        assert!(ScraperService::is_cloudflare_challenge(503, body));
+    }
+
+    #[test]
+    fn test_is_cloudflare_challenge_detects_ray_id() {
+        let body = r#"
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <p>Ray ID: abc123xyz</p>
+            </body>
+            </html>
+        "#;
+        assert!(ScraperService::is_cloudflare_challenge(403, body));
+    }
+
+    #[test]
+    fn test_is_cloudflare_challenge_returns_false_for_normal_page() {
+        let body = r#"
+            <!DOCTYPE html>
+            <html>
+            <head><title>Product Page</title></head>
+            <body>
+                <h1>Test Product</h1>
+                <script type="application/ld+json">
+                {"@type": "Product", "offers": {"availability": "InStock"}}
+                </script>
+            </body>
+            </html>
+        "#;
+        assert!(!ScraperService::is_cloudflare_challenge(200, body));
+    }
+
+    #[test]
+    fn test_is_cloudflare_challenge_returns_false_for_normal_403() {
+        // A 403 page with proper content (long body, has JSON-LD) should not be detected
+        let body = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>403 Forbidden</title>
+                <script type="application/ld+json">
+                {"@type": "Product", "name": "Test"}
+                </script>
+            </head>
+            <body>
+                <h1>Access Denied</h1>
+                <p>You don't have permission to access this resource.</p>
+                <p>This is a longer page with actual content that wouldn't be a bot challenge.</p>
+            </body>
+            </html>
+        "#;
+        // Normal 403 with content should not be detected as a challenge
+        assert!(!ScraperService::is_cloudflare_challenge(403, body));
+    }
+
+    #[test]
+    fn test_is_cloudflare_challenge_case_insensitive() {
+        let body = r#"<html><body>JUST A MOMENT...</body></html>"#;
+        assert!(ScraperService::is_cloudflare_challenge(403, body));
     }
 }

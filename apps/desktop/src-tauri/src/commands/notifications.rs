@@ -223,6 +223,7 @@ mod integration_tests {
                 sidebar_expanded: None,
                 background_check_enabled: None,
                 background_check_interval_minutes: None,
+                enable_headless_browser: None,
             },
         )
         .await
@@ -259,6 +260,7 @@ mod integration_tests {
                 sidebar_expanded: None,
                 background_check_enabled: None,
                 background_check_interval_minutes: None,
+                enable_headless_browser: None,
             },
         )
         .await
@@ -290,6 +292,7 @@ mod integration_tests {
                 sidebar_expanded: None,
                 background_check_enabled: None,
                 background_check_interval_minutes: None,
+                enable_headless_browser: None,
             },
         )
         .await
@@ -311,6 +314,7 @@ mod integration_tests {
                 sidebar_expanded: None,
                 background_check_enabled: None,
                 background_check_interval_minutes: None,
+                enable_headless_browser: None,
             },
         )
         .await

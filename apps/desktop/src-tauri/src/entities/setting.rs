@@ -39,6 +39,9 @@ pub struct Model {
     /// Interval for background checks in minutes (15, 30, 60, 240, 1440)
     pub background_check_interval_minutes: i32,
 
+    /// Enable headless browser for sites with bot protection
+    pub enable_headless_browser: bool,
+
     /// Last update timestamp
     pub updated_at: DateTimeUtc,
 }
@@ -61,6 +64,7 @@ impl Default for Model {
             sidebar_expanded: true,
             background_check_enabled: false,
             background_check_interval_minutes: 60, // Default to 1 hour
+            enable_headless_browser: true,         // Enabled by default for best experience
             updated_at: chrono::Utc::now(),
         }
     }
@@ -83,6 +87,7 @@ mod tests {
         assert!(settings.sidebar_expanded);
         assert!(!settings.background_check_enabled);
         assert_eq!(settings.background_check_interval_minutes, 60);
+        assert!(settings.enable_headless_browser);
     }
 
     #[test]
@@ -128,6 +133,7 @@ mod tests {
         assert!(json.contains("\"sidebar_expanded\":true"));
         assert!(json.contains("\"background_check_enabled\":false"));
         assert!(json.contains("\"background_check_interval_minutes\":60"));
+        assert!(json.contains("\"enable_headless_browser\":true"));
     }
 
     #[test]
@@ -143,6 +149,7 @@ mod tests {
             "sidebar_expanded": false,
             "background_check_enabled": true,
             "background_check_interval_minutes": 30,
+            "enable_headless_browser": false,
             "updated_at": "2024-01-01T00:00:00Z"
         }"#;
         let settings: Model = serde_json::from_str(json).unwrap();
@@ -156,6 +163,7 @@ mod tests {
         assert!(!settings.sidebar_expanded);
         assert!(settings.background_check_enabled);
         assert_eq!(settings.background_check_interval_minutes, 30);
+        assert!(!settings.enable_headless_browser);
     }
 
     #[test]

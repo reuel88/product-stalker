@@ -299,9 +299,9 @@ describe("SettingsComponent", () => {
 				expect(screen.getByText("Sidebar expanded")).toBeInTheDocument();
 			});
 
-			// switch index 5 is sidebar_expanded (after background_check_enabled)
+			// switch index 6 is sidebar_expanded (after headless_browser)
 			const switches = screen.getAllByRole("switch");
-			await user.click(switches[5]);
+			await user.click(switches[6]);
 
 			await waitFor(() => {
 				expect(getMockedInvoke()).toHaveBeenCalledWith(
