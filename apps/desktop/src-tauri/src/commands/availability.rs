@@ -17,6 +17,9 @@ pub struct AvailabilityCheckResponse {
     pub raw_availability: Option<String>,
     pub error_message: Option<String>,
     pub checked_at: String,
+    pub price_cents: Option<i64>,
+    pub price_currency: Option<String>,
+    pub raw_price: Option<String>,
 }
 
 impl From<AvailabilityCheckModel> for AvailabilityCheckResponse {
@@ -28,6 +31,9 @@ impl From<AvailabilityCheckModel> for AvailabilityCheckResponse {
             raw_availability: model.raw_availability,
             error_message: model.error_message,
             checked_at: model.checked_at.to_rfc3339(),
+            price_cents: model.price_cents,
+            price_currency: model.price_currency,
+            raw_price: model.raw_price,
         }
     }
 }
@@ -133,6 +139,9 @@ mod tests {
             raw_availability: Some("http://schema.org/InStock".to_string()),
             error_message: None,
             checked_at: now,
+            price_cents: Some(78900),
+            price_currency: Some("USD".to_string()),
+            raw_price: Some("789.00".to_string()),
         };
 
         let response = AvailabilityCheckResponse::from(model);
@@ -146,6 +155,9 @@ mod tests {
         );
         assert!(response.error_message.is_none());
         assert!(!response.checked_at.is_empty());
+        assert_eq!(response.price_cents, Some(78900));
+        assert_eq!(response.price_currency, Some("USD".to_string()));
+        assert_eq!(response.raw_price, Some("789.00".to_string()));
     }
 
     #[test]
@@ -161,6 +173,9 @@ mod tests {
             raw_availability: None,
             error_message: Some("Failed to fetch page".to_string()),
             checked_at: now,
+            price_cents: None,
+            price_currency: None,
+            raw_price: None,
         };
 
         let response = AvailabilityCheckResponse::from(model);
@@ -171,6 +186,7 @@ mod tests {
             response.error_message,
             Some("Failed to fetch page".to_string())
         );
+        assert!(response.price_cents.is_none());
     }
 
     #[test]
@@ -186,6 +202,9 @@ mod tests {
             raw_availability: Some("http://schema.org/OutOfStock".to_string()),
             error_message: None,
             checked_at: now,
+            price_cents: Some(9999),
+            price_currency: Some("EUR".to_string()),
+            raw_price: Some("99.99".to_string()),
         };
 
         let response = AvailabilityCheckResponse::from(model);
@@ -194,5 +213,7 @@ mod tests {
         assert!(json.contains("out_of_stock"));
         assert!(json.contains(&id.to_string()));
         assert!(json.contains(&product_id.to_string()));
+        assert!(json.contains("9999"));
+        assert!(json.contains("EUR"));
     }
 }

@@ -9,29 +9,56 @@ use crate::error::AppError;
 /// Repository for availability check data access
 pub struct AvailabilityCheckRepository;
 
+/// Parameters for creating an availability check
+#[derive(Default)]
+pub struct CreateCheckParams {
+    pub status: String,
+    pub raw_availability: Option<String>,
+    pub error_message: Option<String>,
+    pub price_cents: Option<i64>,
+    pub price_currency: Option<String>,
+    pub raw_price: Option<String>,
+}
+
 impl AvailabilityCheckRepository {
     /// Create a new availability check record
     pub async fn create(
         conn: &DatabaseConnection,
         id: Uuid,
         product_id: Uuid,
-        status: &str,
-        raw_availability: Option<String>,
-        error_message: Option<String>,
+        params: CreateCheckParams,
     ) -> Result<AvailabilityCheckModel, AppError> {
         let now = chrono::Utc::now();
 
         let active_model = AvailabilityCheckActiveModel {
             id: Set(id),
             product_id: Set(product_id),
-            status: Set(status.to_string()),
-            raw_availability: Set(raw_availability),
-            error_message: Set(error_message),
+            status: Set(params.status),
+            raw_availability: Set(params.raw_availability),
+            error_message: Set(params.error_message),
             checked_at: Set(now),
+            price_cents: Set(params.price_cents),
+            price_currency: Set(params.price_currency),
+            raw_price: Set(params.raw_price),
         };
 
         let check = active_model.insert(conn).await?;
         Ok(check)
+    }
+
+    /// Find the previous price for a product (for price drop detection)
+    /// Returns the most recent check that has a price
+    pub async fn find_previous_price(
+        conn: &DatabaseConnection,
+        product_id: Uuid,
+    ) -> Result<Option<i64>, AppError> {
+        let check = AvailabilityCheck::find()
+            .filter(AvailabilityCheckColumn::ProductId.eq(product_id))
+            .filter(AvailabilityCheckColumn::PriceCents.is_not_null())
+            .order_by_desc(AvailabilityCheckColumn::CheckedAt)
+            .one(conn)
+            .await?;
+        Ok(check.and_then(|c| c.price_cents))
     }
 
     /// Find the most recent availability check for a product
@@ -82,9 +109,11 @@ mod tests {
             &conn,
             id,
             product_id,
-            "in_stock",
-            Some("http://schema.org/InStock".to_string()),
-            None,
+            CreateCheckParams {
+                status: "in_stock".to_string(),
+                raw_availability: Some("http://schema.org/InStock".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -109,9 +138,11 @@ mod tests {
             &conn,
             id,
             product_id,
-            "unknown",
-            None,
-            Some("Failed to fetch page".to_string()),
+            CreateCheckParams {
+                status: "unknown".to_string(),
+                error_message: Some("Failed to fetch page".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -122,6 +153,85 @@ mod tests {
             check.error_message,
             Some("Failed to fetch page".to_string())
         );
+    }
+
+    #[tokio::test]
+    async fn test_create_availability_check_with_price() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
+        let id = Uuid::new_v4();
+
+        let check = AvailabilityCheckRepository::create(
+            &conn,
+            id,
+            product_id,
+            CreateCheckParams {
+                status: "in_stock".to_string(),
+                raw_availability: Some("http://schema.org/InStock".to_string()),
+                price_cents: Some(78900),
+                price_currency: Some("USD".to_string()),
+                raw_price: Some("789.00".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(check.price_cents, Some(78900));
+        assert_eq!(check.price_currency, Some("USD".to_string()));
+        assert_eq!(check.raw_price, Some("789.00".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_find_previous_price() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
+
+        // Create a check with price
+        AvailabilityCheckRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            product_id,
+            CreateCheckParams {
+                status: "in_stock".to_string(),
+                price_cents: Some(78900),
+                price_currency: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let previous_price = AvailabilityCheckRepository::find_previous_price(&conn, product_id)
+            .await
+            .unwrap();
+
+        assert_eq!(previous_price, Some(78900));
+    }
+
+    #[tokio::test]
+    async fn test_find_previous_price_no_price() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
+
+        // Create a check without price
+        AvailabilityCheckRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            product_id,
+            CreateCheckParams {
+                status: "in_stock".to_string(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let previous_price = AvailabilityCheckRepository::find_previous_price(&conn, product_id)
+            .await
+            .unwrap();
+
+        assert_eq!(previous_price, None);
     }
 
     #[tokio::test]
@@ -136,9 +246,14 @@ mod tests {
                 &conn,
                 id,
                 product_id,
-                if i == 2 { "in_stock" } else { "out_of_stock" },
-                None,
-                None,
+                CreateCheckParams {
+                    status: if i == 2 {
+                        "in_stock".to_string()
+                    } else {
+                        "out_of_stock".to_string()
+                    },
+                    ..Default::default()
+                },
             )
             .await
             .unwrap();
@@ -174,9 +289,17 @@ mod tests {
         // Create 5 checks
         for _ in 0..5 {
             let id = Uuid::new_v4();
-            AvailabilityCheckRepository::create(&conn, id, product_id, "in_stock", None, None)
-                .await
-                .unwrap();
+            AvailabilityCheckRepository::create(
+                &conn,
+                id,
+                product_id,
+                CreateCheckParams {
+                    status: "in_stock".to_string(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
         }
 
         let all = AvailabilityCheckRepository::find_all_for_product(&conn, product_id, None)
@@ -194,9 +317,17 @@ mod tests {
         // Create 5 checks
         for _ in 0..5 {
             let id = Uuid::new_v4();
-            AvailabilityCheckRepository::create(&conn, id, product_id, "in_stock", None, None)
-                .await
-                .unwrap();
+            AvailabilityCheckRepository::create(
+                &conn,
+                id,
+                product_id,
+                CreateCheckParams {
+                    status: "in_stock".to_string(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
         }
 
         let limited = AvailabilityCheckRepository::find_all_for_product(&conn, product_id, Some(3))
@@ -227,9 +358,17 @@ mod tests {
         let statuses = ["out_of_stock", "back_order", "in_stock"];
         for status in statuses {
             let id = Uuid::new_v4();
-            AvailabilityCheckRepository::create(&conn, id, product_id, status, None, None)
-                .await
-                .unwrap();
+            AvailabilityCheckRepository::create(
+                &conn,
+                id,
+                product_id,
+                CreateCheckParams {
+                    status: status.to_string(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
             // Small delay to ensure different timestamps
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
@@ -252,10 +391,17 @@ mod tests {
         let statuses = ["in_stock", "out_of_stock", "back_order", "unknown"];
         for status in statuses {
             let id = Uuid::new_v4();
-            let check =
-                AvailabilityCheckRepository::create(&conn, id, product_id, status, None, None)
-                    .await
-                    .unwrap();
+            let check = AvailabilityCheckRepository::create(
+                &conn,
+                id,
+                product_id,
+                CreateCheckParams {
+                    status: status.to_string(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
             assert_eq!(check.status, status);
         }
     }
@@ -276,9 +422,10 @@ mod tests {
                 &conn,
                 Uuid::new_v4(),
                 product1_id,
-                "in_stock",
-                None,
-                None,
+                CreateCheckParams {
+                    status: "in_stock".to_string(),
+                    ..Default::default()
+                },
             )
             .await
             .unwrap();
@@ -290,9 +437,10 @@ mod tests {
                 &conn,
                 Uuid::new_v4(),
                 product2_id,
-                "out_of_stock",
-                None,
-                None,
+                CreateCheckParams {
+                    status: "out_of_stock".to_string(),
+                    ..Default::default()
+                },
             )
             .await
             .unwrap();
@@ -327,9 +475,10 @@ mod tests {
             &conn,
             Uuid::new_v4(),
             product1_id,
-            "in_stock",
-            None,
-            None,
+            CreateCheckParams {
+                status: "in_stock".to_string(),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -359,9 +508,11 @@ mod tests {
                 &conn,
                 Uuid::new_v4(),
                 product_id,
-                "in_stock",
-                Some(raw.to_string()),
-                None,
+                CreateCheckParams {
+                    status: "in_stock".to_string(),
+                    raw_availability: Some(raw.to_string()),
+                    ..Default::default()
+                },
             )
             .await
             .unwrap();
@@ -380,9 +531,10 @@ mod tests {
                 &conn,
                 Uuid::new_v4(),
                 product_id,
-                "in_stock",
-                None,
-                None,
+                CreateCheckParams {
+                    status: "in_stock".to_string(),
+                    ..Default::default()
+                },
             )
             .await
             .unwrap();

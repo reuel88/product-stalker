@@ -11,7 +11,11 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(AvailabilityChecks::Table)
-                    .add_column(ColumnDef::new(AvailabilityChecks::PriceCents).big_integer().null())
+                    .add_column(
+                        ColumnDef::new(AvailabilityChecks::PriceCents)
+                            .big_integer()
+                            .null(),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -21,7 +25,11 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(AvailabilityChecks::Table)
-                    .add_column(ColumnDef::new(AvailabilityChecks::PriceCurrency).text().null())
+                    .add_column(
+                        ColumnDef::new(AvailabilityChecks::PriceCurrency)
+                            .text()
+                            .null(),
+                    )
                     .to_owned(),
             )
             .await?;

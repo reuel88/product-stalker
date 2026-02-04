@@ -6,25 +6,23 @@
 			"WebFetch(domain:api.github.com)",
 			"WebFetch(domain:raw.githubusercontent.com)",
 			"WebFetch(domain:v2.tauri.app)",
-
 			"Bash(pnpm run test)",
 			"Bash(pnpm run test:*)",
 			"Bash(pnpm run check)",
 			"Bash(pnpm run check:*)",
 			"Bash(pnpm run check-types)",
 			"Bash(pnpm run check-types:*)",
-
 			"Bash(pnpm -F desktop test:*)",
 			"Bash(pnpm -F desktop run check-types)",
 			"Bash(pnpm -F desktop vitest *)",
-
 			"Bash(cargo test*)",
 			"Bash(cargo check*)",
 			"Bash(cargo fmt*)",
 			"Bash(cargo clippy*)",
 			"Bash(cargo llvm-cov*)",
-
-			"Bash(npx vitest *)"
+			"Bash(npx vitest *)",
+			"Bash(cargo build:*)",
+			"Bash(pnpm run test:unit:*)"
 		]
 	}
 }

@@ -35,6 +35,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { MESSAGES, UI } from "@/constants";
+import { formatPrice } from "@/lib/utils";
 import { useAvailability } from "@/modules/products/hooks/useAvailability";
 import type { ProductResponse } from "@/modules/products/types";
 import { AvailabilityBadge } from "./availability-badge";
@@ -73,6 +74,17 @@ function AvailabilityCell({ productId }: { productId: string }) {
 			onCheck={handleCheck}
 		/>
 	);
+}
+
+function PriceCell({ productId }: { productId: string }) {
+	const { latestCheck } = useAvailability(productId);
+
+	const price = formatPrice(
+		latestCheck?.price_cents ?? null,
+		latestCheck?.price_currency ?? null,
+	);
+
+	return <span className="text-muted-foreground">{price}</span>;
 }
 
 export function ProductsTable({
@@ -115,6 +127,11 @@ export function ProductsTable({
 			id: "availability",
 			header: "Availability",
 			cell: ({ row }) => <AvailabilityCell productId={row.original.id} />,
+		},
+		{
+			id: "price",
+			header: "Price",
+			cell: ({ row }) => <PriceCell productId={row.original.id} />,
 		},
 		{
 			accessorKey: "description",
@@ -280,6 +297,7 @@ function ProductsTableSkeleton() {
 						<TableHead>Name</TableHead>
 						<TableHead>URL</TableHead>
 						<TableHead>Availability</TableHead>
+						<TableHead>Price</TableHead>
 						<TableHead>Description</TableHead>
 						<TableHead>Created</TableHead>
 						<TableHead />
@@ -297,6 +315,9 @@ function ProductsTableSkeleton() {
 							</TableCell>
 							<TableCell>
 								<Skeleton className="h-6 w-20" />
+							</TableCell>
+							<TableCell>
+								<Skeleton className="h-4 w-16" />
 							</TableCell>
 							<TableCell>
 								<Skeleton className="h-4 w-32" />

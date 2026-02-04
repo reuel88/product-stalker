@@ -111,6 +111,9 @@ export function createMockAvailabilityCheck(
 		raw_availability: null,
 		error_message: null,
 		checked_at: new Date().toISOString(),
+		price_cents: null,
+		price_currency: null,
+		raw_price: null,
 		...overrides,
 	};
 }
@@ -126,6 +129,7 @@ export function createMockBulkCheckSummary(
 		successful: 5,
 		failed: 0,
 		back_in_stock_count: 0,
+		price_drop_count: 0,
 		results: [],
 		...overrides,
 	};
