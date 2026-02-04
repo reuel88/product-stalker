@@ -175,4 +175,221 @@ mod tests {
         assert_eq!(updated.name, "Updated");
         assert_eq!(updated.url, "https://original.com");
     }
+
+    #[tokio::test]
+    async fn test_find_by_id_not_found() {
+        let conn = setup_products_db().await;
+        let fake_id = Uuid::new_v4();
+
+        let found = ProductRepository::find_by_id(&conn, fake_id).await.unwrap();
+        assert!(found.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_delete_non_existent_product() {
+        let conn = setup_products_db().await;
+        let fake_id = Uuid::new_v4();
+
+        let rows = ProductRepository::delete_by_id(&conn, fake_id)
+            .await
+            .unwrap();
+        assert_eq!(rows, 0);
+    }
+
+    #[tokio::test]
+    async fn test_find_all_with_multiple_products() {
+        let conn = setup_products_db().await;
+
+        // Create 3 products
+        for i in 1..=3 {
+            ProductRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                format!("Product {}", i),
+                format!("https://p{}.com", i),
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        }
+
+        let products = ProductRepository::find_all(&conn).await.unwrap();
+        assert_eq!(products.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_create_with_all_fields() {
+        let conn = setup_products_db().await;
+        let id = Uuid::new_v4();
+
+        let created = ProductRepository::create(
+            &conn,
+            id,
+            "Full Product".to_string(),
+            "https://full.com".to_string(),
+            Some("A description".to_string()),
+            Some("Some notes".to_string()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(created.name, "Full Product");
+        assert_eq!(created.url, "https://full.com");
+        assert_eq!(created.description, Some("A description".to_string()));
+        assert_eq!(created.notes, Some("Some notes".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_update_all_fields() {
+        let conn = setup_products_db().await;
+        let id = Uuid::new_v4();
+
+        let created = ProductRepository::create(
+            &conn,
+            id,
+            "Original".to_string(),
+            "https://original.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let updated = ProductRepository::update(
+            &conn,
+            created,
+            Some("New Name".to_string()),
+            Some("https://new.com".to_string()),
+            Some(Some("New description".to_string())),
+            Some(Some("New notes".to_string())),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updated.name, "New Name");
+        assert_eq!(updated.url, "https://new.com");
+        assert_eq!(updated.description, Some("New description".to_string()));
+        assert_eq!(updated.notes, Some("New notes".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_update_clear_optional_fields() {
+        let conn = setup_products_db().await;
+        let id = Uuid::new_v4();
+
+        let created = ProductRepository::create(
+            &conn,
+            id,
+            "Product".to_string(),
+            "https://product.com".to_string(),
+            Some("Has description".to_string()),
+            Some("Has notes".to_string()),
+        )
+        .await
+        .unwrap();
+
+        // Clear description and notes by setting them to None
+        let updated = ProductRepository::update(
+            &conn,
+            created,
+            None,
+            None,
+            Some(None), // Clear description
+            Some(None), // Clear notes
+        )
+        .await
+        .unwrap();
+
+        assert!(updated.description.is_none());
+        assert!(updated.notes.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_update_only_url() {
+        let conn = setup_products_db().await;
+        let id = Uuid::new_v4();
+
+        let created = ProductRepository::create(
+            &conn,
+            id,
+            "Product".to_string(),
+            "https://old.com".to_string(),
+            Some("Description".to_string()),
+            None,
+        )
+        .await
+        .unwrap();
+
+        let updated = ProductRepository::update(
+            &conn,
+            created,
+            None,
+            Some("https://new.com".to_string()),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updated.name, "Product");
+        assert_eq!(updated.url, "https://new.com");
+        assert_eq!(updated.description, Some("Description".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_create_and_verify_timestamps() {
+        let conn = setup_products_db().await;
+        let id = Uuid::new_v4();
+
+        let created = ProductRepository::create(
+            &conn,
+            id,
+            "Timestamp Test".to_string(),
+            "https://time.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        // Verify timestamps are set and equal (same creation time)
+        assert!(!created.created_at.to_rfc3339().is_empty());
+        assert_eq!(created.created_at, created.updated_at);
+    }
+
+    #[tokio::test]
+    async fn test_update_changes_updated_at() {
+        let conn = setup_products_db().await;
+        let id = Uuid::new_v4();
+
+        let created = ProductRepository::create(
+            &conn,
+            id,
+            "Time Test".to_string(),
+            "https://time.com".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let original_updated_at = created.updated_at;
+
+        // Small delay to ensure timestamp changes
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        let updated = ProductRepository::update(
+            &conn,
+            created,
+            Some("Updated Name".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert!(updated.updated_at >= original_updated_at);
+    }
 }

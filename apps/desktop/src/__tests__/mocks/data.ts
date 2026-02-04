@@ -1,4 +1,8 @@
-import type { ProductResponse } from "@/modules/products/types";
+import type {
+	AvailabilityCheckResponse,
+	BulkCheckSummary,
+	ProductResponse,
+} from "@/modules/products/types";
 import type { Settings } from "@/modules/settings/hooks/useSettings";
 import type { UpdateInfo } from "@/modules/settings/hooks/useUpdater";
 
@@ -88,4 +92,40 @@ export function createMockUpdateAvailable(
  */
 export function resetMockCounters(): void {
 	productIdCounter = 1;
+}
+
+let availabilityIdCounter = 1;
+
+/**
+ * Create a mock availability check with default values
+ */
+export function createMockAvailabilityCheck(
+	overrides: Partial<AvailabilityCheckResponse> = {},
+): AvailabilityCheckResponse {
+	const id = overrides.id ?? `availability-${availabilityIdCounter++}`;
+	return {
+		id,
+		product_id: `product-${id}`,
+		status: "in_stock",
+		raw_availability: null,
+		error_message: null,
+		checked_at: new Date().toISOString(),
+		...overrides,
+	};
+}
+
+/**
+ * Create a mock bulk check summary with default values
+ */
+export function createMockBulkCheckSummary(
+	overrides: Partial<BulkCheckSummary> = {},
+): BulkCheckSummary {
+	return {
+		total: 5,
+		successful: 5,
+		failed: 0,
+		back_in_stock_count: 0,
+		results: [],
+		...overrides,
+	};
 }

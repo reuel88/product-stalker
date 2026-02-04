@@ -415,4 +415,323 @@ mod tests {
         let is_back = AvailabilityService::is_back_in_stock(&previous, "in_stock");
         assert!(!is_back); // First check, not a transition
     }
+
+    #[test]
+    fn test_is_back_in_stock_to_out_of_stock() {
+        let previous = Some("in_stock".to_string());
+        let is_back = AvailabilityService::is_back_in_stock(&previous, "out_of_stock");
+        assert!(!is_back); // Going out of stock is not "back in stock"
+    }
+
+    #[test]
+    fn test_is_back_in_stock_to_back_order() {
+        let previous = Some("in_stock".to_string());
+        let is_back = AvailabilityService::is_back_in_stock(&previous, "back_order");
+        assert!(!is_back);
+    }
+
+    #[test]
+    fn test_is_back_in_stock_to_unknown() {
+        let previous = Some("in_stock".to_string());
+        let is_back = AvailabilityService::is_back_in_stock(&previous, "unknown");
+        assert!(!is_back);
+    }
+
+    // NotificationData tests
+
+    #[test]
+    fn test_notification_data_clone() {
+        let notification = NotificationData {
+            title: "Test Title".to_string(),
+            body: "Test Body".to_string(),
+        };
+        let cloned = notification.clone();
+        assert_eq!(notification.title, cloned.title);
+        assert_eq!(notification.body, cloned.body);
+    }
+
+    #[test]
+    fn test_notification_data_debug() {
+        let notification = NotificationData {
+            title: "Title".to_string(),
+            body: "Body".to_string(),
+        };
+        let debug_str = format!("{:?}", notification);
+        assert!(debug_str.contains("NotificationData"));
+        assert!(debug_str.contains("Title"));
+        assert!(debug_str.contains("Body"));
+    }
+
+    #[test]
+    fn test_notification_data_serialize() {
+        let notification = NotificationData {
+            title: "Product Back!".to_string(),
+            body: "Your product is available".to_string(),
+        };
+        let json = serde_json::to_string(&notification).unwrap();
+        assert!(json.contains("Product Back!"));
+        assert!(json.contains("Your product is available"));
+    }
+
+    // BulkCheckResult tests
+
+    #[test]
+    fn test_bulk_check_result_serialize() {
+        let result = BulkCheckResult {
+            product_id: "test-id-123".to_string(),
+            product_name: "Test Product".to_string(),
+            status: "in_stock".to_string(),
+            previous_status: Some("out_of_stock".to_string()),
+            is_back_in_stock: true,
+            error: None,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("test-id-123"));
+        assert!(json.contains("Test Product"));
+        assert!(json.contains("in_stock"));
+        assert!(json.contains("out_of_stock"));
+        assert!(json.contains("true"));
+    }
+
+    #[test]
+    fn test_bulk_check_result_with_error() {
+        let result = BulkCheckResult {
+            product_id: "error-id".to_string(),
+            product_name: "Error Product".to_string(),
+            status: "unknown".to_string(),
+            previous_status: None,
+            is_back_in_stock: false,
+            error: Some("Failed to fetch".to_string()),
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("Failed to fetch"));
+        assert!(json.contains("unknown"));
+    }
+
+    #[test]
+    fn test_bulk_check_result_debug() {
+        let result = BulkCheckResult {
+            product_id: "id".to_string(),
+            product_name: "name".to_string(),
+            status: "in_stock".to_string(),
+            previous_status: None,
+            is_back_in_stock: false,
+            error: None,
+        };
+        let debug_str = format!("{:?}", result);
+        assert!(debug_str.contains("BulkCheckResult"));
+    }
+
+    // BulkCheckSummary tests
+
+    #[test]
+    fn test_bulk_check_summary_serialize() {
+        let summary = BulkCheckSummary {
+            total: 10,
+            successful: 8,
+            failed: 2,
+            back_in_stock_count: 3,
+            results: vec![],
+        };
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(json.contains("10"));
+        assert!(json.contains("\"successful\":8"));
+        assert!(json.contains("\"failed\":2"));
+        assert!(json.contains("\"back_in_stock_count\":3"));
+    }
+
+    #[test]
+    fn test_bulk_check_summary_with_results() {
+        let result = BulkCheckResult {
+            product_id: "p1".to_string(),
+            product_name: "Product 1".to_string(),
+            status: "in_stock".to_string(),
+            previous_status: Some("out_of_stock".to_string()),
+            is_back_in_stock: true,
+            error: None,
+        };
+        let summary = BulkCheckSummary {
+            total: 1,
+            successful: 1,
+            failed: 0,
+            back_in_stock_count: 1,
+            results: vec![result],
+        };
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(json.contains("Product 1"));
+        assert!(json.contains("p1"));
+    }
+
+    #[test]
+    fn test_bulk_check_summary_debug() {
+        let summary = BulkCheckSummary {
+            total: 5,
+            successful: 3,
+            failed: 2,
+            back_in_stock_count: 1,
+            results: vec![],
+        };
+        let debug_str = format!("{:?}", summary);
+        assert!(debug_str.contains("BulkCheckSummary"));
+    }
+
+    // CheckResultWithNotification tests
+
+    #[test]
+    fn test_check_result_with_notification_serialize() {
+        let check = AvailabilityCheckModel {
+            id: Uuid::new_v4(),
+            product_id: Uuid::new_v4(),
+            status: "in_stock".to_string(),
+            raw_availability: Some("http://schema.org/InStock".to_string()),
+            error_message: None,
+            checked_at: chrono::Utc::now(),
+        };
+        let result = CheckResultWithNotification {
+            check,
+            notification: Some(NotificationData {
+                title: "Back in Stock!".to_string(),
+                body: "Product available".to_string(),
+            }),
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("in_stock"));
+        assert!(json.contains("Back in Stock!"));
+    }
+
+    #[test]
+    fn test_check_result_with_notification_none() {
+        let check = AvailabilityCheckModel {
+            id: Uuid::new_v4(),
+            product_id: Uuid::new_v4(),
+            status: "out_of_stock".to_string(),
+            raw_availability: None,
+            error_message: None,
+            checked_at: chrono::Utc::now(),
+        };
+        let result = CheckResultWithNotification {
+            check,
+            notification: None,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("out_of_stock"));
+        assert!(json.contains("null") || !json.contains("notification"));
+    }
+
+    #[test]
+    fn test_check_result_with_notification_debug() {
+        let check = AvailabilityCheckModel {
+            id: Uuid::new_v4(),
+            product_id: Uuid::new_v4(),
+            status: "in_stock".to_string(),
+            raw_availability: None,
+            error_message: None,
+            checked_at: chrono::Utc::now(),
+        };
+        let result = CheckResultWithNotification {
+            check,
+            notification: None,
+        };
+        let debug_str = format!("{:?}", result);
+        assert!(debug_str.contains("CheckResultWithNotification"));
+    }
+
+    // BulkCheckResultWithNotification tests
+
+    #[test]
+    fn test_bulk_check_result_with_notification_serialize() {
+        let summary = BulkCheckSummary {
+            total: 2,
+            successful: 2,
+            failed: 0,
+            back_in_stock_count: 1,
+            results: vec![],
+        };
+        let result = BulkCheckResultWithNotification {
+            summary,
+            notification: Some(NotificationData {
+                title: "Products Back!".to_string(),
+                body: "1 product available".to_string(),
+            }),
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("Products Back!"));
+        assert!(json.contains("\"total\":2"));
+    }
+
+    #[test]
+    fn test_bulk_check_result_with_notification_debug() {
+        let summary = BulkCheckSummary {
+            total: 0,
+            successful: 0,
+            failed: 0,
+            back_in_stock_count: 0,
+            results: vec![],
+        };
+        let result = BulkCheckResultWithNotification {
+            summary,
+            notification: None,
+        };
+        let debug_str = format!("{:?}", result);
+        assert!(debug_str.contains("BulkCheckResultWithNotification"));
+    }
+
+    // Integration test for get_history without limit
+    #[tokio::test]
+    async fn test_get_history_without_limit() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product(&conn, "https://example.com").await;
+
+        // Create 3 check records
+        for i in 0..3 {
+            AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product_id,
+                if i % 2 == 0 {
+                    "in_stock"
+                } else {
+                    "out_of_stock"
+                },
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        }
+
+        let history = AvailabilityService::get_history(&conn, product_id, None)
+            .await
+            .unwrap();
+
+        assert_eq!(history.len(), 3);
+    }
+
+    // Test get_latest with multiple checks
+    #[tokio::test]
+    async fn test_get_latest_with_multiple_checks() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product(&conn, "https://example.com").await;
+
+        // Create multiple checks
+        for _ in 0..3 {
+            AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product_id,
+                "in_stock",
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        }
+
+        let latest = AvailabilityService::get_latest(&conn, product_id)
+            .await
+            .unwrap();
+
+        assert!(latest.is_some());
+        assert_eq!(latest.unwrap().status, "in_stock");
+    }
 }
