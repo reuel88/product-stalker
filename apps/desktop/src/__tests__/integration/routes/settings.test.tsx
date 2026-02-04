@@ -8,7 +8,32 @@ import {
 	createMockUpdateInfo,
 } from "../../mocks/data";
 import { getMockedInvoke, mockInvokeMultiple } from "../../mocks/tauri";
-import { render, screen, waitFor } from "../../test-utils";
+import { render, screen, waitFor, within } from "../../test-utils";
+
+/**
+ * Helper to find a switch by its label text.
+ * Finds the label, then gets the parent row container and returns the switch within it.
+ */
+function getSwitchByLabel(labelText: RegExp) {
+	const label = screen.getByText(labelText);
+	// The parent row contains both the label and the switch
+	const row = label.closest(".flex.items-center.justify-between");
+	if (!row)
+		throw new Error(`Could not find row container for label: ${labelText}`);
+	return within(row as HTMLElement).getByRole("switch");
+}
+
+/**
+ * Helper to find a combobox by its label text.
+ * Finds the label, then gets the parent row container and returns the combobox within it.
+ */
+function getComboboxByLabel(labelText: RegExp) {
+	const label = screen.getByText(labelText);
+	const row = label.closest(".flex.items-center.justify-between");
+	if (!row)
+		throw new Error(`Could not find row container for label: ${labelText}`);
+	return within(row as HTMLElement).getByRole("combobox");
+}
 
 // Mock sonner toast
 vi.mock("sonner", () => ({
@@ -122,13 +147,11 @@ describe("SettingsComponent", () => {
 				expect(screen.getByText("Settings")).toBeInTheDocument();
 			});
 
-			// Find the theme selector (first combobox in Appearance section)
-			const comboboxes = screen.getAllByRole("combobox");
-			const themeSelect = comboboxes[0]; // First combobox is theme
+			const themeSelect = getComboboxByLabel(/^Theme$/);
 			await user.click(themeSelect);
 
-			// Select dark theme
-			const darkOption = screen.getByRole("option", { name: "Dark" });
+			// Select dark theme (use findByRole to wait for dropdown to open)
+			const darkOption = await screen.findByRole("option", { name: "Dark" });
 			await user.click(darkOption);
 
 			await waitFor(() => {
@@ -157,9 +180,8 @@ describe("SettingsComponent", () => {
 				expect(screen.getByText("Show in tray")).toBeInTheDocument();
 			});
 
-			// Get all switches - show_in_tray is the first switch
-			const switches = screen.getAllByRole("switch");
-			await user.click(switches[0]);
+			const showInTraySwitch = getSwitchByLabel(/^Show in tray$/);
+			await user.click(showInTraySwitch);
 
 			await waitFor(() => {
 				expect(getMockedInvoke()).toHaveBeenCalledWith(
@@ -186,10 +208,8 @@ describe("SettingsComponent", () => {
 				expect(screen.getByText("Enable notifications")).toBeInTheDocument();
 			});
 
-			// Get all switches
-			// Order: show_in_tray, launch_at_login, enable_logging, enable_notifications, background_check_enabled, sidebar_expanded
-			const switches = screen.getAllByRole("switch");
-			await user.click(switches[3]);
+			const notificationsSwitch = getSwitchByLabel(/^Enable notifications$/);
+			await user.click(notificationsSwitch);
 
 			await waitFor(() => {
 				expect(getMockedInvoke()).toHaveBeenCalledWith(
@@ -218,9 +238,10 @@ describe("SettingsComponent", () => {
 				).toBeInTheDocument();
 			});
 
-			// switch index 4 is background_check_enabled
-			const switches = screen.getAllByRole("switch");
-			await user.click(switches[4]);
+			const backgroundCheckSwitch = getSwitchByLabel(
+				/^Enable background checking$/,
+			);
+			await user.click(backgroundCheckSwitch);
 
 			await waitFor(() => {
 				expect(getMockedInvoke()).toHaveBeenCalledWith(
@@ -245,9 +266,8 @@ describe("SettingsComponent", () => {
 				expect(screen.getByText("Launch at login")).toBeInTheDocument();
 			});
 
-			// switch index 1 is launch_at_login
-			const switches = screen.getAllByRole("switch");
-			await user.click(switches[1]);
+			const launchAtLoginSwitch = getSwitchByLabel(/^Launch at login$/);
+			await user.click(launchAtLoginSwitch);
 
 			await waitFor(() => {
 				expect(getMockedInvoke()).toHaveBeenCalledWith(
@@ -272,9 +292,8 @@ describe("SettingsComponent", () => {
 				expect(screen.getByText("Enable logging")).toBeInTheDocument();
 			});
 
-			// switch index 2 is enable_logging
-			const switches = screen.getAllByRole("switch");
-			await user.click(switches[2]);
+			const loggingSwitch = getSwitchByLabel(/^Enable logging$/);
+			await user.click(loggingSwitch);
 
 			await waitFor(() => {
 				expect(getMockedInvoke()).toHaveBeenCalledWith(
@@ -299,9 +318,8 @@ describe("SettingsComponent", () => {
 				expect(screen.getByText("Sidebar expanded")).toBeInTheDocument();
 			});
 
-			// switch index 6 is sidebar_expanded (after headless_browser)
-			const switches = screen.getAllByRole("switch");
-			await user.click(switches[6]);
+			const sidebarSwitch = getSwitchByLabel(/^Sidebar expanded$/);
+			await user.click(sidebarSwitch);
 
 			await waitFor(() => {
 				expect(getMockedInvoke()).toHaveBeenCalledWith(
@@ -331,13 +349,11 @@ describe("SettingsComponent", () => {
 				expect(screen.getByText("Log level")).toBeInTheDocument();
 			});
 
-			// Find the log level combobox (second combobox after theme)
-			const comboboxes = screen.getAllByRole("combobox");
-			const logLevelSelect = comboboxes[1]; // Second combobox is log level
+			const logLevelSelect = getComboboxByLabel(/^Log level$/);
 			await user.click(logLevelSelect);
 
-			// Select debug level
-			const debugOption = screen.getByRole("option", { name: "Debug" });
+			// Select debug level (use findByRole to wait for dropdown to open)
+			const debugOption = await screen.findByRole("option", { name: "Debug" });
 			await user.click(debugOption);
 
 			await waitFor(() => {

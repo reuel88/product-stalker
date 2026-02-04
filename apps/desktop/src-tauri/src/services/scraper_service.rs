@@ -101,6 +101,7 @@ impl ScraperService {
         let has_product_data = body_lower.contains("application/ld+json");
 
         // Cloudflare-specific indicators (strong signals)
+        // Note: Avoid plain "cloudflare" as it causes false positives on pages using cdnjs.cloudflare.com
         let cloudflare_indicators = body_lower.contains("just a moment...")
             || body_lower.contains("cf-browser-verification")
             || body_lower.contains("_cf_chl_opt")
@@ -108,7 +109,7 @@ impl ScraperService {
             || body_lower.contains("ray id:")
             || body_lower.contains("cf-challenge")
             || body_lower.contains("__cf_bm")
-            || body_lower.contains("cloudflare");
+            || body_lower.contains("/cdn-cgi/challenge-platform/");
 
         // Explicit bot protection indicators (strong signals)
         let explicit_bot_protection = body_lower.contains("bot detected")
