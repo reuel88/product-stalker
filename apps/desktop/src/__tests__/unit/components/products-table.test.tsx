@@ -73,13 +73,17 @@ describe("ProductsTable", () => {
 		});
 
 		it("should render product description or dash for null", () => {
-			const products = [
-				createMockProduct({
-					name: "With desc",
-					description: "Test description",
-				}),
-				createMockProduct({ name: "No desc", description: null }),
-			];
+			const productWithDesc = createMockProduct({
+				id: "prod-with-desc",
+				name: "With desc",
+				description: "Test description",
+			});
+			const productNoDesc = createMockProduct({
+				id: "prod-no-desc",
+				name: "No desc",
+				description: null,
+			});
+			const products = [productWithDesc, productNoDesc];
 
 			render(
 				<ProductsTable
@@ -89,9 +93,12 @@ describe("ProductsTable", () => {
 				/>,
 			);
 
-			expect(screen.getByText("Test description")).toBeInTheDocument();
-			// Multiple "-" elements exist (for null prices and null description)
-			expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+			expect(
+				screen.getByTestId("description-prod-with-desc"),
+			).toHaveTextContent("Test description");
+			expect(screen.getByTestId("description-prod-no-desc")).toHaveTextContent(
+				"-",
+			);
 		});
 
 		it("should format created date", () => {
@@ -546,8 +553,8 @@ describe("ProductsTable", () => {
 				/>,
 			);
 
-			// Should have dash for no price
-			expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+			// Should have dash specifically in the price cell
+			expect(screen.getByTestId("price-prod-1")).toHaveTextContent("-");
 		});
 	});
 });

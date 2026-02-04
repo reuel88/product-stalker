@@ -4,6 +4,7 @@ use sea_orm::DatabaseConnection;
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::entities::availability_check::AvailabilityStatus;
 use crate::entities::prelude::AvailabilityCheckModel;
 use crate::error::AppError;
 use crate::repositories::{AvailabilityCheckRepository, CreateCheckParams, ProductRepository};
@@ -54,6 +55,16 @@ pub struct CheckResultWithNotification {
 pub struct BulkCheckResultWithNotification {
     pub summary: BulkCheckSummary,
     pub notification: Option<NotificationData>,
+}
+
+/// Result of processing a single availability check
+struct CheckProcessingResult {
+    status: String,
+    price_cents: Option<i64>,
+    price_currency: Option<String>,
+    error: Option<String>,
+    is_back_in_stock: bool,
+    is_price_drop: bool,
 }
 
 /// Service layer for availability checking business logic
@@ -107,12 +118,59 @@ impl AvailabilityService {
                     check_id,
                     product_id,
                     CreateCheckParams {
-                        status: "unknown".to_string(),
+                        status: AvailabilityStatus::Unknown.as_str().to_string(),
                         error_message: Some(e.to_string()),
                         ..Default::default()
                     },
                 )
                 .await
+            }
+        }
+    }
+
+    /// Process the result of an availability check into a structured result
+    fn process_check_result(
+        check_result: Result<AvailabilityCheckModel, AppError>,
+        previous_status: &Option<String>,
+        previous_price_cents: Option<i64>,
+    ) -> CheckProcessingResult {
+        match check_result {
+            Ok(check) => {
+                if check.error_message.is_some() {
+                    // Scraper failed but record was created
+                    CheckProcessingResult {
+                        status: check.status,
+                        price_cents: check.price_cents,
+                        price_currency: check.price_currency,
+                        error: check.error_message,
+                        is_back_in_stock: false,
+                        is_price_drop: false,
+                    }
+                } else {
+                    // True success
+                    let is_back_in_stock = Self::is_back_in_stock(previous_status, &check.status);
+                    let is_price_drop =
+                        Self::is_price_drop(previous_price_cents, check.price_cents);
+                    CheckProcessingResult {
+                        status: check.status,
+                        price_cents: check.price_cents,
+                        price_currency: check.price_currency,
+                        error: None,
+                        is_back_in_stock,
+                        is_price_drop,
+                    }
+                }
+            }
+            Err(e) => {
+                // Database/infrastructure error
+                CheckProcessingResult {
+                    status: AvailabilityStatus::Unknown.as_str().to_string(),
+                    price_cents: None,
+                    price_currency: None,
+                    error: Some(e.to_string()),
+                    is_back_in_stock: false,
+                    is_price_drop: false,
+                }
             }
         }
     }
@@ -141,71 +199,35 @@ impl AvailabilityService {
             let previous_price_cents =
                 AvailabilityCheckRepository::find_previous_price(conn, product.id).await?;
 
-            // Check availability
+            // Check availability and process result
             let check_result = Self::check_product(conn, product.id).await;
+            let result =
+                Self::process_check_result(check_result, &previous_status, previous_price_cents);
 
-            let (status, price_cents, price_currency, error, is_back_in_stock, is_price_drop) =
-                match check_result {
-                    Ok(check) => {
-                        if check.error_message.is_some() {
-                            // Scraper failed but record was created
-                            failed += 1;
-                            (
-                                check.status,
-                                check.price_cents,
-                                check.price_currency,
-                                check.error_message,
-                                false,
-                                false,
-                            )
-                        } else {
-                            // True success
-                            successful += 1;
-                            let back_in_stock =
-                                Self::is_back_in_stock(&previous_status, &check.status);
-                            if back_in_stock {
-                                back_in_stock_count += 1;
-                            }
-                            let price_drop =
-                                Self::is_price_drop(previous_price_cents, check.price_cents);
-                            if price_drop {
-                                price_drop_count += 1;
-                            }
-                            (
-                                check.status,
-                                check.price_cents,
-                                check.price_currency,
-                                None,
-                                back_in_stock,
-                                price_drop,
-                            )
-                        }
-                    }
-                    Err(e) => {
-                        // Database/infrastructure error
-                        failed += 1;
-                        (
-                            "unknown".to_string(),
-                            None,
-                            None,
-                            Some(e.to_string()),
-                            false,
-                            false,
-                        )
-                    }
-                };
+            // Update counters
+            if result.error.is_some() {
+                failed += 1;
+            } else {
+                successful += 1;
+                if result.is_back_in_stock {
+                    back_in_stock_count += 1;
+                }
+                if result.is_price_drop {
+                    price_drop_count += 1;
+                }
+            }
 
             results.push(BulkCheckResult {
                 product_id: product.id.to_string(),
                 product_name: product.name,
-                status,
+                status: result.status,
                 previous_status,
-                is_back_in_stock,
-                price_cents,
-                price_currency,
+                is_back_in_stock: result.is_back_in_stock,
+                price_cents: result.price_cents,
+                price_currency: result.price_currency,
                 previous_price_cents,
-                is_price_drop,
-                error,
+                is_price_drop: result.is_price_drop,
+                error: result.error,
             });
         }
 

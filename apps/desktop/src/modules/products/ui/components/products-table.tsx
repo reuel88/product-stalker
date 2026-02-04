@@ -84,7 +84,11 @@ function PriceCell({ productId }: { productId: string }) {
 		latestCheck?.price_currency ?? null,
 	);
 
-	return <span className="text-muted-foreground">{price}</span>;
+	return (
+		<span data-testid={`price-${productId}`} className="text-muted-foreground">
+			{price}
+		</span>
+	);
 }
 
 export function ProductsTable({
@@ -139,12 +143,26 @@ export function ProductsTable({
 			cell: ({ row }) => {
 				const description = row.getValue("description") as string | null;
 				if (!description)
-					return <span className="text-muted-foreground">-</span>;
+					return (
+						<span
+							data-testid={`description-${row.original.id}`}
+							className="text-muted-foreground"
+						>
+							-
+						</span>
+					);
 				const truncated =
 					description.length > UI.TRUNCATE.DESCRIPTION_LENGTH
 						? `${description.slice(0, UI.TRUNCATE.DESCRIPTION_LENGTH)}...`
 						: description;
-				return <span title={description}>{truncated}</span>;
+				return (
+					<span
+						data-testid={`description-${row.original.id}`}
+						title={description}
+					>
+						{truncated}
+					</span>
+				);
 			},
 		},
 		{
