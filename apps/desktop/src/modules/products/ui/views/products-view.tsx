@@ -8,22 +8,44 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
 import { MESSAGES } from "@/constants";
 import { withToast, withToastVoid } from "@/lib/toast-helpers";
 import { useCheckAllAvailability } from "@/modules/products/hooks/useAvailability";
 import { useProductDialogs } from "@/modules/products/hooks/useProductDialogs";
 import { useProducts } from "@/modules/products/hooks/useProducts";
+import type { BulkCheckSummary } from "@/modules/products/types";
+import { DeleteConfirmDialog } from "@/modules/products/ui/components/delete-confirm-dialog";
 import { ProductFormDialog } from "@/modules/products/ui/components/product-form-dialog";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
 import { FullPageError } from "@/modules/shared/ui/components/full-page-error";
+
+/**
+ * Formats the success message for bulk availability check results.
+ *
+ * Prioritizes showing "back in stock" count when products have returned
+ * to availability, otherwise shows the success/total ratio.
+ */
+function formatCheckAllSuccessMessage(result: BulkCheckSummary): string {
+	const baseMessage = MESSAGES.AVAILABILITY.CHECK_ALL_COMPLETE;
+	if (result.back_in_stock_count > 0) {
+		return `${baseMessage} - ${result.back_in_stock_count} product(s) back in stock!`;
+	}
+	return `${baseMessage} (${result.successful}/${result.total} successful)`;
+}
+
+/**
+ * Validates that required form fields are present.
+ * Shows an error toast if validation fails.
+ *
+ * @returns true if valid, false otherwise
+ */
+function validateFormData(formData: { name: string; url: string }): boolean {
+	if (!formData.name || !formData.url) {
+		toast.error(MESSAGES.VALIDATION.NAME_URL_REQUIRED);
+		return false;
+	}
+	return true;
+}
 
 export function ProductsView() {
 	const {
@@ -47,17 +69,13 @@ export function ProductsView() {
 		openDeleteDialog,
 		closeDialog,
 		updateFormData,
-		initialFormData,
 	} = useProductDialogs();
 
 	const handleCreate = async () => {
 		if (dialogState.type !== "create") return;
 		const { formData } = dialogState;
 
-		if (!formData.name || !formData.url) {
-			toast.error(MESSAGES.VALIDATION.NAME_URL_REQUIRED);
-			return;
-		}
+		if (!validateFormData(formData)) return;
 
 		const result = await withToast(
 			() =>
@@ -79,10 +97,7 @@ export function ProductsView() {
 		if (dialogState.type !== "edit") return;
 		const { product, formData } = dialogState;
 
-		if (!formData.name || !formData.url) {
-			toast.error(MESSAGES.VALIDATION.NAME_URL_REQUIRED);
-			return;
-		}
+		if (!validateFormData(formData)) return;
 
 		const result = await withToast(
 			() =>
@@ -118,12 +133,7 @@ export function ProductsView() {
 
 	const handleCheckAll = async () => {
 		await withToast(() => checkAllAvailability(), {
-			success: (result) => {
-				if (result.back_in_stock_count > 0) {
-					return `${MESSAGES.AVAILABILITY.CHECK_ALL_COMPLETE} - ${result.back_in_stock_count} product(s) back in stock!`;
-				}
-				return `${MESSAGES.AVAILABILITY.CHECK_ALL_COMPLETE} (${result.successful}/${result.total} successful)`;
-			},
+			success: formatCheckAllSuccessMessage,
 			error: MESSAGES.AVAILABILITY.CHECK_ALL_FAILED,
 		});
 	};
@@ -177,68 +187,37 @@ export function ProductsView() {
 				</CardContent>
 			</Card>
 
-			{/* Create Dialog */}
-			<ProductFormDialog
-				open={dialogState.type === "create"}
-				onOpenChange={(open) => !open && closeDialog()}
-				title="Add Product"
-				description="Add a new product to track"
-				formData={
-					dialogState.type === "create" ? dialogState.formData : initialFormData
-				}
-				onFormChange={updateFormData}
-				onSubmit={handleCreate}
-				isSubmitting={isCreating}
-				submitLabel="Create"
-				submittingLabel="Creating..."
-				idPrefix="create"
-			/>
+			{(dialogState.type === "create" || dialogState.type === "edit") && (
+				<ProductFormDialog
+					open={true}
+					onOpenChange={(open) => !open && closeDialog()}
+					title={dialogState.type === "create" ? "Add Product" : "Edit Product"}
+					description={
+						dialogState.type === "create"
+							? "Add a new product to track"
+							: "Update product details"
+					}
+					formData={dialogState.formData}
+					onFormChange={updateFormData}
+					onSubmit={dialogState.type === "create" ? handleCreate : handleUpdate}
+					isSubmitting={dialogState.type === "create" ? isCreating : isUpdating}
+					submitLabel={dialogState.type === "create" ? "Create" : "Save"}
+					submittingLabel={
+						dialogState.type === "create" ? "Creating..." : "Saving..."
+					}
+					idPrefix={dialogState.type}
+				/>
+			)}
 
-			{/* Edit Dialog */}
-			<ProductFormDialog
-				open={dialogState.type === "edit"}
-				onOpenChange={(open) => !open && closeDialog()}
-				title="Edit Product"
-				description="Update product details"
-				formData={
-					dialogState.type === "edit" ? dialogState.formData : initialFormData
-				}
-				onFormChange={updateFormData}
-				onSubmit={handleUpdate}
-				isSubmitting={isUpdating}
-				submitLabel="Save"
-				submittingLabel="Saving..."
-				idPrefix="edit"
-			/>
-
-			{/* Delete Confirmation Dialog */}
-			<Dialog
+			<DeleteConfirmDialog
 				open={dialogState.type === "delete"}
 				onOpenChange={(open) => !open && closeDialog()}
-			>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Delete Product</DialogTitle>
-						<DialogDescription>
-							Are you sure you want to delete "
-							{dialogState.type === "delete" ? dialogState.product.name : ""}
-							"? This action cannot be undone.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<Button variant="outline" onClick={closeDialog}>
-							Cancel
-						</Button>
-						<Button
-							variant="destructive"
-							onClick={handleDelete}
-							disabled={isDeleting}
-						>
-							{isDeleting ? "Deleting..." : "Delete"}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+				productName={
+					dialogState.type === "delete" ? dialogState.product.name : ""
+				}
+				onConfirm={handleDelete}
+				isDeleting={isDeleting}
+			/>
 		</div>
 	);
 }

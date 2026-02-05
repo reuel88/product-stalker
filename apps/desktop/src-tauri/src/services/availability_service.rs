@@ -8,6 +8,7 @@ use crate::entities::availability_check::AvailabilityStatus;
 use crate::entities::prelude::AvailabilityCheckModel;
 use crate::error::AppError;
 use crate::repositories::{AvailabilityCheckRepository, CreateCheckParams, ProductRepository};
+use crate::services::scraper_service::ScrapingResult;
 use crate::services::{ScraperService, SettingService};
 
 /// Result of a single product availability check in a bulk operation
@@ -94,6 +95,27 @@ pub struct AvailabilityService;
 const RATE_LIMIT_DELAY_MS: u64 = 500;
 
 impl AvailabilityService {
+    /// Build CreateCheckParams from a successful scraping result
+    fn params_from_success(result: ScrapingResult) -> CreateCheckParams {
+        CreateCheckParams {
+            status: result.status.as_str().to_string(),
+            raw_availability: result.raw_availability,
+            error_message: None,
+            price_cents: result.price.price_cents,
+            price_currency: result.price.price_currency,
+            raw_price: result.price.raw_price,
+        }
+    }
+
+    /// Build CreateCheckParams from a scraping error
+    fn params_from_error(error: &AppError) -> CreateCheckParams {
+        CreateCheckParams {
+            status: AvailabilityStatus::Unknown.as_str().to_string(),
+            error_message: Some(error.to_string()),
+            ..Default::default()
+        }
+    }
+
     /// Check the availability of a product by its ID
     ///
     /// Fetches the product's URL, scrapes the page for availability info,
@@ -102,53 +124,23 @@ impl AvailabilityService {
         conn: &DatabaseConnection,
         product_id: Uuid,
     ) -> Result<AvailabilityCheckModel, AppError> {
-        // Get the product to get its URL
         let product = ProductRepository::find_by_id(conn, product_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Product not found: {}", product_id)))?;
 
-        // Get the headless browser setting
         let settings = SettingService::get(conn).await?;
-        let enable_headless = settings.enable_headless_browser;
+        let result = ScraperService::check_availability_with_headless(
+            &product.url,
+            settings.enable_headless_browser,
+        )
+        .await;
 
-        // Attempt to check availability
-        let check_id = Uuid::new_v4();
-        let result =
-            ScraperService::check_availability_with_headless(&product.url, enable_headless).await;
+        let params = match result {
+            Ok(scraping_result) => Self::params_from_success(scraping_result),
+            Err(e) => Self::params_from_error(&e),
+        };
 
-        match result {
-            Ok(scraping_result) => {
-                // Success - store the result with price info
-                AvailabilityCheckRepository::create(
-                    conn,
-                    check_id,
-                    product_id,
-                    CreateCheckParams {
-                        status: scraping_result.status.as_str().to_string(),
-                        raw_availability: scraping_result.raw_availability,
-                        error_message: None,
-                        price_cents: scraping_result.price.price_cents,
-                        price_currency: scraping_result.price.price_currency,
-                        raw_price: scraping_result.price.raw_price,
-                    },
-                )
-                .await
-            }
-            Err(e) => {
-                // Error - store the error but still create a record
-                AvailabilityCheckRepository::create(
-                    conn,
-                    check_id,
-                    product_id,
-                    CreateCheckParams {
-                        status: AvailabilityStatus::Unknown.as_str().to_string(),
-                        error_message: Some(e.to_string()),
-                        ..Default::default()
-                    },
-                )
-                .await
-            }
-        }
+        AvailabilityCheckRepository::create(conn, Uuid::new_v4(), product_id, params).await
     }
 
     /// Process the result of an availability check into a structured result
