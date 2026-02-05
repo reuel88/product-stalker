@@ -773,7 +773,10 @@ mod tests {
     fn test_format_back_in_stock_message_multiple_products() {
         let products = vec!["Product A", "Product B", "Product C"];
         let message = AvailabilityService::format_back_in_stock_message(&products);
-        assert_eq!(message, "3 products back in stock: Product A, Product B, Product C");
+        assert_eq!(
+            message,
+            "3 products back in stock: Product A, Product B, Product C"
+        );
     }
 
     #[test]
@@ -819,7 +822,10 @@ mod tests {
         let back_in_stock = vec!["Product A"];
         let price_drops = vec!["Product B"];
         let body = AvailabilityService::compose_notification_body(&back_in_stock, &price_drops);
-        assert_eq!(body, "Product A is back in stock! Product B has a price drop!");
+        assert_eq!(
+            body,
+            "Product A is back in stock! Product B has a price drop!"
+        );
     }
 
     #[test]
@@ -879,7 +885,8 @@ mod tests {
             },
         ];
 
-        let back_in_stock = AvailabilityService::collect_product_names(&results, |r| r.is_back_in_stock);
+        let back_in_stock =
+            AvailabilityService::collect_product_names(&results, |r| r.is_back_in_stock);
         assert_eq!(back_in_stock, vec!["Product A"]);
 
         let price_drops = AvailabilityService::collect_product_names(&results, |r| r.is_price_drop);
