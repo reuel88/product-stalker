@@ -110,7 +110,9 @@ describe("SettingsComponent", () => {
 			});
 
 			expect(screen.getByText("Appearance")).toBeInTheDocument();
-			expect(screen.getByText("System")).toBeInTheDocument();
+			expect(
+				screen.getByText("System integration settings"),
+			).toBeInTheDocument();
 			expect(screen.getByText("Logging")).toBeInTheDocument();
 			expect(screen.getByText("Notifications")).toBeInTheDocument();
 			expect(screen.getByText("Interface")).toBeInTheDocument();
@@ -148,11 +150,11 @@ describe("SettingsComponent", () => {
 			});
 
 			const themeSelect = getComboboxByLabel(/^Theme$/);
-			await user.click(themeSelect);
 
-			// Select dark theme (use findByRole to wait for dropdown to open)
-			const darkOption = await screen.findByRole("option", { name: "Dark" });
-			await user.click(darkOption);
+			// Use keyboard navigation for Radix UI Select compatibility
+			await user.click(themeSelect);
+			await user.keyboard("{ArrowUp}"); // Move to Dark option (from System, items are: Light, Dark, System)
+			await user.keyboard("{Enter}");
 
 			await waitFor(() => {
 				expect(mockSetTheme).toHaveBeenCalledWith("dark");
@@ -350,11 +352,11 @@ describe("SettingsComponent", () => {
 			});
 
 			const logLevelSelect = getComboboxByLabel(/^Log level$/);
-			await user.click(logLevelSelect);
 
-			// Select debug level (use findByRole to wait for dropdown to open)
-			const debugOption = await screen.findByRole("option", { name: "Debug" });
-			await user.click(debugOption);
+			// Use keyboard navigation for Radix UI Select compatibility
+			await user.click(logLevelSelect);
+			await user.keyboard("{ArrowDown}"); // Move to Debug option (from Info)
+			await user.keyboard("{Enter}");
 
 			await waitFor(() => {
 				expect(getMockedInvoke()).toHaveBeenCalledWith(

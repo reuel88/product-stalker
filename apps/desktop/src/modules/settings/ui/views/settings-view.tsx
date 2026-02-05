@@ -38,8 +38,7 @@ export function SettingsView() {
 		});
 	};
 
-	const handleThemeChange = async (value: Settings["theme"] | null) => {
-		if (!value) return;
+	const handleThemeChange = async (value: Settings["theme"]) => {
 		setTheme(value);
 		await handleUpdate({ theme: value });
 	};

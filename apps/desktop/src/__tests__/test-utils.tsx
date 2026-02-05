@@ -36,7 +36,8 @@ function customRender(
 ) {
 	return {
 		...render(ui, { wrapper: createWrapper(), ...options }),
-		user: userEvent.setup(),
+		// Disable pointer events check for Radix UI compatibility
+		user: userEvent.setup({ pointerEventsCheck: 0 }),
 	};
 }
 

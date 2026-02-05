@@ -17,7 +17,7 @@ import type { Settings } from "@/modules/settings/hooks/useSettings";
 
 interface AppearanceCardProps {
 	settings: Settings;
-	onThemeChange: (value: Settings["theme"] | null) => void;
+	onThemeChange: (value: Settings["theme"]) => void;
 }
 
 export function AppearanceCard({
