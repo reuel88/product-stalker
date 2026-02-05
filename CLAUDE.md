@@ -81,6 +81,12 @@ Each feature module in `src/modules/` follows: `hooks/`, `types.ts`, `ui/compone
 - Use `AppError` for all error returns (defined in `src/error.rs`)
 - Connection pool via `db.conn()` - never use Mutex for DB connections
 
+### Function Nesting
+- Prefer flat, step-based functions over deeply nested call chains
+- When a function calls another function that calls another, consider restructuring as sequential steps in one orchestrator function
+- Helper functions should return data, not call the next step in a chain
+- Aim for max 2-3 levels of function call depth
+
 ### Control Flow
 - Prefer early returns over nested if statements (guard clauses)
 

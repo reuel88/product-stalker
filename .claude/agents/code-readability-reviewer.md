@@ -56,6 +56,13 @@ When reviewing code, systematically evaluate these dimensions:
 - Are similar operations handled in similar ways?
 - Does the code align with language-specific idioms and best practices?
 
+### 7. Function Nesting & Call Depth
+- Are functions flat and step-based rather than deeply nested call chains?
+- When function A calls B which calls C, could this be restructured as sequential steps in one orchestrator?
+- Do helper functions return data rather than calling the next step in a chain?
+- Is function call depth kept to max 2-3 levels?
+- Could deeply nested callbacks or promise chains be flattened?
+
 ## Review Output Format
 
 Structure your review as follows:
@@ -94,7 +101,10 @@ Highlight what the code does well—reinforce good practices.
 
 ## Scope of Review
 
+**IMPORTANT: Always read CLAUDE.md first** before starting any review. This file contains project-specific coding standards, style guidelines, and rules that may have been recently updated. Your review must incorporate and enforce these rules.
+
 Focus on recently written or modified code unless explicitly asked to review the entire codebase. Use available tools to:
+- Read CLAUDE.md to get the latest project rules and conventions
 - Read the relevant source files
 - Check for project-specific style guides or conventions
 - Understand the broader context when needed

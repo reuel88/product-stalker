@@ -6,8 +6,11 @@ use uuid::Uuid;
 
 use crate::entities::availability_check::AvailabilityStatus;
 use crate::entities::prelude::AvailabilityCheckModel;
+use crate::entities::setting::Model as SettingModel;
 use crate::error::AppError;
-use crate::repositories::{AvailabilityCheckRepository, CreateCheckParams, ProductRepository};
+use crate::repositories::{
+    AvailabilityCheckRepository, CreateCheckParams, ProductRepository, SettingRepository,
+};
 use crate::services::scraper_service::ScrapingResult;
 use crate::services::{ScraperService, SettingService};
 
@@ -150,55 +153,55 @@ impl AvailabilityService {
         previous_price_cents: Option<i64>,
     ) -> CheckProcessingResult {
         match check_result {
+            Ok(check) if check.error_message.is_some() => Self::result_with_scraper_error(check),
             Ok(check) => {
-                if check.error_message.is_some() {
-                    // Scraper failed but record was created
-                    CheckProcessingResult {
-                        status: check.status,
-                        price_cents: check.price_cents,
-                        price_currency: check.price_currency,
-                        error: check.error_message,
-                        is_back_in_stock: false,
-                        is_price_drop: false,
-                    }
-                } else {
-                    // True success
-                    let is_back_in_stock = Self::is_back_in_stock(previous_status, &check.status);
-                    let is_price_drop =
-                        Self::is_price_drop(previous_price_cents, check.price_cents);
-                    CheckProcessingResult {
-                        status: check.status,
-                        price_cents: check.price_cents,
-                        price_currency: check.price_currency,
-                        error: None,
-                        is_back_in_stock,
-                        is_price_drop,
-                    }
-                }
+                Self::result_from_successful_check(check, previous_status, previous_price_cents)
             }
-            Err(e) => {
-                // Database/infrastructure error
-                CheckProcessingResult {
-                    status: AvailabilityStatus::Unknown.as_str().to_string(),
-                    price_cents: None,
-                    price_currency: None,
-                    error: Some(e.to_string()),
-                    is_back_in_stock: false,
-                    is_price_drop: false,
-                }
-            }
+            Err(e) => Self::result_from_infrastructure_error(e),
         }
     }
 
-    /// Check availability for all products with rate limiting
-    ///
-    /// Returns a summary including which products are back in stock and price drops.
-    pub async fn check_all_products(
-        conn: &DatabaseConnection,
-    ) -> Result<BulkCheckSummary, AppError> {
-        let products = ProductRepository::find_all(conn).await?;
-        let results = Self::check_products_with_rate_limit(conn, &products).await;
-        Ok(Self::build_summary_from_results(products.len(), results))
+    /// Build result when scraper failed but a record was created
+    fn result_with_scraper_error(check: AvailabilityCheckModel) -> CheckProcessingResult {
+        CheckProcessingResult {
+            status: check.status,
+            price_cents: check.price_cents,
+            price_currency: check.price_currency,
+            error: check.error_message,
+            is_back_in_stock: false,
+            is_price_drop: false,
+        }
+    }
+
+    /// Build result from a successful availability check
+    fn result_from_successful_check(
+        check: AvailabilityCheckModel,
+        previous_status: &Option<String>,
+        previous_price_cents: Option<i64>,
+    ) -> CheckProcessingResult {
+        let is_back_in_stock = Self::is_back_in_stock(previous_status, &check.status);
+        let is_price_drop = Self::is_price_drop(previous_price_cents, check.price_cents);
+
+        CheckProcessingResult {
+            status: check.status,
+            price_cents: check.price_cents,
+            price_currency: check.price_currency,
+            error: None,
+            is_back_in_stock,
+            is_price_drop,
+        }
+    }
+
+    /// Build result when a database/infrastructure error occurred
+    fn result_from_infrastructure_error(error: AppError) -> CheckProcessingResult {
+        CheckProcessingResult {
+            status: AvailabilityStatus::Unknown.as_str().to_string(),
+            price_cents: None,
+            price_currency: None,
+            error: Some(error.to_string()),
+            is_back_in_stock: false,
+            is_price_drop: false,
+        }
     }
 
     /// Check each product with rate limiting between requests.
@@ -227,21 +230,51 @@ impl AvailabilityService {
             if index > 0 {
                 tokio::time::sleep(Duration::from_millis(RATE_LIMIT_DELAY_MS)).await;
             }
-            results.push(Self::check_single_product(conn, product).await);
+            results.push(Self::check_single_product_in_bulk(conn, product).await);
         }
 
         results
     }
 
-    /// Check a single product, handling context fetch errors gracefully
-    async fn check_single_product(
+    /// Check a single product in a bulk operation with context and error handling
+    ///
+    /// Combines context fetching, availability checking, and result processing
+    /// into a single function to reduce call depth.
+    async fn check_single_product_in_bulk(
         conn: &DatabaseConnection,
         product: &crate::entities::prelude::ProductModel,
     ) -> (BulkCheckResult, CheckProcessingResult) {
-        match Self::get_product_check_context(conn, product.id).await {
-            Ok(context) => Self::check_single_product_with_context(conn, product, &context).await,
-            Err(e) => Self::build_context_error_result(product, e),
-        }
+        // Step 1: Get previous check context
+        let context = match Self::get_product_check_context(conn, product.id).await {
+            Ok(ctx) => ctx,
+            Err(e) => return Self::build_context_error_result(product, e),
+        };
+
+        // Step 2: Perform the availability check
+        let check_result = Self::check_product(conn, product.id).await;
+
+        // Step 3: Process the result
+        let result = Self::process_check_result(
+            check_result,
+            &context.previous_status,
+            context.previous_price_cents,
+        );
+
+        // Step 4: Build the bulk result
+        let bulk_result = BulkCheckResult {
+            product_id: product.id.to_string(),
+            product_name: product.name.clone(),
+            status: result.status.clone(),
+            previous_status: context.previous_status.clone(),
+            is_back_in_stock: result.is_back_in_stock,
+            price_cents: result.price_cents,
+            price_currency: result.price_currency.clone(),
+            previous_price_cents: context.previous_price_cents,
+            is_price_drop: result.is_price_drop,
+            error: result.error.clone(),
+        };
+
+        (bulk_result, result)
     }
 
     /// Build error result when context fetch fails
@@ -303,35 +336,6 @@ impl AvailabilityService {
             previous_status,
             previous_price_cents,
         })
-    }
-
-    /// Check a single product and build its bulk result
-    async fn check_single_product_with_context(
-        conn: &DatabaseConnection,
-        product: &crate::entities::prelude::ProductModel,
-        context: &ProductCheckContext,
-    ) -> (BulkCheckResult, CheckProcessingResult) {
-        let check_result = Self::check_product(conn, product.id).await;
-        let result = Self::process_check_result(
-            check_result,
-            &context.previous_status,
-            context.previous_price_cents,
-        );
-
-        let bulk_result = BulkCheckResult {
-            product_id: product.id.to_string(),
-            product_name: product.name.clone(),
-            status: result.status.clone(),
-            previous_status: context.previous_status.clone(),
-            is_back_in_stock: result.is_back_in_stock,
-            price_cents: result.price_cents,
-            price_currency: result.price_currency.clone(),
-            previous_price_cents: context.previous_price_cents,
-            is_price_drop: result.is_price_drop,
-            error: result.error.clone(),
-        };
-
-        (bulk_result, result)
     }
 
     /// Update counters based on the check result
@@ -419,17 +423,25 @@ impl AvailabilityService {
         conn: &DatabaseConnection,
         product_id: Uuid,
     ) -> Result<CheckResultWithNotification, AppError> {
-        // Get previous status before checking
+        // Step 1: Fetch settings upfront for notification check
+        let settings = SettingRepository::get_or_create(conn).await?;
+
+        // Step 2: Get previous status before checking
         let previous_check = Self::get_latest(conn, product_id).await?;
         let previous_status = previous_check.map(|c| c.status);
 
-        // Perform the check
+        // Step 3: Perform the check
         let check = Self::check_product(conn, product_id).await?;
 
-        // Determine if we should send a notification
-        let notification =
-            Self::build_single_notification(conn, product_id, &previous_status, &check.status)
-                .await?;
+        // Step 4: Build notification if applicable (using pre-fetched settings)
+        let notification = Self::build_single_notification_with_settings(
+            conn,
+            product_id,
+            &settings,
+            &previous_status,
+            &check.status,
+        )
+        .await?;
 
         Ok(CheckResultWithNotification {
             check,
@@ -440,13 +452,31 @@ impl AvailabilityService {
     /// Check all products and return notification data if applicable
     ///
     /// Encapsulates all business logic for bulk checks including notification composition.
+    /// This is the main orchestrator function that coordinates the entire bulk check workflow:
+    ///
+    /// ## Orchestration Flow
+    /// 1. Fetch settings upfront (used for headless browser setting and notifications)
+    /// 2. Fetch all products from database
+    /// 3. Check each product with rate limiting
+    /// 4. Build summary from results
+    /// 5. Compose notification if applicable
     pub async fn check_all_products_with_notification(
         conn: &DatabaseConnection,
     ) -> Result<BulkCheckResultWithNotification, AppError> {
-        let summary = Self::check_all_products(conn).await?;
+        // Step 1: Fetch settings upfront for notification check
+        let settings = SettingRepository::get_or_create(conn).await?;
 
-        // Determine if we should send a notification
-        let notification = Self::build_bulk_notification(conn, &summary).await?;
+        // Step 2: Fetch all products
+        let products = ProductRepository::find_all(conn).await?;
+
+        // Step 3: Check each product with rate limiting
+        let results = Self::check_products_with_rate_limit(conn, &products).await;
+
+        // Step 4: Build summary from results
+        let summary = Self::build_summary_from_results(products.len(), results);
+
+        // Step 5: Build notification if applicable (using pre-fetched settings)
+        let notification = Self::build_bulk_notification_with_settings(&settings, &summary);
 
         Ok(BulkCheckResultWithNotification {
             summary,
@@ -454,10 +484,27 @@ impl AvailabilityService {
         })
     }
 
-    /// Build notification data for a single product check if applicable
-    async fn build_single_notification(
+    /// Check availability for all products with rate limiting
+    ///
+    /// Returns a summary including which products are back in stock and price drops.
+    /// Note: Prefer using `check_all_products_with_notification` which also handles notifications.
+    #[allow(dead_code)]
+    pub async fn check_all_products(
+        conn: &DatabaseConnection,
+    ) -> Result<BulkCheckSummary, AppError> {
+        let products = ProductRepository::find_all(conn).await?;
+        let results = Self::check_products_with_rate_limit(conn, &products).await;
+        Ok(Self::build_summary_from_results(products.len(), results))
+    }
+
+    /// Build notification data for a single product check using pre-fetched settings
+    ///
+    /// This is the preferred method when settings have already been fetched
+    /// by the orchestrator, avoiding duplicate database queries.
+    async fn build_single_notification_with_settings(
         conn: &DatabaseConnection,
         product_id: Uuid,
+        settings: &SettingModel,
         previous_status: &Option<String>,
         new_status: &str,
     ) -> Result<Option<NotificationData>, AppError> {
@@ -467,7 +514,6 @@ impl AvailabilityService {
         }
 
         // Check if notifications are enabled
-        let settings = SettingService::get(conn).await?;
         if !settings.enable_notifications {
             return Ok(None);
         }
@@ -484,27 +530,41 @@ impl AvailabilityService {
         }))
     }
 
+    /// Build notification data for a single product check if applicable
+    ///
+    /// Note: Prefer `build_single_notification_with_settings` when settings
+    /// are already available to avoid duplicate database queries.
+    #[allow(dead_code)]
+    async fn build_single_notification(
+        conn: &DatabaseConnection,
+        product_id: Uuid,
+        previous_status: &Option<String>,
+        new_status: &str,
+    ) -> Result<Option<NotificationData>, AppError> {
+        let settings = SettingService::get(conn).await?;
+        Self::build_single_notification_with_settings(
+            conn,
+            product_id,
+            &settings,
+            previous_status,
+            new_status,
+        )
+        .await
+    }
+
     /// Build notification data for a bulk check if applicable
+    ///
+    /// Note: Prefer `build_bulk_notification_with_settings` when settings
+    /// are already available to avoid duplicate database queries.
+    #[allow(dead_code)]
     async fn build_bulk_notification(
         conn: &DatabaseConnection,
         summary: &BulkCheckSummary,
     ) -> Result<Option<NotificationData>, AppError> {
-        if summary.back_in_stock_count == 0 && summary.price_drop_count == 0 {
-            return Ok(None);
-        }
-
         let settings = SettingService::get(conn).await?;
-        if !settings.enable_notifications {
-            return Ok(None);
-        }
-
-        let back_in_stock = Self::collect_product_names(&summary.results, |r| r.is_back_in_stock);
-        let price_drops = Self::collect_product_names(&summary.results, |r| r.is_price_drop);
-
-        let body = Self::compose_notification_body(&back_in_stock, &price_drops);
-        let title = Self::compose_notification_title(&back_in_stock, &price_drops);
-
-        Ok(Some(NotificationData { title, body }))
+        Ok(Self::build_bulk_notification_with_settings(
+            &settings, summary,
+        ))
     }
 
     /// Collect product names from results based on a filter predicate
@@ -568,6 +628,31 @@ impl AvailabilityService {
             (false, true) => "Price Drops!".to_string(),
             (false, false) => String::new(), // Should not happen given earlier checks
         }
+    }
+
+    /// Build notification data for a bulk check using pre-fetched settings
+    ///
+    /// This is the preferred method when settings have already been fetched
+    /// by the orchestrator, avoiding duplicate database queries.
+    fn build_bulk_notification_with_settings(
+        settings: &SettingModel,
+        summary: &BulkCheckSummary,
+    ) -> Option<NotificationData> {
+        if summary.back_in_stock_count == 0 && summary.price_drop_count == 0 {
+            return None;
+        }
+
+        if !settings.enable_notifications {
+            return None;
+        }
+
+        let back_in_stock = Self::collect_product_names(&summary.results, |r| r.is_back_in_stock);
+        let price_drops = Self::collect_product_names(&summary.results, |r| r.is_price_drop);
+
+        let body = Self::compose_notification_body(&back_in_stock, &price_drops);
+        let title = Self::compose_notification_title(&back_in_stock, &price_drops);
+
+        Some(NotificationData { title, body })
     }
 }
 
