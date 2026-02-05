@@ -3,7 +3,7 @@ mod headless_service;
 mod notification_service;
 mod product_service;
 mod scraper_service;
-mod setting_service;
+pub mod setting_service;
 
 pub use availability_service::{AvailabilityService, BulkCheckSummary};
 pub use headless_service::HeadlessService;
