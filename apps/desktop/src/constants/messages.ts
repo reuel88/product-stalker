@@ -35,4 +35,11 @@ export const MESSAGES = {
 	VALIDATION: {
 		NAME_URL_REQUIRED: "Name and URL are required",
 	},
+	UPDATE: {
+		AVAILABLE: (version: string) => `Update available: v${version}`,
+		LATEST: "You're running the latest version",
+		DOWNLOADING: "Downloading update...",
+		CHECK_FAILED: "Failed to check for updates",
+		INSTALL_FAILED: "Failed to install update",
+	},
 } as const;

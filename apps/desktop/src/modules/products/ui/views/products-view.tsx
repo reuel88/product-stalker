@@ -27,7 +27,7 @@ import {
 import type { ProductResponse } from "@/modules/products/types";
 import { ProductFormDialog } from "@/modules/products/ui/components/product-form-dialog";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
-import { ErrorState } from "@/modules/shared/ui/components/error-state";
+import { FullPageError } from "@/modules/shared/ui/components/full-page-error";
 
 type DialogState =
 	| { type: "closed" }
@@ -173,12 +173,10 @@ export function ProductsView() {
 
 	if (error) {
 		return (
-			<div className="flex h-screen w-full flex-col items-center justify-center">
-				<ErrorState
-					title="Failed to load products"
-					description="Please try again later"
-				/>
-			</div>
+			<FullPageError
+				title="Failed to load products"
+				description="Please try again later"
+			/>
 		);
 	}
 

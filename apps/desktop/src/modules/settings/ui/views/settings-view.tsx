@@ -17,7 +17,7 @@ import { SettingsSkeleton } from "@/modules/settings/ui/components/settings-skel
 import { SystemCard } from "@/modules/settings/ui/components/system-card";
 import { UpdatesCard } from "@/modules/settings/ui/components/updates-card";
 import { useTheme } from "@/modules/shared/providers/theme-provider";
-import { ErrorState } from "@/modules/shared/ui/components/error-state";
+import { FullPageError } from "@/modules/shared/ui/components/full-page-error";
 
 export function SettingsView() {
 	const { settings, isLoading, updateSettingsAsync } = useSettings();
@@ -47,22 +47,22 @@ export function SettingsView() {
 	const handleCheckForUpdate = async () => {
 		try {
 			const info = await checkForUpdateAsync();
-			if (info.available) {
-				toast.success(`Update available: v${info.version}`);
+			if (info.available && info.version) {
+				toast.success(MESSAGES.UPDATE.AVAILABLE(info.version));
 			} else {
-				toast.info("You're running the latest version");
+				toast.info(MESSAGES.UPDATE.LATEST);
 			}
 		} catch {
-			toast.error("Failed to check for updates");
+			toast.error(MESSAGES.UPDATE.CHECK_FAILED);
 		}
 	};
 
 	const handleInstallUpdate = async () => {
 		try {
-			toast.info("Downloading update...");
+			toast.info(MESSAGES.UPDATE.DOWNLOADING);
 			await installUpdateAsync();
 		} catch {
-			toast.error("Failed to install update");
+			toast.error(MESSAGES.UPDATE.INSTALL_FAILED);
 		}
 	};
 
@@ -72,12 +72,10 @@ export function SettingsView() {
 
 	if (!settings) {
 		return (
-			<div className="flex h-screen w-full flex-col items-center justify-center">
-				<ErrorState
-					title="Failed to load settings"
-					description="Please try again later"
-				/>
-			</div>
+			<FullPageError
+				title="Failed to load settings"
+				description="Please try again later"
+			/>
 		);
 	}
 
