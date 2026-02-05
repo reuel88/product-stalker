@@ -61,16 +61,13 @@ export function createMockSettings(
 }
 
 /**
- * Create mock update info
+ * Create mock update info for no update available
  */
-export function createMockUpdateInfo(
-	overrides: Partial<UpdateInfo> = {},
-): UpdateInfo {
+export function createMockUpdateInfo(): UpdateInfo {
 	return {
 		available: false,
 		version: null,
 		body: null,
-		...overrides,
 	};
 }
 

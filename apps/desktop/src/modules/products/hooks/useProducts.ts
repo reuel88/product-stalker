@@ -18,6 +18,24 @@ export interface UpdateProductInput {
 	notes?: string | null;
 }
 
+/**
+ * Hook for managing products with CRUD operations.
+ *
+ * Provides reactive access to the products list and mutation functions
+ * for creating, updating, and deleting products. All mutations automatically
+ * invalidate the products query to keep the UI in sync.
+ *
+ * @returns Object containing:
+ *   - products: Array of all products (undefined while loading)
+ *   - isLoading: Whether the initial fetch is in progress
+ *   - error: Error from the last query, if any
+ *   - createProduct: Async function to create a new product
+ *   - isCreating: Whether a create operation is in progress
+ *   - updateProduct: Async function to update a product by id
+ *   - isUpdating: Whether an update operation is in progress
+ *   - deleteProduct: Async function to delete a product by id
+ *   - isDeleting: Whether a delete operation is in progress
+ */
 export function useProducts() {
 	const queryClient = useQueryClient();
 

@@ -1,5 +1,4 @@
 import { Plus, RefreshCw } from "lucide-react";
-import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,29 +17,13 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { MESSAGES } from "@/constants";
-import { withToast } from "@/lib/toast-helpers";
+import { withToast, withToastVoid } from "@/lib/toast-helpers";
 import { useCheckAllAvailability } from "@/modules/products/hooks/useAvailability";
-import {
-	type CreateProductInput,
-	useProducts,
-} from "@/modules/products/hooks/useProducts";
-import type { ProductResponse } from "@/modules/products/types";
+import { useProductDialogs } from "@/modules/products/hooks/useProductDialogs";
+import { useProducts } from "@/modules/products/hooks/useProducts";
 import { ProductFormDialog } from "@/modules/products/ui/components/product-form-dialog";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
 import { FullPageError } from "@/modules/shared/ui/components/full-page-error";
-
-type DialogState =
-	| { type: "closed" }
-	| { type: "create"; formData: CreateProductInput }
-	| { type: "edit"; product: ProductResponse; formData: CreateProductInput }
-	| { type: "delete"; product: ProductResponse };
-
-const initialFormData: CreateProductInput = {
-	name: "",
-	url: "",
-	description: "",
-	notes: "",
-};
 
 export function ProductsView() {
 	const {
@@ -57,19 +40,15 @@ export function ProductsView() {
 
 	const { checkAllAvailability, isCheckingAll } = useCheckAllAvailability();
 
-	const [dialogState, setDialogState] = useState<DialogState>({
-		type: "closed",
-	});
-
-	const closeDialog = () => setDialogState({ type: "closed" });
-
-	const updateFormData = (formData: CreateProductInput) => {
-		if (dialogState.type === "create") {
-			setDialogState({ type: "create", formData });
-		} else if (dialogState.type === "edit") {
-			setDialogState({ ...dialogState, formData });
-		}
-	};
+	const {
+		dialogState,
+		openCreateDialog,
+		openEditDialog,
+		openDeleteDialog,
+		closeDialog,
+		updateFormData,
+		initialFormData,
+	} = useProductDialogs();
 
 	const handleCreate = async () => {
 		if (dialogState.type !== "create") return;
@@ -94,19 +73,6 @@ export function ProductsView() {
 			},
 		);
 		if (result) closeDialog();
-	};
-
-	const handleEdit = (product: ProductResponse) => {
-		setDialogState({
-			type: "edit",
-			product,
-			formData: {
-				name: product.name,
-				url: product.url,
-				description: product.description || "",
-				notes: product.notes || "",
-			},
-		});
 	};
 
 	const handleUpdate = async () => {
@@ -137,38 +103,29 @@ export function ProductsView() {
 		if (result) closeDialog();
 	};
 
-	const handleDeleteClick = (product: ProductResponse) => {
-		setDialogState({ type: "delete", product });
-	};
-
 	const handleDelete = async () => {
 		if (dialogState.type !== "delete") return;
 
-		const result = await withToast(
+		const success = await withToastVoid(
 			() => deleteProduct(dialogState.product.id),
 			{
 				success: MESSAGES.PRODUCT.DELETED,
 				error: MESSAGES.PRODUCT.DELETE_FAILED,
 			},
 		);
-		if (result !== undefined) closeDialog();
+		if (success) closeDialog();
 	};
 
 	const handleCheckAll = async () => {
-		try {
-			const summary = await checkAllAvailability();
-			if (summary.back_in_stock_count > 0) {
-				toast.success(
-					`${MESSAGES.AVAILABILITY.CHECK_ALL_COMPLETE} - ${summary.back_in_stock_count} product(s) back in stock!`,
-				);
-			} else {
-				toast.success(
-					`${MESSAGES.AVAILABILITY.CHECK_ALL_COMPLETE} (${summary.successful}/${summary.total} successful)`,
-				);
-			}
-		} catch {
-			toast.error(MESSAGES.AVAILABILITY.CHECK_ALL_FAILED);
-		}
+		await withToast(() => checkAllAvailability(), {
+			success: (result) => {
+				if (result.back_in_stock_count > 0) {
+					return `${MESSAGES.AVAILABILITY.CHECK_ALL_COMPLETE} - ${result.back_in_stock_count} product(s) back in stock!`;
+				}
+				return `${MESSAGES.AVAILABILITY.CHECK_ALL_COMPLETE} (${result.successful}/${result.total} successful)`;
+			},
+			error: MESSAGES.AVAILABILITY.CHECK_ALL_FAILED,
+		});
 	};
 
 	if (error) {
@@ -196,12 +153,7 @@ export function ProductsView() {
 						/>
 						{isCheckingAll ? "Checking..." : "Check All"}
 					</Button>
-					<Button
-						size="sm"
-						onClick={() =>
-							setDialogState({ type: "create", formData: initialFormData })
-						}
-					>
+					<Button size="sm" onClick={openCreateDialog}>
 						<Plus className="size-4" />
 						Add Product
 					</Button>
@@ -219,8 +171,8 @@ export function ProductsView() {
 					<ProductsTable
 						products={products ?? []}
 						isLoading={isLoading}
-						onEdit={handleEdit}
-						onDelete={handleDeleteClick}
+						onEdit={openEditDialog}
+						onDelete={openDeleteDialog}
 					/>
 				</CardContent>
 			</Card>

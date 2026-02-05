@@ -3,11 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { COMMANDS } from "@/constants";
 
-export interface UpdateInfo {
-	available: boolean;
-	version: string | null;
-	body: string | null;
-}
+export type UpdateInfo =
+	| { available: true; version: string; body: string | null }
+	| { available: false; version: null; body: null };
 
 export function useUpdater() {
 	const { data: currentVersion, isLoading: isLoadingVersion } = useQuery({

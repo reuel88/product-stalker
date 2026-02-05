@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withToast } from "@/lib/toast-helpers";
+import { withToast, withToastVoid } from "@/lib/toast-helpers";
 
 vi.mock("sonner", () => ({
 	toast: {
@@ -65,5 +65,39 @@ describe("withToast utility", () => {
 
 		expect(result).toBeNull();
 		expect(toast.success).toHaveBeenCalledWith("Success");
+	});
+});
+
+describe("withToastVoid utility", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("should return true and show success toast on successful operation", async () => {
+		const operation = vi.fn().mockResolvedValue(undefined);
+
+		const result = await withToastVoid(operation, {
+			success: "Deleted successfully",
+			error: "Delete failed",
+		});
+
+		expect(result).toBe(true);
+		expect(operation).toHaveBeenCalledOnce();
+		expect(toast.success).toHaveBeenCalledWith("Deleted successfully");
+		expect(toast.error).not.toHaveBeenCalled();
+	});
+
+	it("should return false and show error toast on failed operation", async () => {
+		const operation = vi.fn().mockRejectedValue(new Error("Network error"));
+
+		const result = await withToastVoid(operation, {
+			success: "Deleted successfully",
+			error: "Delete failed",
+		});
+
+		expect(result).toBe(false);
+		expect(operation).toHaveBeenCalledOnce();
+		expect(toast.error).toHaveBeenCalledWith("Delete failed");
+		expect(toast.success).not.toHaveBeenCalled();
 	});
 });
