@@ -18,6 +18,10 @@ describe("MESSAGES constant", () => {
 		expect(MESSAGES).toHaveProperty("VALIDATION");
 	});
 
+	it("should export UPDATE messages", () => {
+		expect(MESSAGES).toHaveProperty("UPDATE");
+	});
+
 	describe("PRODUCT messages", () => {
 		it("should have all CRUD operation messages", () => {
 			expect(MESSAGES.PRODUCT).toHaveProperty("CREATED");
@@ -93,6 +97,31 @@ describe("MESSAGES constant", () => {
 			expect(MESSAGES.VALIDATION.NAME_URL_REQUIRED.toLowerCase()).toContain(
 				"required",
 			);
+		});
+	});
+
+	describe("UPDATE messages", () => {
+		it("should have AVAILABLE as a function that includes version", () => {
+			expect(typeof MESSAGES.UPDATE.AVAILABLE).toBe("function");
+			expect(MESSAGES.UPDATE.AVAILABLE("1.2.3")).toBe(
+				"Update available: v1.2.3",
+			);
+		});
+
+		it("should have LATEST as a string constant", () => {
+			expect(MESSAGES.UPDATE.LATEST).toBe("You're running the latest version");
+		});
+
+		it("should have DOWNLOADING as a string constant", () => {
+			expect(MESSAGES.UPDATE.DOWNLOADING).toBe("Downloading update...");
+		});
+
+		it("should have CHECK_FAILED as a string constant", () => {
+			expect(MESSAGES.UPDATE.CHECK_FAILED).toBe("Failed to check for updates");
+		});
+
+		it("should have INSTALL_FAILED as a string constant", () => {
+			expect(MESSAGES.UPDATE.INSTALL_FAILED).toBe("Failed to install update");
 		});
 	});
 });

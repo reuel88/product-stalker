@@ -33,6 +33,14 @@ impl ScraperService {
     /// User-Agent header to use for requests
     const USER_AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+    /// HTTP Accept header for HTML content
+    const ACCEPT_HEADER: &'static str =
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8";
+
+    /// Sec-Ch-Ua header for Chrome browser fingerprint
+    const SEC_CH_UA: &'static str =
+        r#""Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120""#;
+
     /// Check availability by fetching a URL and parsing Schema.org data
     ///
     /// Uses HTTP as the fast path. Falls back to headless browser if bot
@@ -201,12 +209,12 @@ impl ScraperService {
         let response = client
             .get(url)
             .header("User-Agent", Self::USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+            .header("Accept", Self::ACCEPT_HEADER)
             .header("Accept-Language", "en-US,en;q=0.9")
             .header("Accept-Encoding", "gzip, deflate, br")
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")
-            .header("Sec-Ch-Ua", "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\"")
+            .header("Sec-Ch-Ua", Self::SEC_CH_UA)
             .header("Sec-Ch-Ua-Mobile", "?0")
             .header("Sec-Ch-Ua-Platform", "\"Windows\"")
             .header("Sec-Fetch-Dest", "document")
