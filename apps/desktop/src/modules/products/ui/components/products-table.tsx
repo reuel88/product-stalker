@@ -1,30 +1,19 @@
 import {
-	type ColumnDef,
 	flexRender,
 	getCoreRowModel,
 	getPaginationRowModel,
 	useReactTable,
 } from "@tanstack/react-table";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import {
 	ChevronFirst,
 	ChevronLast,
 	ChevronLeft,
 	ChevronRight,
-	ExternalLink,
-	MoreHorizontal,
-	Pencil,
-	Trash2,
 } from "lucide-react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -39,6 +28,7 @@ import { formatPrice } from "@/lib/utils";
 import { useAvailability } from "@/modules/products/hooks/useAvailability";
 import type { ProductResponse } from "@/modules/products/types";
 import { AvailabilityBadge } from "./availability-badge";
+import { createProductColumns } from "./products-table-columns";
 
 interface ProductsTableProps {
 	products: ProductResponse[];
@@ -54,7 +44,6 @@ function AvailabilityCell({ productId }: { productId: string }) {
 	const handleCheck = async () => {
 		try {
 			const result = await checkAvailability();
-			// Show error from the check result if there's an error message
 			if (result.error_message) {
 				toast.error(result.error_message);
 			} else {
@@ -97,111 +86,16 @@ export function ProductsTable({
 	onEdit,
 	onDelete,
 }: ProductsTableProps) {
-	const columns: ColumnDef<ProductResponse>[] = [
-		{
-			accessorKey: "name",
-			header: "Name",
-			cell: ({ row }) => (
-				<span className="font-medium">{row.getValue("name")}</span>
-			),
-		},
-		{
-			accessorKey: "url",
-			header: "URL",
-			cell: ({ row }) => {
-				const url = row.getValue("url") as string;
-				const truncated =
-					url.length > UI.TRUNCATE.URL_LENGTH
-						? `${url.slice(0, UI.TRUNCATE.URL_LENGTH)}...`
-						: url;
-				return (
-					<button
-						type="button"
-						onClick={() => openUrl(url)}
-						className="inline-flex items-center gap-1 text-left text-primary hover:underline"
-						title={url}
-					>
-						{truncated}
-						<ExternalLink className="size-3" />
-					</button>
-				);
-			},
-		},
-		{
-			id: "availability",
-			header: "Availability",
-			cell: ({ row }) => <AvailabilityCell productId={row.original.id} />,
-		},
-		{
-			id: "price",
-			header: "Price",
-			cell: ({ row }) => <PriceCell productId={row.original.id} />,
-		},
-		{
-			accessorKey: "description",
-			header: "Description",
-			cell: ({ row }) => {
-				const description = row.getValue("description") as string | null;
-				if (!description)
-					return (
-						<span
-							data-testid={`description-${row.original.id}`}
-							className="text-muted-foreground"
-						>
-							-
-						</span>
-					);
-				const truncated =
-					description.length > UI.TRUNCATE.DESCRIPTION_LENGTH
-						? `${description.slice(0, UI.TRUNCATE.DESCRIPTION_LENGTH)}...`
-						: description;
-				return (
-					<span
-						data-testid={`description-${row.original.id}`}
-						title={description}
-					>
-						{truncated}
-					</span>
-				);
-			},
-		},
-		{
-			accessorKey: "created_at",
-			header: "Created",
-			cell: ({ row }) => {
-				const date = new Date(row.getValue("created_at") as string);
-				return <span>{date.toLocaleDateString()}</span>;
-			},
-		},
-		{
-			id: "actions",
-			header: () => <span className="sr-only">Actions</span>,
-			cell: ({ row }) => {
-				const product = row.original;
-				return (
-					<DropdownMenu>
-						<DropdownMenuTrigger className="inline-flex size-7 items-center justify-center rounded-none hover:bg-muted">
-							<MoreHorizontal className="size-4" />
-							<span className="sr-only">Open menu</span>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem onClick={() => onEdit?.(product)}>
-								<Pencil />
-								Edit
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								variant="destructive"
-								onClick={() => onDelete?.(product)}
-							>
-								<Trash2 />
-								Delete
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				);
-			},
-		},
-	];
+	const columns = useMemo(
+		() =>
+			createProductColumns({
+				onEdit,
+				onDelete,
+				AvailabilityCell,
+				PriceCell,
+			}),
+		[onEdit, onDelete],
+	);
 
 	const table = useReactTable({
 		data: products,

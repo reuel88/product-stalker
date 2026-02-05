@@ -67,8 +67,26 @@ struct CheckProcessingResult {
     is_price_drop: bool,
 }
 
+/// Context for checking a single product in a bulk operation
+struct ProductCheckContext {
+    previous_status: Option<String>,
+    previous_price_cents: Option<i64>,
+}
+
+/// Accumulated counters for bulk check results
+#[derive(Default)]
+struct BulkCheckCounters {
+    successful: usize,
+    failed: usize,
+    back_in_stock_count: usize,
+    price_drop_count: usize,
+}
+
 /// Service layer for availability checking business logic
 pub struct AvailabilityService;
+
+/// Rate limiting delay between product checks in milliseconds
+const RATE_LIMIT_DELAY_MS: u64 = 500;
 
 impl AvailabilityService {
     /// Check the availability of a product by its ID
@@ -184,67 +202,103 @@ impl AvailabilityService {
         let products = ProductRepository::find_all(conn).await?;
         let total = products.len();
         let mut results = Vec::with_capacity(total);
-        let mut successful = 0;
-        let mut failed = 0;
-        let mut back_in_stock_count = 0;
-        let mut price_drop_count = 0;
+        let mut counters = BulkCheckCounters::default();
 
         for product in products {
-            // Rate limiting: wait 500ms between requests
-            tokio::time::sleep(Duration::from_millis(500)).await;
+            tokio::time::sleep(Duration::from_millis(RATE_LIMIT_DELAY_MS)).await;
 
-            // Get previous status and price before checking
-            let previous_check = Self::get_latest(conn, product.id).await?;
-            let previous_status = previous_check.as_ref().map(|c| c.status.clone());
-            let previous_price_cents =
-                AvailabilityCheckRepository::find_previous_price(conn, product.id).await?;
+            let context = Self::get_product_check_context(conn, product.id).await?;
+            let (bulk_result, result) =
+                Self::check_single_product_with_context(conn, &product, &context).await;
 
-            // Check availability and process result
-            let check_result = Self::check_product(conn, product.id).await;
-            let result =
-                Self::process_check_result(check_result, &previous_status, previous_price_cents);
-
-            // Update counters
-            if result.error.is_some() {
-                failed += 1;
-            } else {
-                successful += 1;
-                if result.is_back_in_stock {
-                    back_in_stock_count += 1;
-                }
-                if result.is_price_drop {
-                    price_drop_count += 1;
-                }
-            }
-
-            results.push(BulkCheckResult {
-                product_id: product.id.to_string(),
-                product_name: product.name,
-                status: result.status,
-                previous_status,
-                is_back_in_stock: result.is_back_in_stock,
-                price_cents: result.price_cents,
-                price_currency: result.price_currency,
-                previous_price_cents,
-                is_price_drop: result.is_price_drop,
-                error: result.error,
-            });
+            Self::update_counters(&mut counters, &result);
+            results.push(bulk_result);
         }
 
-        Ok(BulkCheckSummary {
-            total,
-            successful,
-            failed,
-            back_in_stock_count,
-            price_drop_count,
-            results,
+        Ok(Self::build_bulk_summary(total, counters, results))
+    }
+
+    /// Get the context needed before checking a product (previous status and price)
+    async fn get_product_check_context(
+        conn: &DatabaseConnection,
+        product_id: Uuid,
+    ) -> Result<ProductCheckContext, AppError> {
+        let previous_check = Self::get_latest(conn, product_id).await?;
+        let previous_status = previous_check.as_ref().map(|c| c.status.clone());
+        let previous_price_cents =
+            AvailabilityCheckRepository::find_previous_price(conn, product_id).await?;
+
+        Ok(ProductCheckContext {
+            previous_status,
+            previous_price_cents,
         })
+    }
+
+    /// Check a single product and build its bulk result
+    async fn check_single_product_with_context(
+        conn: &DatabaseConnection,
+        product: &crate::entities::prelude::ProductModel,
+        context: &ProductCheckContext,
+    ) -> (BulkCheckResult, CheckProcessingResult) {
+        let check_result = Self::check_product(conn, product.id).await;
+        let result = Self::process_check_result(
+            check_result,
+            &context.previous_status,
+            context.previous_price_cents,
+        );
+
+        let bulk_result = BulkCheckResult {
+            product_id: product.id.to_string(),
+            product_name: product.name.clone(),
+            status: result.status.clone(),
+            previous_status: context.previous_status.clone(),
+            is_back_in_stock: result.is_back_in_stock,
+            price_cents: result.price_cents,
+            price_currency: result.price_currency.clone(),
+            previous_price_cents: context.previous_price_cents,
+            is_price_drop: result.is_price_drop,
+            error: result.error.clone(),
+        };
+
+        (bulk_result, result)
+    }
+
+    /// Update counters based on the check result
+    fn update_counters(counters: &mut BulkCheckCounters, result: &CheckProcessingResult) {
+        if result.error.is_some() {
+            counters.failed += 1;
+        } else {
+            counters.successful += 1;
+            if result.is_back_in_stock {
+                counters.back_in_stock_count += 1;
+            }
+            if result.is_price_drop {
+                counters.price_drop_count += 1;
+            }
+        }
+    }
+
+    /// Build the final bulk check summary from counters and results
+    fn build_bulk_summary(
+        total: usize,
+        counters: BulkCheckCounters,
+        results: Vec<BulkCheckResult>,
+    ) -> BulkCheckSummary {
+        BulkCheckSummary {
+            total,
+            successful: counters.successful,
+            failed: counters.failed,
+            back_in_stock_count: counters.back_in_stock_count,
+            price_drop_count: counters.price_drop_count,
+            results,
+        }
     }
 
     /// Check if a product transitioned to back in stock
     pub fn is_back_in_stock(previous_status: &Option<String>, new_status: &str) -> bool {
+        let in_stock = AvailabilityStatus::InStock.as_str();
         match previous_status {
-            Some(prev) => prev != "in_stock" && new_status == "in_stock",
+            Some(prev) => prev != in_stock && new_status == in_stock,
             None => false, // First check, not a transition
         }
     }
