@@ -51,7 +51,32 @@ impl ProductRepository {
         Ok(product)
     }
 
-    /// Update an existing product
+    /// Update an existing product.
+    ///
+    /// # Arguments
+    ///
+    /// * `model` - The existing product model to update
+    /// * `name` - `Some(value)` to update, `None` to keep existing
+    /// * `url` - `Some(value)` to update, `None` to keep existing
+    /// * `description` - Uses nested Option pattern:
+    ///   - `None` = keep existing value unchanged
+    ///   - `Some(None)` = clear the field (set to NULL)
+    ///   - `Some(Some(value))` = set to the new value
+    /// * `notes` - Same nested Option pattern as description
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Keep name, update URL, clear description, set notes
+    /// ProductRepository::update(
+    ///     &conn,
+    ///     product,
+    ///     None,                           // keep name
+    ///     Some("https://new.com".into()), // update URL
+    ///     Some(None),                     // clear description
+    ///     Some(Some("New notes".into())), // set notes
+    /// )
+    /// ```
     pub async fn update(
         conn: &DatabaseConnection,
         model: ProductModel,

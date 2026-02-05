@@ -30,7 +30,10 @@ impl ScraperService {
     /// HTTP request timeout
     const TIMEOUT_SECS: u64 = 30;
 
-    /// User-Agent header to use for requests
+    /// User-Agent header mimicking Chrome browser.
+    ///
+    /// Using a realistic browser User-Agent helps avoid basic bot detection
+    /// that blocks requests with obvious automation signatures like "curl" or "python-requests".
     const USER_AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     /// HTTP Accept header for HTML content
@@ -140,19 +143,28 @@ impl ScraperService {
         body_lower.contains("application/ld+json")
     }
 
-    /// Check for Cloudflare-specific challenge indicators
+    /// Check for Cloudflare-specific challenge indicators.
     ///
-    /// Note: We avoid plain "cloudflare" as it causes false positives on pages
-    /// using cdnjs.cloudflare.com or other Cloudflare CDN resources.
+    /// Note: We deliberately avoid matching plain "cloudflare" as it causes
+    /// false positives on pages using cdnjs.cloudflare.com or other Cloudflare
+    /// CDN resources that aren't actually challenge pages.
     fn has_cloudflare_indicators(body_lower: &str) -> bool {
         const CLOUDFLARE_MARKERS: &[&str] = &[
+            // Challenge page title text
             "just a moment...",
+            // DOM element ID for browser verification widget
             "cf-browser-verification",
+            // JavaScript variable set during challenge handling
             "_cf_chl_opt",
+            // User-facing message during verification
             "checking your browser",
+            // Cloudflare request identifier shown on challenge pages
             "ray id:",
+            // CSS class/ID prefix for challenge-related elements
             "cf-challenge",
+            // Bot management cookie name
             "__cf_bm",
+            // Challenge platform script path
             "/cdn-cgi/challenge-platform/",
         ];
         CLOUDFLARE_MARKERS
@@ -160,12 +172,19 @@ impl ScraperService {
             .any(|marker| body_lower.contains(marker))
     }
 
-    /// Check for explicit bot protection messages from various providers
+    /// Check for explicit bot protection messages from various providers.
+    ///
+    /// These markers indicate the page is actively blocking automated access
+    /// and showing a challenge or block page instead of the actual content.
     fn has_explicit_bot_protection(body_lower: &str) -> bool {
         const BOT_PROTECTION_MARKERS: &[&str] = &[
+            // Generic bot detection message
             "bot detected",
+            // CAPTCHA or human verification prompt
             "please verify you are a human",
+            // Common requirement message on challenge pages
             "enable javascript and cookies",
+            // PerimeterX/HUMAN bot protection message
             "pardon our interruption",
         ];
         BOT_PROTECTION_MARKERS

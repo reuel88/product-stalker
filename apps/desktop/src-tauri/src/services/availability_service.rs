@@ -209,7 +209,22 @@ impl AvailabilityService {
         Ok(Self::build_summary_from_results(products.len(), results))
     }
 
-    /// Check each product with rate limiting between requests
+    /// Check each product with rate limiting between requests.
+    ///
+    /// ## Orchestration Flow
+    ///
+    /// For each product in the list:
+    /// 1. **Fetch context**: Get previous status and price from the last check
+    /// 2. **Scrape product page**: Use HTTP (fast path) or headless browser (fallback)
+    /// 3. **Parse Schema.org data**: Extract availability status and price
+    /// 4. **Process results**: Detect back-in-stock transitions and price drops
+    /// 5. **Store check record**: Save results to database
+    /// 6. **Rate limit**: Wait 500ms before checking next product
+    ///
+    /// The rate limiting (500ms between requests) balances:
+    /// - Respectful scraping behavior (not overwhelming target servers)
+    /// - Reasonable total check time for large product lists
+    /// - Staying below typical anti-bot detection thresholds
     async fn check_products_with_rate_limit(
         conn: &DatabaseConnection,
         products: &[crate::entities::prelude::ProductModel],

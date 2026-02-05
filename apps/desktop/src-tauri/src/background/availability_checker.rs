@@ -7,6 +7,18 @@ use tauri_plugin_notification::NotificationExt;
 
 use crate::services::{AvailabilityService, SettingService};
 
+/// Delay in seconds before retrying after a settings fetch error.
+///
+/// When the background checker fails to load settings (e.g., database error),
+/// it waits this long before trying again to avoid tight error loops.
+const ERROR_RETRY_DELAY_SECS: u64 = 60;
+
+/// Polling interval in seconds when background checking is disabled.
+///
+/// The checker periodically re-checks settings even when disabled,
+/// so it can start checking when the user enables the feature.
+const DISABLED_POLL_INTERVAL_SECS: u64 = 60;
+
 /// State for managing the background checker task
 #[derive(Default)]
 pub struct BackgroundCheckerState {
@@ -44,16 +56,18 @@ async fn background_checker_loop(app: AppHandle, conn: Arc<DatabaseConnection>) 
             Ok(s) => s,
             Err(e) => {
                 log::error!("Failed to get settings in background checker: {}", e);
-                // Wait before retrying
-                tokio::time::sleep(Duration::from_secs(60)).await;
+                tokio::time::sleep(Duration::from_secs(ERROR_RETRY_DELAY_SECS)).await;
                 continue;
             }
         };
 
         // Check if background checking is enabled
         if !settings.background_check_enabled {
-            log::debug!("Background checking disabled, sleeping for 60 seconds");
-            tokio::time::sleep(Duration::from_secs(60)).await;
+            log::debug!(
+                "Background checking disabled, sleeping for {} seconds",
+                DISABLED_POLL_INTERVAL_SECS
+            );
+            tokio::time::sleep(Duration::from_secs(DISABLED_POLL_INTERVAL_SECS)).await;
             continue;
         }
 
