@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { MESSAGES } from "@/constants";
+import { withToast } from "@/lib/toast-helpers";
 import {
 	type Settings,
 	type UpdateSettingsInput,
@@ -31,12 +32,10 @@ export function SettingsView() {
 	} = useUpdater();
 
 	const handleUpdate = async (input: UpdateSettingsInput) => {
-		try {
-			await updateSettingsAsync(input);
-			toast.success(MESSAGES.SETTINGS.SAVED);
-		} catch {
-			toast.error(MESSAGES.SETTINGS.SAVE_FAILED);
-		}
+		await withToast(() => updateSettingsAsync(input), {
+			success: MESSAGES.SETTINGS.SAVED,
+			error: MESSAGES.SETTINGS.SAVE_FAILED,
+		});
 	};
 
 	const handleThemeChange = async (value: Settings["theme"] | null) => {

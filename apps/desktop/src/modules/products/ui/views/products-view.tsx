@@ -18,6 +18,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { MESSAGES } from "@/constants";
+import { withToast } from "@/lib/toast-helpers";
 import { useCheckAllAvailability } from "@/modules/products/hooks/useAvailability";
 import {
 	type CreateProductInput,
@@ -79,18 +80,20 @@ export function ProductsView() {
 			return;
 		}
 
-		try {
-			await createProduct({
-				name: formData.name,
-				url: formData.url,
-				description: formData.description || null,
-				notes: formData.notes || null,
-			});
-			toast.success(MESSAGES.PRODUCT.CREATED);
-			closeDialog();
-		} catch {
-			toast.error(MESSAGES.PRODUCT.CREATE_FAILED);
-		}
+		const result = await withToast(
+			() =>
+				createProduct({
+					name: formData.name,
+					url: formData.url,
+					description: formData.description || null,
+					notes: formData.notes || null,
+				}),
+			{
+				success: MESSAGES.PRODUCT.CREATED,
+				error: MESSAGES.PRODUCT.CREATE_FAILED,
+			},
+		);
+		if (result) closeDialog();
 	};
 
 	const handleEdit = (product: ProductResponse) => {
@@ -115,21 +118,23 @@ export function ProductsView() {
 			return;
 		}
 
-		try {
-			await updateProduct({
-				id: product.id,
-				input: {
-					name: formData.name,
-					url: formData.url,
-					description: formData.description || null,
-					notes: formData.notes || null,
-				},
-			});
-			toast.success(MESSAGES.PRODUCT.UPDATED);
-			closeDialog();
-		} catch {
-			toast.error(MESSAGES.PRODUCT.UPDATE_FAILED);
-		}
+		const result = await withToast(
+			() =>
+				updateProduct({
+					id: product.id,
+					input: {
+						name: formData.name,
+						url: formData.url,
+						description: formData.description || null,
+						notes: formData.notes || null,
+					},
+				}),
+			{
+				success: MESSAGES.PRODUCT.UPDATED,
+				error: MESSAGES.PRODUCT.UPDATE_FAILED,
+			},
+		);
+		if (result) closeDialog();
 	};
 
 	const handleDeleteClick = (product: ProductResponse) => {
@@ -139,13 +144,14 @@ export function ProductsView() {
 	const handleDelete = async () => {
 		if (dialogState.type !== "delete") return;
 
-		try {
-			await deleteProduct(dialogState.product.id);
-			toast.success(MESSAGES.PRODUCT.DELETED);
-			closeDialog();
-		} catch {
-			toast.error(MESSAGES.PRODUCT.DELETE_FAILED);
-		}
+		const result = await withToast(
+			() => deleteProduct(dialogState.product.id),
+			{
+				success: MESSAGES.PRODUCT.DELETED,
+				error: MESSAGES.PRODUCT.DELETE_FAILED,
+			},
+		);
+		if (result !== undefined) closeDialog();
 	};
 
 	const handleCheckAll = async () => {

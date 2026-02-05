@@ -80,7 +80,8 @@ export function useCheckAllAvailability() {
 		onSuccess: () => {
 			// Invalidate all availability queries to refresh the UI
 			queryClient.invalidateQueries({
-				predicate: (query) => query.queryKey[0] === "availability",
+				predicate: (query) =>
+					query.queryKey[0] === QUERY_KEYS.AVAILABILITY_PREFIX,
 			});
 		},
 	});
