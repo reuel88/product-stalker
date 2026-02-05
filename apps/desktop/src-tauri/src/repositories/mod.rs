@@ -5,4 +5,4 @@ mod settings_helpers;
 
 pub use availability_check_repository::{AvailabilityCheckRepository, CreateCheckParams};
 pub use product_repository::{ProductRepository, ProductUpdateInput};
-pub use settings_helpers::SettingsHelpers;
+pub use settings_helpers::{ScopedSettingsReader, SettingsHelpers};

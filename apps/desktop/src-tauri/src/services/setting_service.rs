@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::entities::app_setting::SettingScope;
 use crate::error::AppError;
-use crate::repositories::SettingsHelpers;
+use crate::repositories::{ScopedSettingsReader, SettingsHelpers};
 
 /// Setting keys for global settings
 pub mod keys {
@@ -95,76 +95,42 @@ impl SettingService {
     /// Get current settings, reading from EAV storage with defaults
     pub async fn get(conn: &DatabaseConnection) -> Result<Settings, AppError> {
         let scope = SettingScope::Global;
-
-        let theme =
-            SettingsHelpers::get_string_or(conn, &scope, keys::THEME, defaults::THEME).await?;
-        let show_in_tray =
-            SettingsHelpers::get_bool_or(conn, &scope, keys::SHOW_IN_TRAY, defaults::SHOW_IN_TRAY)
-                .await?;
-        let launch_at_login = SettingsHelpers::get_bool_or(
-            conn,
-            &scope,
-            keys::LAUNCH_AT_LOGIN,
-            defaults::LAUNCH_AT_LOGIN,
-        )
-        .await?;
-        let enable_logging = SettingsHelpers::get_bool_or(
-            conn,
-            &scope,
-            keys::ENABLE_LOGGING,
-            defaults::ENABLE_LOGGING,
-        )
-        .await?;
-        let log_level =
-            SettingsHelpers::get_string_or(conn, &scope, keys::LOG_LEVEL, defaults::LOG_LEVEL)
-                .await?;
-        let enable_notifications = SettingsHelpers::get_bool_or(
-            conn,
-            &scope,
-            keys::ENABLE_NOTIFICATIONS,
-            defaults::ENABLE_NOTIFICATIONS,
-        )
-        .await?;
-        let sidebar_expanded = SettingsHelpers::get_bool_or(
-            conn,
-            &scope,
-            keys::SIDEBAR_EXPANDED,
-            defaults::SIDEBAR_EXPANDED,
-        )
-        .await?;
-        let background_check_enabled = SettingsHelpers::get_bool_or(
-            conn,
-            &scope,
-            keys::BACKGROUND_CHECK_ENABLED,
-            defaults::BACKGROUND_CHECK_ENABLED,
-        )
-        .await?;
-        let background_check_interval_minutes = SettingsHelpers::get_i32_or(
-            conn,
-            &scope,
-            keys::BACKGROUND_CHECK_INTERVAL_MINUTES,
-            defaults::BACKGROUND_CHECK_INTERVAL_MINUTES,
-        )
-        .await?;
-        let enable_headless_browser = SettingsHelpers::get_bool_or(
-            conn,
-            &scope,
-            keys::ENABLE_HEADLESS_BROWSER,
-            defaults::ENABLE_HEADLESS_BROWSER,
-        )
-        .await?;
+        let r = ScopedSettingsReader::new(conn, &scope);
 
         Ok(Settings {
-            theme,
-            show_in_tray,
-            launch_at_login,
-            enable_logging,
-            log_level,
-            enable_notifications,
-            sidebar_expanded,
-            background_check_enabled,
-            background_check_interval_minutes,
-            enable_headless_browser,
+            theme: r.string(keys::THEME, defaults::THEME).await?,
+            show_in_tray: r.bool(keys::SHOW_IN_TRAY, defaults::SHOW_IN_TRAY).await?,
+            launch_at_login: r
+                .bool(keys::LAUNCH_AT_LOGIN, defaults::LAUNCH_AT_LOGIN)
+                .await?,
+            enable_logging: r
+                .bool(keys::ENABLE_LOGGING, defaults::ENABLE_LOGGING)
+                .await?,
+            log_level: r.string(keys::LOG_LEVEL, defaults::LOG_LEVEL).await?,
+            enable_notifications: r
+                .bool(keys::ENABLE_NOTIFICATIONS, defaults::ENABLE_NOTIFICATIONS)
+                .await?,
+            sidebar_expanded: r
+                .bool(keys::SIDEBAR_EXPANDED, defaults::SIDEBAR_EXPANDED)
+                .await?,
+            background_check_enabled: r
+                .bool(
+                    keys::BACKGROUND_CHECK_ENABLED,
+                    defaults::BACKGROUND_CHECK_ENABLED,
+                )
+                .await?,
+            background_check_interval_minutes: r
+                .i32(
+                    keys::BACKGROUND_CHECK_INTERVAL_MINUTES,
+                    defaults::BACKGROUND_CHECK_INTERVAL_MINUTES,
+                )
+                .await?,
+            enable_headless_browser: r
+                .bool(
+                    keys::ENABLE_HEADLESS_BROWSER,
+                    defaults::ENABLE_HEADLESS_BROWSER,
+                )
+                .await?,
             updated_at: Utc::now(),
         })
     }
