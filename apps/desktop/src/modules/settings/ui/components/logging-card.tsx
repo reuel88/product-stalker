@@ -44,9 +44,7 @@ export function LoggingCard({ settings, onUpdate }: LoggingCardProps) {
 					<Label htmlFor="log-level">Log level</Label>
 					<Select
 						value={settings.log_level}
-						onValueChange={(value: string | null) =>
-							value && onUpdate({ log_level: value })
-						}
+						onValueChange={(value) => onUpdate({ log_level: value })}
 						disabled={!settings.enable_logging}
 					>
 						<SelectTrigger className="w-32">

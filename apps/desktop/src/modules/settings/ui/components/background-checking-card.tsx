@@ -51,8 +51,7 @@ export function BackgroundCheckingCard({
 					<Label htmlFor="check-interval">Check interval</Label>
 					<Select
 						value={String(settings.background_check_interval_minutes)}
-						onValueChange={(value: string | null) =>
-							value &&
+						onValueChange={(value) =>
 							onUpdate({
 								background_check_interval_minutes: Number.parseInt(value, 10),
 							})
@@ -60,7 +59,7 @@ export function BackgroundCheckingCard({
 						disabled={!settings.background_check_enabled}
 					>
 						<SelectTrigger className="w-32">
-							<SelectValue />
+							<SelectValue placeholder="Select interval" />
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="15">15 minutes</SelectItem>

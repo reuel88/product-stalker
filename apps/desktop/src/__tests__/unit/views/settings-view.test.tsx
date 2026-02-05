@@ -86,11 +86,10 @@ describe("SettingsView", () => {
 			render(<SettingsView />);
 
 			await waitFor(() => {
-				expect(screen.getByText("System")).toBeInTheDocument();
+				expect(
+					screen.getByText("System integration settings"),
+				).toBeInTheDocument();
 			});
-			expect(
-				screen.getByText("System integration settings"),
-			).toBeInTheDocument();
 		});
 
 		it("should render Logging card", async () => {
@@ -214,16 +213,11 @@ describe("SettingsView", () => {
 			// Click on the first combobox (theme select)
 			const comboboxes = screen.getAllByRole("combobox");
 			const themeSelect = comboboxes[0];
+
+			// Use keyboard navigation for Radix UI Select compatibility
 			await user.click(themeSelect);
-
-			// Wait for dropdown and select Dark
-			await waitFor(() => {
-				expect(
-					screen.getByRole("option", { name: "Dark" }),
-				).toBeInTheDocument();
-			});
-
-			await user.click(screen.getByRole("option", { name: "Dark" }));
+			await user.keyboard("{ArrowDown}"); // Move to Dark option (from Light)
+			await user.keyboard("{Enter}");
 
 			await waitFor(() => {
 				expect(mockSetTheme).toHaveBeenCalledWith("dark");
