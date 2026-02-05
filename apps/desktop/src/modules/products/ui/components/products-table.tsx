@@ -24,7 +24,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { MESSAGES, UI } from "@/constants";
-import { formatPrice } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import { useAvailability } from "@/modules/products/hooks/useAvailability";
 import type { ProductResponse } from "@/modules/products/types";
 import { AvailabilityBadge } from "./availability-badge";
@@ -232,22 +232,22 @@ function ProductsTableSkeleton() {
 						// biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton rows never reorder
 						<TableRow key={i}>
 							<TableCell>
-								<Skeleton className={`h-4 ${SKELETON_WIDTHS.name}`} />
+								<Skeleton className={cn("h-4", SKELETON_WIDTHS.name)} />
 							</TableCell>
 							<TableCell>
-								<Skeleton className={`h-4 ${SKELETON_WIDTHS.url}`} />
+								<Skeleton className={cn("h-4", SKELETON_WIDTHS.url)} />
 							</TableCell>
 							<TableCell>
 								<Skeleton className={SKELETON_WIDTHS.availabilityBadge} />
 							</TableCell>
 							<TableCell>
-								<Skeleton className={`h-4 ${SKELETON_WIDTHS.price}`} />
+								<Skeleton className={cn("h-4", SKELETON_WIDTHS.price)} />
 							</TableCell>
 							<TableCell>
-								<Skeleton className={`h-4 ${SKELETON_WIDTHS.description}`} />
+								<Skeleton className={cn("h-4", SKELETON_WIDTHS.description)} />
 							</TableCell>
 							<TableCell>
-								<Skeleton className={`h-4 ${SKELETON_WIDTHS.date}`} />
+								<Skeleton className={cn("h-4", SKELETON_WIDTHS.date)} />
 							</TableCell>
 							<TableCell>
 								<Skeleton className={SKELETON_WIDTHS.actionButton} />
@@ -257,7 +257,7 @@ function ProductsTableSkeleton() {
 				</TableBody>
 			</Table>
 			<div className="flex items-center justify-between">
-				<Skeleton className={`h-4 ${SKELETON_WIDTHS.paginationText}`} />
+				<Skeleton className={cn("h-4", SKELETON_WIDTHS.paginationText)} />
 				<div className="flex items-center gap-1">
 					<Skeleton className={SKELETON_WIDTHS.actionButton} />
 					<Skeleton className={SKELETON_WIDTHS.actionButton} />

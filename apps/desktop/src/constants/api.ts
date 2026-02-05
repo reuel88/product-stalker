@@ -15,3 +15,8 @@ export const COMMANDS = {
 	DOWNLOAD_AND_INSTALL_UPDATE: "download_and_install_update",
 	GET_CURRENT_VERSION: "get_current_version",
 } as const;
+
+export const EVENTS = {
+	AVAILABILITY_CHECK_PROGRESS: "availability:check-progress",
+	AVAILABILITY_CHECK_COMPLETE: "availability:check-complete",
+} as const;

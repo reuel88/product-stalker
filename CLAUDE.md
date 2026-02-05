@@ -75,6 +75,7 @@ Each feature module in `src/modules/` follows: `hooks/`, `types.ts`, `ui/compone
 
 ### React/JSX
 - Use `cn()` utility from `@/lib/utils` for dynamic classNames instead of string concatenation
+- Never use template literals with conditionals for classNames (e.g., avoid `` `class ${condition ? "a" : ""}` ``)
 
 ### Rust
 - Clippy treats all warnings as errors

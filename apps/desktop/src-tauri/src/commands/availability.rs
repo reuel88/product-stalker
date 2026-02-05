@@ -91,12 +91,13 @@ pub async fn get_availability_history(
 ///
 /// Performs a bulk availability check on all products with rate limiting.
 /// Sends desktop notifications for products that are back in stock.
+/// Emits progress events for each product checked.
 #[tauri::command]
 pub async fn check_all_availability(
     app: tauri::AppHandle,
     db: State<'_, DbState>,
 ) -> Result<BulkCheckSummary, AppError> {
-    let result = AvailabilityService::check_all_products_with_notification(db.conn()).await?;
+    let result = AvailabilityService::check_all_products_with_notification(db.conn(), &app).await?;
 
     if let Some(notification) = result.notification {
         send_desktop_notification(&app, &notification);

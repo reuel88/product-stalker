@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use sea_orm::DatabaseConnection;
 use serde::Serialize;
+use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 use crate::entities::availability_check::AvailabilityStatus;
@@ -15,8 +16,28 @@ use crate::services::notification_service::NotificationData;
 use crate::services::scraper_service::ScrapingResult;
 use crate::services::{NotificationService, ScraperService, SettingService};
 
+/// Event name for per-product progress updates during bulk check
+pub const EVENT_CHECK_PROGRESS: &str = "availability:check-progress";
+
+/// Event name for bulk check completion
+pub const EVENT_CHECK_COMPLETE: &str = "availability:check-complete";
+
+/// Event payload for per-product progress updates
+#[derive(Debug, Clone, Serialize)]
+pub struct CheckProgressEvent {
+    pub current_index: usize,
+    pub total_count: usize,
+    pub result: BulkCheckResult,
+}
+
+/// Event payload for bulk check completion
+#[derive(Debug, Clone, Serialize)]
+pub struct CheckCompleteEvent {
+    pub summary: BulkCheckSummary,
+}
+
 /// Result of a single product availability check in a bulk operation
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct BulkCheckResult {
     pub product_id: String,
     pub product_name: String,
@@ -31,7 +52,7 @@ pub struct BulkCheckResult {
 }
 
 /// Summary of a bulk check operation
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct BulkCheckSummary {
     pub total: usize,
     pub successful: usize,
@@ -208,7 +229,8 @@ impl AvailabilityService {
     /// 3. **Parse Schema.org data**: Extract availability status and price
     /// 4. **Process results**: Detect back-in-stock transitions and price drops
     /// 5. **Store check record**: Save results to database
-    /// 6. **Rate limit**: Wait 500ms before checking next product
+    /// 6. **Emit progress event**: Notify frontend of completion
+    /// 7. **Rate limit**: Wait 500ms before checking next product
     ///
     /// The rate limiting (500ms between requests) balances:
     /// - Respectful scraping behavior (not overwhelming target servers)
@@ -217,14 +239,29 @@ impl AvailabilityService {
     async fn check_products_with_rate_limit(
         conn: &DatabaseConnection,
         products: &[crate::entities::prelude::ProductModel],
+        app: &AppHandle,
     ) -> Vec<(BulkCheckResult, CheckProcessingResult)> {
         let mut results = Vec::with_capacity(products.len());
+        let total_count = products.len();
 
         for (index, product) in products.iter().enumerate() {
             if index > 0 {
                 tokio::time::sleep(Duration::from_millis(RATE_LIMIT_DELAY_MS)).await;
             }
-            results.push(Self::check_single_product_in_bulk(conn, product).await);
+            let (bulk_result, processing_result) =
+                Self::check_single_product_in_bulk(conn, product).await;
+
+            // Emit progress event (ignore errors to avoid blocking)
+            let _ = app.emit(
+                EVENT_CHECK_PROGRESS,
+                CheckProgressEvent {
+                    current_index: index + 1,
+                    total_count,
+                    result: bulk_result.clone(),
+                },
+            );
+
+            results.push((bulk_result, processing_result));
         }
 
         results
@@ -453,11 +490,13 @@ impl AvailabilityService {
     /// ## Orchestration Flow
     /// 1. Fetch settings upfront (used for headless browser setting and notifications)
     /// 2. Fetch all products from database
-    /// 3. Check each product with rate limiting
+    /// 3. Check each product with rate limiting (emitting progress events)
     /// 4. Build summary from results
-    /// 5. Compose notification if applicable
+    /// 5. Emit completion event
+    /// 6. Compose notification if applicable
     pub async fn check_all_products_with_notification(
         conn: &DatabaseConnection,
+        app: &AppHandle,
     ) -> Result<BulkCheckResultWithNotification, AppError> {
         // Step 1: Fetch settings upfront for notification check
         let settings = SettingRepository::get_or_create(conn).await?;
@@ -465,13 +504,21 @@ impl AvailabilityService {
         // Step 2: Fetch all products
         let products = ProductRepository::find_all(conn).await?;
 
-        // Step 3: Check each product with rate limiting
-        let results = Self::check_products_with_rate_limit(conn, &products).await;
+        // Step 3: Check each product with rate limiting (emitting progress events)
+        let results = Self::check_products_with_rate_limit(conn, &products, app).await;
 
         // Step 4: Build summary from results
         let summary = Self::build_summary_from_results(products.len(), results);
 
-        // Step 5: Build notification if applicable (using NotificationService)
+        // Step 5: Emit completion event (ignore errors to avoid blocking)
+        let _ = app.emit(
+            EVENT_CHECK_COMPLETE,
+            CheckCompleteEvent {
+                summary: summary.clone(),
+            },
+        );
+
+        // Step 6: Build notification if applicable (using NotificationService)
         let notification = Self::build_bulk_notification_with_settings(&settings, &summary);
 
         Ok(BulkCheckResultWithNotification {
@@ -493,19 +540,6 @@ impl AvailabilityService {
             summary.price_drop_count,
             &summary.results,
         )
-    }
-
-    /// Check availability for all products with rate limiting
-    ///
-    /// Returns a summary including which products are back in stock and price drops.
-    /// Note: Prefer using `check_all_products_with_notification` which also handles notifications.
-    #[allow(dead_code)]
-    pub async fn check_all_products(
-        conn: &DatabaseConnection,
-    ) -> Result<BulkCheckSummary, AppError> {
-        let products = ProductRepository::find_all(conn).await?;
-        let results = Self::check_products_with_rate_limit(conn, &products).await;
-        Ok(Self::build_summary_from_results(products.len(), results))
     }
 }
 
@@ -627,7 +661,7 @@ mod tests {
         }
     }
 
-    /// Tests for check_product and check_all_products methods
+    /// Tests for check_product method
     mod check_product_tests {
         use super::*;
 
@@ -640,20 +674,6 @@ mod tests {
 
             assert!(result.is_err());
             assert!(matches!(result, Err(AppError::NotFound(_))));
-        }
-
-        #[tokio::test]
-        async fn test_check_all_products_empty_returns_valid_summary() {
-            let conn = setup_availability_db().await;
-
-            let summary = AvailabilityService::check_all_products(&conn)
-                .await
-                .unwrap();
-
-            assert_eq!(summary.total, 0);
-            assert_eq!(summary.successful, 0);
-            assert_eq!(summary.failed, 0);
-            assert!(summary.results.is_empty());
         }
     }
 

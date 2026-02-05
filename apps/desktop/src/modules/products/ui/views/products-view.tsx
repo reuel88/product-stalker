@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { MESSAGES } from "@/constants";
 import { withToast, withToastVoid } from "@/lib/toast-helpers";
+import { cn } from "@/lib/utils";
 import { useCheckAllAvailability } from "@/modules/products/hooks/useAvailability";
 import { useProductDialogs } from "@/modules/products/hooks/useProductDialogs";
 import { useProducts } from "@/modules/products/hooks/useProducts";
@@ -76,7 +77,8 @@ export function ProductsView() {
 		isDeleting,
 	} = useProducts();
 
-	const { checkAllAvailability, isCheckingAll } = useCheckAllAvailability();
+	const { checkAllAvailability, isCheckingAll, progress } =
+		useCheckAllAvailability();
 
 	const {
 		dialogState,
@@ -175,9 +177,13 @@ export function ProductsView() {
 						disabled={isCheckingAll || !products?.length}
 					>
 						<RefreshCw
-							className={`size-4 ${isCheckingAll ? "animate-spin" : ""}`}
+							className={cn("size-4", isCheckingAll && "animate-spin")}
 						/>
-						{isCheckingAll ? "Checking..." : "Check All"}
+						{isCheckingAll && progress
+							? `Checking ${progress.currentIndex}/${progress.totalCount}...`
+							: isCheckingAll
+								? "Checking..."
+								: "Check All"}
 					</Button>
 					<Button size="sm" onClick={openCreateDialog}>
 						<Plus className="size-4" />

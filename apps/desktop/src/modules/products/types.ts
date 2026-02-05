@@ -47,3 +47,13 @@ export interface BulkCheckSummary {
 	price_drop_count: number;
 	results: BulkCheckResult[];
 }
+
+export interface CheckProgressEvent {
+	current_index: number;
+	total_count: number;
+	result: BulkCheckResult;
+}
+
+export interface CheckCompleteEvent {
+	summary: BulkCheckSummary;
+}
