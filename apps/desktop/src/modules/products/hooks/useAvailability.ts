@@ -7,6 +7,20 @@ import type {
 	BulkCheckSummary,
 } from "@/modules/products/types";
 
+/**
+ * Hook for managing availability checks for a single product.
+ *
+ * Provides the latest availability status and a function to trigger new checks.
+ * Automatically invalidates related queries when a check completes.
+ *
+ * @param productId - The UUID of the product to check
+ * @returns Object containing:
+ *   - `latestCheck`: Most recent availability check result (null if never checked)
+ *   - `isLoading`: Whether the initial query is in progress
+ *   - `error`: Error from the last query, if any
+ *   - `checkAvailability`: Async function to trigger a new availability check
+ *   - `isChecking`: Whether a check operation is currently in progress
+ */
 export function useAvailability(productId: string) {
 	const queryClient = useQueryClient();
 
@@ -50,6 +64,19 @@ export function useAvailability(productId: string) {
 	};
 }
 
+/**
+ * Hook for fetching the availability check history for a product.
+ *
+ * Returns a list of past availability checks ordered by most recent first.
+ * Useful for displaying price and availability trends over time.
+ *
+ * @param productId - The UUID of the product
+ * @param limit - Optional maximum number of history records to return
+ * @returns Object containing:
+ *   - `history`: Array of past availability checks
+ *   - `isLoading`: Whether the query is in progress
+ *   - `error`: Error from the query, if any
+ */
 export function useAvailabilityHistory(productId: string, limit?: number) {
 	const {
 		data: history,
@@ -72,6 +99,18 @@ export function useAvailabilityHistory(productId: string, limit?: number) {
 	};
 }
 
+/**
+ * Hook for triggering availability checks on all tracked products.
+ *
+ * Performs a bulk check with rate limiting between requests to avoid
+ * overwhelming target servers. Returns a summary of results including
+ * back-in-stock and price drop counts.
+ *
+ * @returns Object containing:
+ *   - `checkAllAvailability`: Async function to trigger bulk check
+ *   - `isCheckingAll`: Whether the bulk check is in progress
+ *   - `lastSummary`: Summary from the most recent bulk check
+ */
 export function useCheckAllAvailability() {
 	const queryClient = useQueryClient();
 

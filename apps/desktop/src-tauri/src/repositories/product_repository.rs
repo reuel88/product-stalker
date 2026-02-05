@@ -4,6 +4,24 @@ use uuid::Uuid;
 use crate::entities::prelude::*;
 use crate::error::AppError;
 
+/// Input for updating a product's fields.
+///
+/// Uses Option to indicate which fields should be updated:
+/// - `None` = keep existing value unchanged
+/// - `Some(value)` = update to new value
+///
+/// For nullable fields (`description`, `notes`), uses nested Option:
+/// - `None` = keep existing value unchanged
+/// - `Some(None)` = clear the field (set to NULL)
+/// - `Some(Some(value))` = set to the new value
+#[derive(Default)]
+pub struct ProductUpdateInput {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub description: Option<Option<String>>,
+    pub notes: Option<Option<String>>,
+}
+
 /// Repository for product data access
 ///
 /// Encapsulates all database operations for products.
@@ -56,13 +74,7 @@ impl ProductRepository {
     /// # Arguments
     ///
     /// * `model` - The existing product model to update
-    /// * `name` - `Some(value)` to update, `None` to keep existing
-    /// * `url` - `Some(value)` to update, `None` to keep existing
-    /// * `description` - Uses nested Option pattern:
-    ///   - `None` = keep existing value unchanged
-    ///   - `Some(None)` = clear the field (set to NULL)
-    ///   - `Some(Some(value))` = set to the new value
-    /// * `notes` - Same nested Option pattern as description
+    /// * `input` - The fields to update (see [`ProductUpdateInput`] for details)
     ///
     /// # Example
     ///
@@ -71,32 +83,31 @@ impl ProductRepository {
     /// ProductRepository::update(
     ///     &conn,
     ///     product,
-    ///     None,                           // keep name
-    ///     Some("https://new.com".into()), // update URL
-    ///     Some(None),                     // clear description
-    ///     Some(Some("New notes".into())), // set notes
+    ///     ProductUpdateInput {
+    ///         url: Some("https://new.com".into()),
+    ///         description: Some(None),                     // clear description
+    ///         notes: Some(Some("New notes".into())),       // set notes
+    ///         ..Default::default()                         // keep name unchanged
+    ///     },
     /// )
     /// ```
     pub async fn update(
         conn: &DatabaseConnection,
         model: ProductModel,
-        name: Option<String>,
-        url: Option<String>,
-        description: Option<Option<String>>,
-        notes: Option<Option<String>>,
+        input: ProductUpdateInput,
     ) -> Result<ProductModel, AppError> {
         let mut active_model: ProductActiveModel = model.into();
 
-        if let Some(name) = name {
+        if let Some(name) = input.name {
             active_model.name = Set(name);
         }
-        if let Some(url) = url {
+        if let Some(url) = input.url {
             active_model.url = Set(url);
         }
-        if let Some(description) = description {
+        if let Some(description) = input.description {
             active_model.description = Set(description);
         }
-        if let Some(notes) = notes {
+        if let Some(notes) = input.notes {
             active_model.notes = Set(notes);
         }
         active_model.updated_at = Set(chrono::Utc::now());
@@ -189,10 +200,10 @@ mod tests {
         let updated = ProductRepository::update(
             &conn,
             created,
-            Some("Updated".to_string()),
-            None,
-            None,
-            None,
+            ProductUpdateInput {
+                name: Some("Updated".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -284,10 +295,12 @@ mod tests {
         let updated = ProductRepository::update(
             &conn,
             created,
-            Some("New Name".to_string()),
-            Some("https://new.com".to_string()),
-            Some(Some("New description".to_string())),
-            Some(Some("New notes".to_string())),
+            ProductUpdateInput {
+                name: Some("New Name".to_string()),
+                url: Some("https://new.com".to_string()),
+                description: Some(Some("New description".to_string())),
+                notes: Some(Some("New notes".to_string())),
+            },
         )
         .await
         .unwrap();
@@ -318,10 +331,11 @@ mod tests {
         let updated = ProductRepository::update(
             &conn,
             created,
-            None,
-            None,
-            Some(None), // Clear description
-            Some(None), // Clear notes
+            ProductUpdateInput {
+                description: Some(None), // Clear description
+                notes: Some(None),       // Clear notes
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -349,10 +363,10 @@ mod tests {
         let updated = ProductRepository::update(
             &conn,
             created,
-            None,
-            Some("https://new.com".to_string()),
-            None,
-            None,
+            ProductUpdateInput {
+                url: Some("https://new.com".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -407,10 +421,10 @@ mod tests {
         let updated = ProductRepository::update(
             &conn,
             created,
-            Some("Updated Name".to_string()),
-            None,
-            None,
-            None,
+            ProductUpdateInput {
+                name: Some("Updated Name".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();

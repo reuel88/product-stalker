@@ -29,8 +29,8 @@ export interface AvailabilityCheckResponse {
 export interface BulkCheckResult {
 	product_id: string;
 	product_name: string;
-	status: string;
-	previous_status: string | null;
+	status: AvailabilityStatus;
+	previous_status: AvailabilityStatus | null;
 	is_back_in_stock: boolean;
 	price_cents: number | null;
 	price_currency: string | null;

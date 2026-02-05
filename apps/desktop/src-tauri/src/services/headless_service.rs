@@ -153,11 +153,13 @@ impl HeadlessService {
     /// 2. Platform-specific common installation paths
     pub fn find_chrome_binary() -> Option<PathBuf> {
         // Check environment variable first
-        if let Ok(path) = std::env::var("CHROME_PATH") {
-            let path = PathBuf::from(path);
-            if path.exists() {
-                return Some(path);
-            }
+        let from_env = std::env::var("CHROME_PATH")
+            .ok()
+            .map(PathBuf::from)
+            .filter(|p| p.exists());
+
+        if from_env.is_some() {
+            return from_env;
         }
 
         // Platform-specific paths
@@ -191,15 +193,19 @@ impl HeadlessService {
         ];
 
         // Also check user's local AppData
-        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-            let user_chrome = PathBuf::from(&local_app_data)
-                .join("Google")
-                .join("Chrome")
-                .join("Application")
-                .join("chrome.exe");
-            if user_chrome.exists() {
-                return Some(user_chrome);
-            }
+        let user_chrome = std::env::var("LOCALAPPDATA")
+            .ok()
+            .map(|local_app_data| {
+                PathBuf::from(&local_app_data)
+                    .join("Google")
+                    .join("Chrome")
+                    .join("Application")
+                    .join("chrome.exe")
+            })
+            .filter(|p| p.exists());
+
+        if user_chrome.is_some() {
+            return user_chrome;
         }
 
         paths.iter().map(PathBuf::from).find(|p| p.exists())
@@ -214,16 +220,20 @@ impl HeadlessService {
         ];
 
         // Also check user's Applications folder
-        if let Ok(home) = std::env::var("HOME") {
-            let user_chrome = PathBuf::from(&home)
-                .join("Applications")
-                .join("Google Chrome.app")
-                .join("Contents")
-                .join("MacOS")
-                .join("Google Chrome");
-            if user_chrome.exists() {
-                return Some(user_chrome);
-            }
+        let user_chrome = std::env::var("HOME")
+            .ok()
+            .map(|home| {
+                PathBuf::from(&home)
+                    .join("Applications")
+                    .join("Google Chrome.app")
+                    .join("Contents")
+                    .join("MacOS")
+                    .join("Google Chrome")
+            })
+            .filter(|p| p.exists());
+
+        if user_chrome.is_some() {
+            return user_chrome;
         }
 
         paths.iter().map(PathBuf::from).find(|p| p.exists())
