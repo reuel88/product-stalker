@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::entities::prelude::ProductModel;
 use crate::error::AppError;
-use crate::repositories::ProductRepository;
+use crate::repositories::{ProductRepository, ProductUpdateInput};
 
 /// Service layer for product business logic
 ///
@@ -64,10 +64,12 @@ impl ProductService {
         ProductRepository::update(
             conn,
             product,
-            name,
-            url,
-            description.map(Some),
-            notes.map(Some),
+            ProductUpdateInput {
+                name,
+                url,
+                description: description.map(Some),
+                notes: notes.map(Some),
+            },
         )
         .await
     }

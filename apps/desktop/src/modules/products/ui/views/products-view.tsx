@@ -19,6 +19,22 @@ import { ProductFormDialog } from "@/modules/products/ui/components/product-form
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
 import { FullPageError } from "@/modules/shared/ui/components/full-page-error";
 
+/** Configuration for create/edit dialog text and labels */
+const DIALOG_CONFIG = {
+	create: {
+		title: "Add Product",
+		description: "Add a new product to track",
+		submitLabel: "Create",
+		submittingLabel: "Creating...",
+	},
+	edit: {
+		title: "Edit Product",
+		description: "Update product details",
+		submitLabel: "Save",
+		submittingLabel: "Saving...",
+	},
+} as const;
+
 /**
  * Formats the success message for bulk availability check results.
  *
@@ -191,20 +207,14 @@ export function ProductsView() {
 				<ProductFormDialog
 					open={true}
 					onOpenChange={(open) => !open && closeDialog()}
-					title={dialogState.type === "create" ? "Add Product" : "Edit Product"}
-					description={
-						dialogState.type === "create"
-							? "Add a new product to track"
-							: "Update product details"
-					}
+					title={DIALOG_CONFIG[dialogState.type].title}
+					description={DIALOG_CONFIG[dialogState.type].description}
 					formData={dialogState.formData}
 					onFormChange={updateFormData}
 					onSubmit={dialogState.type === "create" ? handleCreate : handleUpdate}
 					isSubmitting={dialogState.type === "create" ? isCreating : isUpdating}
-					submitLabel={dialogState.type === "create" ? "Create" : "Save"}
-					submittingLabel={
-						dialogState.type === "create" ? "Creating..." : "Saving..."
-					}
+					submitLabel={DIALOG_CONFIG[dialogState.type].submitLabel}
+					submittingLabel={DIALOG_CONFIG[dialogState.type].submittingLabel}
 					idPrefix={dialogState.type}
 				/>
 			)}

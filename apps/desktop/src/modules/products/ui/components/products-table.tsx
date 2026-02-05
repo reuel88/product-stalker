@@ -200,6 +200,18 @@ export function ProductsTable({
 	);
 }
 
+/** Skeleton widths that approximate the content they represent */
+const SKELETON_WIDTHS = {
+	name: "w-24",
+	url: "w-40",
+	availabilityBadge: "h-6 w-20",
+	price: "w-16",
+	description: "w-32",
+	date: "w-20",
+	actionButton: "size-7",
+	paginationText: "w-24",
+} as const;
+
 function ProductsTableSkeleton() {
 	return (
 		<div className="space-y-4">
@@ -220,37 +232,37 @@ function ProductsTableSkeleton() {
 						// biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton rows never reorder
 						<TableRow key={i}>
 							<TableCell>
-								<Skeleton className="h-4 w-24" />
+								<Skeleton className={`h-4 ${SKELETON_WIDTHS.name}`} />
 							</TableCell>
 							<TableCell>
-								<Skeleton className="h-4 w-40" />
+								<Skeleton className={`h-4 ${SKELETON_WIDTHS.url}`} />
 							</TableCell>
 							<TableCell>
-								<Skeleton className="h-6 w-20" />
+								<Skeleton className={SKELETON_WIDTHS.availabilityBadge} />
 							</TableCell>
 							<TableCell>
-								<Skeleton className="h-4 w-16" />
+								<Skeleton className={`h-4 ${SKELETON_WIDTHS.price}`} />
 							</TableCell>
 							<TableCell>
-								<Skeleton className="h-4 w-32" />
+								<Skeleton className={`h-4 ${SKELETON_WIDTHS.description}`} />
 							</TableCell>
 							<TableCell>
-								<Skeleton className="h-4 w-20" />
+								<Skeleton className={`h-4 ${SKELETON_WIDTHS.date}`} />
 							</TableCell>
 							<TableCell>
-								<Skeleton className="size-7" />
+								<Skeleton className={SKELETON_WIDTHS.actionButton} />
 							</TableCell>
 						</TableRow>
 					))}
 				</TableBody>
 			</Table>
 			<div className="flex items-center justify-between">
-				<Skeleton className="h-4 w-24" />
+				<Skeleton className={`h-4 ${SKELETON_WIDTHS.paginationText}`} />
 				<div className="flex items-center gap-1">
-					<Skeleton className="size-7" />
-					<Skeleton className="size-7" />
-					<Skeleton className="size-7" />
-					<Skeleton className="size-7" />
+					<Skeleton className={SKELETON_WIDTHS.actionButton} />
+					<Skeleton className={SKELETON_WIDTHS.actionButton} />
+					<Skeleton className={SKELETON_WIDTHS.actionButton} />
+					<Skeleton className={SKELETON_WIDTHS.actionButton} />
 				</div>
 			</div>
 		</div>

@@ -26,6 +26,10 @@ pub struct ScrapingResult {
 /// Service for scraping product availability from web pages
 pub struct ScraperService;
 
+/// Error message shown when bot protection is detected and headless browser is disabled.
+const BOT_PROTECTION_MESSAGE: &str =
+    "This site has bot protection. Enable headless browser in settings to check this site.";
+
 impl ScraperService {
     /// HTTP request timeout
     const TIMEOUT_SECS: u64 = 30;
@@ -76,13 +80,7 @@ impl ScraperService {
                 // Check for challenge in successful response (some return 200 with challenge)
                 if Self::is_cloudflare_challenge(200, &html) {
                     log::info!("Detected bot protection challenge for {}", url);
-                    if enable_headless {
-                        log::info!("Attempting headless fallback for {}", url);
-                        return Self::try_headless_fallback(url).await;
-                    }
-                    return Err(AppError::BotProtection(
-                        "This site has bot protection. Enable headless browser in settings to check this site.".to_string()
-                    ));
+                    return Self::handle_bot_protection(url, enable_headless).await;
                 }
                 Self::parse_schema_org_with_url(&html, url)
             }
@@ -96,18 +94,29 @@ impl ScraperService {
                     status,
                     failed_url
                 );
-                if enable_headless {
-                    Self::try_headless_fallback(&failed_url).await
-                } else {
-                    Err(AppError::BotProtection(
-                        "This site has bot protection. Enable headless browser in settings to check this site.".to_string()
-                    ))
-                }
+                Self::handle_bot_protection(&failed_url, enable_headless).await
             }
             Err(e) => {
                 log::error!("HTTP fetch failed for {}: {}", url, e);
                 Err(e)
             }
+        }
+    }
+
+    /// Handle bot protection by attempting headless fallback or returning an error.
+    ///
+    /// When bot protection is detected (Cloudflare challenge, 403/503 status),
+    /// this method either attempts a headless browser fallback or returns
+    /// an appropriate error message to the user.
+    async fn handle_bot_protection(
+        url: &str,
+        enable_headless: bool,
+    ) -> Result<ScrapingResult, AppError> {
+        if enable_headless {
+            log::info!("Attempting headless fallback for {}", url);
+            Self::try_headless_fallback(url).await
+        } else {
+            Err(AppError::BotProtection(BOT_PROTECTION_MESSAGE.to_string()))
         }
     }
 
@@ -441,37 +450,41 @@ impl ScraperService {
     ) -> Option<(String, PriceInfo)> {
         let variants = product_group.get("hasVariant")?.as_array()?;
 
-        // If we have a variant ID, try to find the matching variant
-        if let Some(vid) = variant_id {
-            // Dummy base for resolving relative URLs (host is irrelevant)
-            let base = Url::parse("http://localhost").unwrap();
+        let Some(vid) = variant_id else {
+            // No variant ID specified, return first variant's availability and price
+            return Self::get_first_variant_availability(variants);
+        };
 
-            for variant in variants {
-                let Some(id) = variant.get("@id").and_then(|i| i.as_str()) else {
-                    continue;
-                };
-
-                // Parse as absolute URL first, fall back to relative
-                let Ok(parsed_url) = Url::parse(id).or_else(|_| base.join(id)) else {
-                    continue;
-                };
-
-                let matches_variant = parsed_url
-                    .query_pairs()
-                    .any(|(key, value)| key == "variant" && value == vid);
-
-                if !matches_variant {
-                    continue;
-                }
-
-                if let Some(result) = Self::get_availability_and_price_from_product(variant) {
-                    return Some(result);
-                }
-            }
+        // Try to find the matching variant by ID
+        let matched = Self::find_variant_by_id(variants, vid);
+        if matched.is_some() {
+            return matched;
         }
 
         // Fallback: return first variant's availability and price
+        Self::get_first_variant_availability(variants)
+    }
+
+    /// Find a variant by its ID in the URL query parameters
+    fn find_variant_by_id(
+        variants: &[serde_json::Value],
+        vid: &str,
+    ) -> Option<(String, PriceInfo)> {
+        // Dummy base for resolving relative URLs (host is irrelevant)
+        let base = Url::parse("http://localhost").unwrap();
+
         for variant in variants {
+            let id = variant.get("@id").and_then(|i| i.as_str())?;
+            let parsed_url = Url::parse(id).or_else(|_| base.join(id)).ok()?;
+
+            let matches_variant = parsed_url
+                .query_pairs()
+                .any(|(key, value)| key == "variant" && value == vid);
+
+            if !matches_variant {
+                continue;
+            }
+
             if let Some(result) = Self::get_availability_and_price_from_product(variant) {
                 return Some(result);
             }
@@ -480,30 +493,35 @@ impl ScraperService {
         None
     }
 
+    /// Get the first variant's availability and price
+    fn get_first_variant_availability(
+        variants: &[serde_json::Value],
+    ) -> Option<(String, PriceInfo)> {
+        variants
+            .iter()
+            .find_map(Self::get_availability_and_price_from_product)
+    }
+
     /// Get availability and price from a Product JSON object
     fn get_availability_and_price_from_product(
         product: &serde_json::Value,
     ) -> Option<(String, PriceInfo)> {
-        // Try offers first (single offer)
-        if let Some(offers) = product.get("offers") {
-            // Single offer object
-            if let Some(avail) = offers.get("availability").and_then(|a| a.as_str()) {
-                let price = Self::get_price_from_offer(offers);
-                return Some((avail.to_string(), price));
-            }
+        let offers = product.get("offers")?;
 
-            // Array of offers - use first one with availability
-            if let Some(arr) = offers.as_array() {
-                for offer in arr {
-                    if let Some(avail) = offer.get("availability").and_then(|a| a.as_str()) {
-                        let price = Self::get_price_from_offer(offer);
-                        return Some((avail.to_string(), price));
-                    }
-                }
-            }
+        // Single offer object
+        if let Some(avail) = offers.get("availability").and_then(|a| a.as_str()) {
+            let price = Self::get_price_from_offer(offers);
+            return Some((avail.to_string(), price));
         }
 
-        None
+        // Array of offers - use first one with availability
+        offers.as_array().and_then(|arr| {
+            arr.iter().find_map(|offer| {
+                let avail = offer.get("availability")?.as_str()?;
+                let price = Self::get_price_from_offer(offer);
+                Some((avail.to_string(), price))
+            })
+        })
     }
 }
 
