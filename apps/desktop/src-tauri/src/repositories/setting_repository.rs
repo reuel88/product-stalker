@@ -4,6 +4,16 @@ use crate::entities::setting::{ActiveModel, Entity as Setting, Model as SettingM
 use crate::error::AppError;
 
 /// Parameters for updating settings
+///
+/// All fields are optional - `None` means "keep existing value".
+/// Use `Default::default()` with struct update syntax for concise test code:
+/// ```ignore
+/// let params = UpdateSettingsParams {
+///     theme: Some("dark".to_string()),
+///     ..Default::default()
+/// };
+/// ```
+#[derive(Default)]
 pub struct UpdateSettingsParams {
     pub theme: Option<String>,
     pub show_in_tray: Option<bool>,
@@ -128,15 +138,7 @@ mod tests {
 
         let params = UpdateSettingsParams {
             theme: Some("dark".to_string()),
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let updated = SettingRepository::update(&conn, settings, params)
@@ -155,16 +157,9 @@ mod tests {
         assert_eq!(settings.background_check_interval_minutes, 60);
 
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
             background_check_enabled: Some(true),
             background_check_interval_minutes: Some(30),
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let updated = SettingRepository::update(&conn, settings, params)
@@ -183,16 +178,8 @@ mod tests {
         assert!(settings.enable_headless_browser);
 
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
             enable_headless_browser: Some(false),
+            ..Default::default()
         };
 
         let updated = SettingRepository::update(&conn, settings, params)

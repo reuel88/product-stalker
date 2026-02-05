@@ -167,15 +167,7 @@ mod integration_tests {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: Some("invalid".to_string()),
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -186,16 +178,8 @@ mod integration_tests {
     async fn test_update_validates_log_level() {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
             log_level: Some("invalid_level".to_string()),
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -207,15 +191,7 @@ mod integration_tests {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
             theme: Some("dark".to_string()),
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -227,16 +203,8 @@ mod integration_tests {
     async fn test_update_log_level_success() {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
             log_level: Some("debug".to_string()),
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -248,16 +216,8 @@ mod integration_tests {
     async fn test_update_show_in_tray() {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
-            theme: None,
             show_in_tray: Some(false),
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -269,16 +229,8 @@ mod integration_tests {
     async fn test_update_launch_at_login() {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
             launch_at_login: Some(true),
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -290,16 +242,8 @@ mod integration_tests {
     async fn test_update_enable_logging() {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
             enable_logging: Some(false),
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -311,16 +255,8 @@ mod integration_tests {
     async fn test_update_enable_notifications() {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
             enable_notifications: Some(false),
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -332,16 +268,8 @@ mod integration_tests {
     async fn test_update_sidebar_expanded() {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
             sidebar_expanded: Some(true),
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -383,20 +311,7 @@ mod integration_tests {
     #[tokio::test]
     async fn test_update_no_fields_does_not_error() {
         let conn = setup_settings_db().await;
-        let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
-            enable_headless_browser: None,
-        };
-
-        let result = SettingService::update(&conn, params).await;
+        let result = SettingService::update(&conn, UpdateSettingsParams::default()).await;
         assert!(result.is_ok());
     }
 
@@ -404,16 +319,8 @@ mod integration_tests {
     async fn test_update_validates_background_check_interval_negative() {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
             background_check_interval_minutes: Some(-1),
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -424,16 +331,8 @@ mod integration_tests {
     async fn test_update_validates_background_check_interval_zero() {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
             background_check_interval_minutes: Some(0),
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -444,16 +343,8 @@ mod integration_tests {
     async fn test_update_background_check_interval_success() {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
             background_check_interval_minutes: Some(30),
-            enable_headless_browser: None,
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -465,16 +356,8 @@ mod integration_tests {
     async fn test_update_headless_browser_success() {
         let conn = setup_settings_db().await;
         let params = UpdateSettingsParams {
-            theme: None,
-            show_in_tray: None,
-            launch_at_login: None,
-            enable_logging: None,
-            log_level: None,
-            enable_notifications: None,
-            sidebar_expanded: None,
-            background_check_enabled: None,
-            background_check_interval_minutes: None,
             enable_headless_browser: Some(false),
+            ..Default::default()
         };
 
         let result = SettingService::update(&conn, params).await;

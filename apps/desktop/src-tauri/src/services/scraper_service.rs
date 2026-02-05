@@ -58,10 +58,49 @@ impl ScraperService {
     }
 
     /// Check availability with control over headless fallback
+    ///
+    /// This is the main orchestrator function that coordinates the scraping workflow:
+    /// 1. Validate URL scheme
+    /// 2. Fetch HTML (with automatic headless fallback if bot protection detected)
+    /// 3. Extract variant ID from URL
+    /// 4. Parse JSON-LD blocks from HTML
+    /// 5. Find availability and price data
     pub async fn check_availability_with_headless(
         url: &str,
         enable_headless: bool,
     ) -> Result<ScrapingResult, AppError> {
+        // Step 1: Validate URL scheme
+        Self::validate_url_scheme(url)?;
+
+        // Step 2: Fetch HTML (tries HTTP first, falls back to headless if needed)
+        let html = Self::fetch_html_with_fallback(url, enable_headless).await?;
+
+        // Step 3: Extract variant ID from URL query params
+        let variant_id = Self::extract_variant_id(url);
+
+        // Step 4: Parse all JSON-LD blocks from HTML
+        let json_ld_blocks = Self::extract_json_ld_blocks(&html)?;
+
+        // Step 5: Find first block with valid availability data
+        for block in json_ld_blocks {
+            if let Some((availability, price)) =
+                Self::extract_availability_and_price(&block, variant_id.as_deref())
+            {
+                return Ok(ScrapingResult {
+                    status: AvailabilityStatus::from_schema_org(&availability),
+                    raw_availability: Some(availability),
+                    price,
+                });
+            }
+        }
+
+        Err(AppError::Scraping(
+            "No availability information found in Schema.org data".to_string(),
+        ))
+    }
+
+    /// Validate that the URL uses http or https scheme
+    fn validate_url_scheme(url: &str) -> Result<(), AppError> {
         let parsed =
             Url::parse(url).map_err(|e| AppError::Validation(format!("Invalid URL: {}", e)))?;
 
@@ -72,29 +111,47 @@ impl ScraperService {
                 scheme
             )));
         }
+        Ok(())
+    }
 
-        // Try HTTP first (fast path)
+    /// Fetch HTML content, falling back to headless browser if bot protection is detected
+    ///
+    /// Tries HTTP first (fast path). If bot protection is detected (Cloudflare challenge,
+    /// 403/503 status), falls back to headless browser if enabled.
+    async fn fetch_html_with_fallback(
+        url: &str,
+        enable_headless: bool,
+    ) -> Result<String, AppError> {
         match Self::fetch_page(url).await {
             Ok(html) => {
                 log::debug!("HTTP fetch succeeded for {}, checking for challenge", url);
-                // Check for challenge in successful response (some return 200 with challenge)
                 if Self::is_cloudflare_challenge(200, &html) {
                     log::info!("Detected bot protection challenge for {}", url);
-                    return Self::handle_bot_protection(url, enable_headless).await;
+                    if enable_headless {
+                        log::info!("Attempting headless fallback for {}", url);
+                        Self::fetch_with_headless(url).await
+                    } else {
+                        Err(AppError::BotProtection(BOT_PROTECTION_MESSAGE.to_string()))
+                    }
+                } else {
+                    Ok(html)
                 }
-                Self::parse_schema_org_with_url(&html, url)
             }
             Err(AppError::HttpStatus {
                 status,
                 url: failed_url,
             }) if status == 403 || status == 503 => {
-                // Likely bot protection - try headless
                 log::info!(
                     "HTTP request blocked ({}) for {}, trying headless",
                     status,
                     failed_url
                 );
-                Self::handle_bot_protection(&failed_url, enable_headless).await
+                if enable_headless {
+                    log::info!("Attempting headless fallback for {}", failed_url);
+                    Self::fetch_with_headless(&failed_url).await
+                } else {
+                    Err(AppError::BotProtection(BOT_PROTECTION_MESSAGE.to_string()))
+                }
             }
             Err(e) => {
                 log::error!("HTTP fetch failed for {}: {}", url, e);
@@ -103,21 +160,16 @@ impl ScraperService {
         }
     }
 
-    /// Handle bot protection by attempting headless fallback or returning an error.
-    ///
-    /// When bot protection is detected (Cloudflare challenge, 403/503 status),
-    /// this method either attempts a headless browser fallback or returns
-    /// an appropriate error message to the user.
-    async fn handle_bot_protection(
-        url: &str,
-        enable_headless: bool,
-    ) -> Result<ScrapingResult, AppError> {
-        if enable_headless {
-            log::info!("Attempting headless fallback for {}", url);
-            Self::try_headless_fallback(url).await
-        } else {
-            Err(AppError::BotProtection(BOT_PROTECTION_MESSAGE.to_string()))
-        }
+    /// Extract all JSON-LD blocks from HTML
+    fn extract_json_ld_blocks(html: &str) -> Result<Vec<serde_json::Value>, AppError> {
+        let document = Html::parse_document(html);
+        let selector = Selector::parse("script[type=\"application/ld+json\"]")
+            .map_err(|e| AppError::Scraping(format!("Invalid selector: {:?}", e)))?;
+
+        Ok(document
+            .select(&selector)
+            .filter_map(|el| serde_json::from_str(&el.inner_html()).ok())
+            .collect())
     }
 
     /// Check if the response is a Cloudflare challenge page or other bot protection
@@ -208,24 +260,18 @@ impl ScraperService {
         body_len < 5000 || !body_lower.contains("<body")
     }
 
-    /// Try to fetch page using headless browser
+    /// Fetch page HTML using headless browser
     ///
     /// Runs the blocking headless browser operations on a dedicated thread pool
     /// to avoid blocking the async runtime.
-    async fn try_headless_fallback(url: &str) -> Result<ScrapingResult, AppError> {
+    async fn fetch_with_headless(url: &str) -> Result<String, AppError> {
         let url_owned = url.to_string();
-        let url_for_parse = url.to_string();
-        let result = tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
             let mut headless = HeadlessService::new();
             headless.fetch_page(&url_owned)
         })
         .await
-        .map_err(|e| AppError::Internal(format!("Headless task failed: {}", e)))?;
-
-        match result {
-            Ok(html) => Self::parse_schema_org_with_url(&html, &url_for_parse),
-            Err(e) => Err(e),
-        }
+        .map_err(|e| AppError::Internal(format!("Headless task failed: {}", e)))?
     }
 
     /// Fetch a page's HTML content using HTTP
@@ -266,39 +312,26 @@ impl ScraperService {
 
     /// Parse Schema.org JSON-LD data from HTML to extract availability
     /// Uses the URL to match specific product variants
+    ///
+    /// This is a convenience function that combines the orchestrator steps for
+    /// callers who already have HTML and just need to parse it.
+    #[cfg(test)]
     pub fn parse_schema_org_with_url(html: &str, url: &str) -> Result<ScrapingResult, AppError> {
         let variant_id = Self::extract_variant_id(url);
-        Self::parse_schema_org_internal(html, variant_id.as_deref())
-    }
+        let json_ld_blocks = Self::extract_json_ld_blocks(html)?;
 
-    /// Internal parsing with optional variant ID
-    fn parse_schema_org_internal(
-        html: &str,
-        variant_id: Option<&str>,
-    ) -> Result<ScrapingResult, AppError> {
-        let document = Html::parse_document(html);
-        let selector = Selector::parse("script[type=\"application/ld+json\"]")
-            .map_err(|e| AppError::Scraping(format!("Invalid selector: {:?}", e)))?;
-
-        for element in document.select(&selector) {
-            let json_text = element.inner_html();
-
-            // Try to parse as JSON
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_text) {
-                // Check if it's a Product, ProductGroup, or has @graph with products
-                if let Some((availability, price)) =
-                    Self::extract_availability_and_price(&json, variant_id)
-                {
-                    return Ok(ScrapingResult {
-                        status: AvailabilityStatus::from_schema_org(&availability),
-                        raw_availability: Some(availability),
-                        price,
-                    });
-                }
+        for block in json_ld_blocks {
+            if let Some((availability, price)) =
+                Self::extract_availability_and_price(&block, variant_id.as_deref())
+            {
+                return Ok(ScrapingResult {
+                    status: AvailabilityStatus::from_schema_org(&availability),
+                    raw_availability: Some(availability),
+                    price,
+                });
             }
         }
 
-        // No availability found in any JSON-LD
         Err(AppError::Scraping(
             "No availability information found in Schema.org data".to_string(),
         ))
