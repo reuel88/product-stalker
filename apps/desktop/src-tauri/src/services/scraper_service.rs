@@ -389,7 +389,16 @@ impl ScraperService {
         }
     }
 
-    /// Extract availability and price from a JSON-LD value, trying multiple known structures
+    /// Extract availability and price from a JSON-LD value, trying multiple known structures.
+    ///
+    /// Attempts extraction in the following priority order:
+    /// 1. **Direct Product** - JSON with `@type: "Product"` and `offers` containing availability
+    /// 2. **ProductGroup** - JSON with `@type: "ProductGroup"` and `hasVariant` array;
+    ///    matches by `variant_id` if provided, otherwise uses the first variant
+    /// 3. **@graph array** - JSON with `@graph` array containing Product or ProductGroup items
+    /// 4. **Direct JSON array** - Top-level array containing Product or ProductGroup items
+    ///
+    /// Returns `None` if no availability data is found in any of these structures.
     fn extract_availability_and_price(
         json: &serde_json::Value,
         variant_id: Option<&str>,

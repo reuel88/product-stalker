@@ -6,5 +6,8 @@ export const UI = {
 	PAGINATION: {
 		DEFAULT_PAGE_SIZE: 10,
 	},
+	SKELETON: {
+		TABLE_ROW_COUNT: 5,
+	},
 	LOG_LEVELS: ["error", "warn", "info", "debug", "trace"],
 } as const;

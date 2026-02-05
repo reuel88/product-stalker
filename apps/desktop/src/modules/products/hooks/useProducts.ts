@@ -18,6 +18,31 @@ export interface UpdateProductInput {
 	notes?: string | null;
 }
 
+/** Return type for the useProducts hook */
+export interface UseProductsReturn {
+	/** Array of all products (undefined while loading) */
+	products: ProductResponse[] | undefined;
+	/** Whether the initial fetch is in progress */
+	isLoading: boolean;
+	/** Error from the last query, if any */
+	error: Error | null;
+	/** Async function to create a new product */
+	createProduct: (input: CreateProductInput) => Promise<ProductResponse>;
+	/** Whether a create operation is in progress */
+	isCreating: boolean;
+	/** Async function to update a product by id */
+	updateProduct: (args: {
+		id: string;
+		input: UpdateProductInput;
+	}) => Promise<ProductResponse>;
+	/** Whether an update operation is in progress */
+	isUpdating: boolean;
+	/** Async function to delete a product by id */
+	deleteProduct: (id: string) => Promise<void>;
+	/** Whether a delete operation is in progress */
+	isDeleting: boolean;
+}
+
 /**
  * Hook for managing products with CRUD operations.
  *
@@ -36,7 +61,7 @@ export interface UpdateProductInput {
  *   - deleteProduct: Async function to delete a product by id
  *   - isDeleting: Whether a delete operation is in progress
  */
-export function useProducts() {
+export function useProducts(): UseProductsReturn {
 	const queryClient = useQueryClient();
 
 	const {

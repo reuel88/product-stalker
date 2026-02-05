@@ -228,7 +228,7 @@ function ProductsTableSkeleton() {
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{Array.from({ length: 5 }).map((_, i) => (
+					{Array.from({ length: UI.SKELETON.TABLE_ROW_COUNT }).map((_, i) => (
 						// biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton rows never reorder
 						<TableRow key={i}>
 							<TableCell>

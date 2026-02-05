@@ -9,6 +9,44 @@ use super::app_settings_repository::AppSettingsRepository;
 /// Typed helper functions for common setting operations
 pub struct SettingsHelpers;
 
+/// Scoped settings reader with pre-bound connection and scope.
+///
+/// Provides a cleaner API for fetching multiple settings with the same scope,
+/// reducing repetitive parameter passing.
+///
+/// # Example
+/// ```ignore
+/// let reader = ScopedSettingsReader::new(conn, &scope);
+/// let theme = reader.string(keys::THEME, defaults::THEME).await?;
+/// let enabled = reader.bool(keys::ENABLED, defaults::ENABLED).await?;
+/// ```
+pub struct ScopedSettingsReader<'a> {
+    conn: &'a DatabaseConnection,
+    scope: &'a SettingScope,
+}
+
+impl<'a> ScopedSettingsReader<'a> {
+    /// Create a new scoped settings reader
+    pub fn new(conn: &'a DatabaseConnection, scope: &'a SettingScope) -> Self {
+        Self { conn, scope }
+    }
+
+    /// Get a boolean setting with a default value
+    pub async fn bool(&self, key: &str, default: bool) -> Result<bool, AppError> {
+        SettingsHelpers::get_bool_or(self.conn, self.scope, key, default).await
+    }
+
+    /// Get a string setting with a default value
+    pub async fn string(&self, key: &str, default: &str) -> Result<String, AppError> {
+        SettingsHelpers::get_string_or(self.conn, self.scope, key, default).await
+    }
+
+    /// Get an i32 setting with a default value
+    pub async fn i32(&self, key: &str, default: i32) -> Result<i32, AppError> {
+        SettingsHelpers::get_i32_or(self.conn, self.scope, key, default).await
+    }
+}
+
 impl SettingsHelpers {
     // ===== Boolean helpers =====
 
@@ -346,5 +384,61 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(value, default);
+    }
+
+    // ScopedSettingsReader tests
+
+    #[tokio::test]
+    async fn test_scoped_reader_bool() {
+        let conn = setup_app_settings_db().await;
+        let scope = SettingScope::Global;
+        let reader = ScopedSettingsReader::new(&conn, &scope);
+
+        // Default value when not set
+        let value = reader.bool("not_set", true).await.unwrap();
+        assert!(value);
+
+        // Existing value
+        SettingsHelpers::set_bool(&conn, &scope, "flag", false)
+            .await
+            .unwrap();
+        let value = reader.bool("flag", true).await.unwrap();
+        assert!(!value);
+    }
+
+    #[tokio::test]
+    async fn test_scoped_reader_string() {
+        let conn = setup_app_settings_db().await;
+        let scope = SettingScope::Global;
+        let reader = ScopedSettingsReader::new(&conn, &scope);
+
+        // Default value when not set
+        let value = reader.string("not_set", "default").await.unwrap();
+        assert_eq!(value, "default");
+
+        // Existing value
+        SettingsHelpers::set_string(&conn, &scope, "theme", "dark")
+            .await
+            .unwrap();
+        let value = reader.string("theme", "light").await.unwrap();
+        assert_eq!(value, "dark");
+    }
+
+    #[tokio::test]
+    async fn test_scoped_reader_i32() {
+        let conn = setup_app_settings_db().await;
+        let scope = SettingScope::Global;
+        let reader = ScopedSettingsReader::new(&conn, &scope);
+
+        // Default value when not set
+        let value = reader.i32("not_set", 60).await.unwrap();
+        assert_eq!(value, 60);
+
+        // Existing value
+        SettingsHelpers::set_i32(&conn, &scope, "interval", 30)
+            .await
+            .unwrap();
+        let value = reader.i32("interval", 60).await.unwrap();
+        assert_eq!(value, 30);
     }
 }

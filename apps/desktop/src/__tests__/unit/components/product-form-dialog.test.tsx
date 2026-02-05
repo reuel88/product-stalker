@@ -114,6 +114,7 @@ describe("ProductFormDialog", () => {
 			);
 
 			const descInput = screen.getByLabelText("Description");
+			await user.click(descInput);
 			await user.type(descInput, "D");
 
 			expect(onFormChange).toHaveBeenCalled();
@@ -129,6 +130,7 @@ describe("ProductFormDialog", () => {
 			);
 
 			const notesInput = screen.getByLabelText("Notes");
+			await user.click(notesInput);
 			await user.type(notesInput, "N");
 
 			expect(onFormChange).toHaveBeenCalled();

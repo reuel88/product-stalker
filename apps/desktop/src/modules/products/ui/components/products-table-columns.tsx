@@ -11,6 +11,27 @@ import {
 import { UI } from "@/constants";
 import type { ProductResponse } from "@/modules/products/types";
 
+/** Renders text truncated to maxLength with a title tooltip showing full text */
+function TruncatedText({
+	text,
+	maxLength,
+	className,
+	testId,
+}: {
+	text: string;
+	maxLength: number;
+	className?: string;
+	testId?: string;
+}) {
+	const truncated =
+		text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+	return (
+		<span data-testid={testId} className={className} title={text}>
+			{truncated}
+		</span>
+	);
+}
+
 interface ColumnOptions {
 	onEdit?: (product: ProductResponse) => void;
 	onDelete?: (product: ProductResponse) => void;
@@ -36,18 +57,13 @@ export function createProductColumns(
 			header: "URL",
 			cell: ({ row }) => {
 				const url = row.getValue("url") as string;
-				const truncated =
-					url.length > UI.TRUNCATE.URL_LENGTH
-						? `${url.slice(0, UI.TRUNCATE.URL_LENGTH)}...`
-						: url;
 				return (
 					<button
 						type="button"
 						onClick={() => openUrl(url)}
 						className="inline-flex items-center gap-1 text-left text-primary hover:underline"
-						title={url}
 					>
-						{truncated}
+						<TruncatedText text={url} maxLength={UI.TRUNCATE.URL_LENGTH} />
 						<ExternalLink className="size-3" />
 					</button>
 				);
@@ -77,17 +93,12 @@ export function createProductColumns(
 							-
 						</span>
 					);
-				const truncated =
-					description.length > UI.TRUNCATE.DESCRIPTION_LENGTH
-						? `${description.slice(0, UI.TRUNCATE.DESCRIPTION_LENGTH)}...`
-						: description;
 				return (
-					<span
-						data-testid={`description-${row.original.id}`}
-						title={description}
-					>
-						{truncated}
-					</span>
+					<TruncatedText
+						text={description}
+						maxLength={UI.TRUNCATE.DESCRIPTION_LENGTH}
+						testId={`description-${row.original.id}`}
+					/>
 				);
 			},
 		},
