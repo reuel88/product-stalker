@@ -101,47 +101,75 @@ impl ScraperService {
     }
 
     /// Check if the response is a Cloudflare challenge page or other bot protection
+    ///
+    /// Returns true if the response appears to be a bot protection challenge rather
+    /// than actual page content. Uses multiple detection strategies to minimize
+    /// false positives while catching common challenge patterns.
     fn is_cloudflare_challenge(status: u16, body: &str) -> bool {
-        // Check for common Cloudflare challenge indicators
-        let is_challenge_status = status == 403 || status == 503;
         let body_lower = body.to_lowercase();
 
-        // If the page has product data (JSON-LD), it's not a challenge page
-        let has_product_data = body_lower.contains("application/ld+json");
-
-        // Cloudflare-specific indicators (strong signals)
-        // Note: Avoid plain "cloudflare" as it causes false positives on pages using cdnjs.cloudflare.com
-        let cloudflare_indicators = body_lower.contains("just a moment...")
-            || body_lower.contains("cf-browser-verification")
-            || body_lower.contains("_cf_chl_opt")
-            || body_lower.contains("checking your browser")
-            || body_lower.contains("ray id:")
-            || body_lower.contains("cf-challenge")
-            || body_lower.contains("__cf_bm")
-            || body_lower.contains("/cdn-cgi/challenge-platform/");
-
-        // Explicit bot protection indicators (strong signals)
-        let explicit_bot_protection = body_lower.contains("bot detected")
-            || body_lower.contains("please verify you are a human")
-            || body_lower.contains("enable javascript and cookies")
-            || body_lower.contains("pardon our interruption");
-
-        // Check for minimal HTML (likely a challenge page, not real content)
-        let is_minimal_page =
-            !has_product_data && (body.len() < 5000 || !body_lower.contains("<body"));
-
-        // A 403/503 with strong challenge indicators is a challenge
-        // Note: "access denied" alone is too broad - legitimate 403s often have this
-        if is_challenge_status {
-            // If we have product data, it's not a challenge
-            if has_product_data {
-                return false;
-            }
-            cloudflare_indicators || explicit_bot_protection || is_minimal_page
-        } else {
-            // For 200 responses, require strong indicators
-            cloudflare_indicators || explicit_bot_protection
+        // Quick exit: pages with product data (JSON-LD) are real content, not challenges
+        if Self::has_product_data(&body_lower) {
+            return false;
         }
+
+        let is_bot_blocked_status = status == 403 || status == 503;
+        let has_cloudflare_markers = Self::has_cloudflare_indicators(&body_lower);
+        let has_bot_protection = Self::has_explicit_bot_protection(&body_lower);
+        let is_suspiciously_minimal = Self::is_minimal_challenge_page(&body_lower, body.len());
+
+        if is_bot_blocked_status {
+            // 403/503 responses: check for challenge indicators or suspiciously minimal content
+            has_cloudflare_markers || has_bot_protection || is_suspiciously_minimal
+        } else {
+            // 200 responses: require strong indicators (avoid false positives)
+            has_cloudflare_markers || has_bot_protection
+        }
+    }
+
+    /// Check if the page contains JSON-LD product data (indicates real content)
+    fn has_product_data(body_lower: &str) -> bool {
+        body_lower.contains("application/ld+json")
+    }
+
+    /// Check for Cloudflare-specific challenge indicators
+    ///
+    /// Note: We avoid plain "cloudflare" as it causes false positives on pages
+    /// using cdnjs.cloudflare.com or other Cloudflare CDN resources.
+    fn has_cloudflare_indicators(body_lower: &str) -> bool {
+        const CLOUDFLARE_MARKERS: &[&str] = &[
+            "just a moment...",
+            "cf-browser-verification",
+            "_cf_chl_opt",
+            "checking your browser",
+            "ray id:",
+            "cf-challenge",
+            "__cf_bm",
+            "/cdn-cgi/challenge-platform/",
+        ];
+        CLOUDFLARE_MARKERS
+            .iter()
+            .any(|marker| body_lower.contains(marker))
+    }
+
+    /// Check for explicit bot protection messages from various providers
+    fn has_explicit_bot_protection(body_lower: &str) -> bool {
+        const BOT_PROTECTION_MARKERS: &[&str] = &[
+            "bot detected",
+            "please verify you are a human",
+            "enable javascript and cookies",
+            "pardon our interruption",
+        ];
+        BOT_PROTECTION_MARKERS
+            .iter()
+            .any(|marker| body_lower.contains(marker))
+    }
+
+    /// Check if the page is suspiciously minimal (likely a challenge, not real content)
+    ///
+    /// Challenge pages are typically very short or missing a proper body element.
+    fn is_minimal_challenge_page(body_lower: &str, body_len: usize) -> bool {
+        body_len < 5000 || !body_lower.contains("<body")
     }
 
     /// Try to fetch page using headless browser

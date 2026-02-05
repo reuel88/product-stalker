@@ -5,8 +5,13 @@ describe("QUERY_KEYS constant", () => {
 	it("should export all required query keys", () => {
 		expect(QUERY_KEYS).toHaveProperty("PRODUCTS");
 		expect(QUERY_KEYS).toHaveProperty("SETTINGS");
+		expect(QUERY_KEYS).toHaveProperty("AVAILABILITY_PREFIX");
 		expect(QUERY_KEYS).toHaveProperty("availability");
 		expect(QUERY_KEYS).toHaveProperty("availabilityHistory");
+	});
+
+	it("should have AVAILABILITY_PREFIX as string constant", () => {
+		expect(QUERY_KEYS.AVAILABILITY_PREFIX).toBe("availability");
 	});
 
 	it("should have array values for static query keys", () => {

@@ -3,6 +3,13 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { COMMANDS, QUERY_KEYS } from "@/constants";
 
+/**
+ * Settings interface - uses snake_case to match Rust backend serde serialization.
+ *
+ * The property names here directly map to the Rust `Setting` struct fields,
+ * which use snake_case per Rust conventions. Keeping them consistent avoids
+ * the need for field renaming or transformation layers.
+ */
 export interface Settings {
 	theme: "light" | "dark" | "system";
 	show_in_tray: boolean;

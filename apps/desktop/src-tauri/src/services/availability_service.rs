@@ -85,7 +85,12 @@ struct BulkCheckCounters {
 /// Service layer for availability checking business logic
 pub struct AvailabilityService;
 
-/// Rate limiting delay between product checks in milliseconds
+/// Delay between product checks to avoid overwhelming target servers.
+///
+/// 500ms was chosen to balance:
+/// - Respectful scraping (not hammering servers)
+/// - Reasonable total check time for large product lists
+/// - Typical anti-bot detection thresholds
 const RATE_LIMIT_DELAY_MS: u64 = 500;
 
 impl AvailabilityService {
@@ -200,22 +205,81 @@ impl AvailabilityService {
         conn: &DatabaseConnection,
     ) -> Result<BulkCheckSummary, AppError> {
         let products = ProductRepository::find_all(conn).await?;
-        let total = products.len();
-        let mut results = Vec::with_capacity(total);
-        let mut counters = BulkCheckCounters::default();
+        let results = Self::check_products_with_rate_limit(conn, &products).await;
+        Ok(Self::build_summary_from_results(products.len(), results))
+    }
 
-        for product in products {
-            tokio::time::sleep(Duration::from_millis(RATE_LIMIT_DELAY_MS)).await;
+    /// Check each product with rate limiting between requests
+    async fn check_products_with_rate_limit(
+        conn: &DatabaseConnection,
+        products: &[crate::entities::prelude::ProductModel],
+    ) -> Vec<(BulkCheckResult, CheckProcessingResult)> {
+        let mut results = Vec::with_capacity(products.len());
 
-            let context = Self::get_product_check_context(conn, product.id).await?;
-            let (bulk_result, result) =
-                Self::check_single_product_with_context(conn, &product, &context).await;
-
-            Self::update_counters(&mut counters, &result);
-            results.push(bulk_result);
+        for (index, product) in products.iter().enumerate() {
+            if index > 0 {
+                tokio::time::sleep(Duration::from_millis(RATE_LIMIT_DELAY_MS)).await;
+            }
+            results.push(Self::check_single_product(conn, product).await);
         }
 
-        Ok(Self::build_bulk_summary(total, counters, results))
+        results
+    }
+
+    /// Check a single product, handling context fetch errors gracefully
+    async fn check_single_product(
+        conn: &DatabaseConnection,
+        product: &crate::entities::prelude::ProductModel,
+    ) -> (BulkCheckResult, CheckProcessingResult) {
+        match Self::get_product_check_context(conn, product.id).await {
+            Ok(context) => Self::check_single_product_with_context(conn, product, &context).await,
+            Err(e) => Self::build_context_error_result(product, e),
+        }
+    }
+
+    /// Build error result when context fetch fails
+    fn build_context_error_result(
+        product: &crate::entities::prelude::ProductModel,
+        error: AppError,
+    ) -> (BulkCheckResult, CheckProcessingResult) {
+        let error_message = error.to_string();
+        let result = CheckProcessingResult {
+            status: AvailabilityStatus::Unknown.as_str().to_string(),
+            price_cents: None,
+            price_currency: None,
+            error: Some(error_message.clone()),
+            is_back_in_stock: false,
+            is_price_drop: false,
+        };
+        let bulk_result = BulkCheckResult {
+            product_id: product.id.to_string(),
+            product_name: product.name.clone(),
+            status: AvailabilityStatus::Unknown.as_str().to_string(),
+            previous_status: None,
+            is_back_in_stock: false,
+            price_cents: None,
+            price_currency: None,
+            previous_price_cents: None,
+            is_price_drop: false,
+            error: Some(error_message),
+        };
+        (bulk_result, result)
+    }
+
+    /// Build summary from collected results
+    fn build_summary_from_results(
+        total: usize,
+        results: Vec<(BulkCheckResult, CheckProcessingResult)>,
+    ) -> BulkCheckSummary {
+        let mut counters = BulkCheckCounters::default();
+        let mut bulk_results = Vec::with_capacity(results.len());
+
+        for (bulk_result, processing_result) in results {
+            Self::update_counters(&mut counters, &processing_result);
+            bulk_results.push(bulk_result);
+        }
+
+        Self::build_bulk_summary(total, counters, bulk_results)
     }
 
     /// Get the context needed before checking a product (previous status and price)
@@ -294,12 +358,20 @@ impl AvailabilityService {
         }
     }
 
-    /// Check if a product transitioned to back in stock
+    /// Determines if a product has transitioned back to being in stock.
+    ///
+    /// A product is considered "back in stock" only if:
+    /// 1. There was a previous check (first check doesn't count as "back")
+    /// 2. The previous status was NOT in_stock
+    /// 3. The new status IS in_stock
+    ///
+    /// This ensures we only notify users about meaningful transitions,
+    /// not products that were always in stock or are being checked for the first time.
     pub fn is_back_in_stock(previous_status: &Option<String>, new_status: &str) -> bool {
         let in_stock = AvailabilityStatus::InStock.as_str();
         match previous_status {
             Some(prev) => prev != in_stock && new_status == in_stock,
-            None => false, // First check, not a transition
+            None => false,
         }
     }
 
@@ -556,6 +628,21 @@ mod tests {
 
         assert!(result.is_err());
         assert!(matches!(result, Err(AppError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn test_check_all_products_empty_returns_valid_summary() {
+        let conn = setup_availability_db().await;
+        // No products - ProductRepository::find_all returns empty vec
+
+        let summary = AvailabilityService::check_all_products(&conn)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.total, 0);
+        assert_eq!(summary.successful, 0);
+        assert_eq!(summary.failed, 0);
+        assert!(summary.results.is_empty());
     }
 
     #[test]
