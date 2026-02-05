@@ -355,72 +355,85 @@ impl AvailabilityService {
         conn: &DatabaseConnection,
         summary: &BulkCheckSummary,
     ) -> Result<Option<NotificationData>, AppError> {
-        // No products back in stock or price drops
         if summary.back_in_stock_count == 0 && summary.price_drop_count == 0 {
             return Ok(None);
         }
 
-        // Check if notifications are enabled
         let settings = SettingService::get(conn).await?;
         if !settings.enable_notifications {
             return Ok(None);
         }
 
-        // Collect product names that are back in stock
-        let back_in_stock_products: Vec<&str> = summary
-            .results
-            .iter()
-            .filter(|r| r.is_back_in_stock)
-            .map(|r| r.product_name.as_str())
-            .collect();
+        let back_in_stock = Self::collect_product_names(&summary.results, |r| r.is_back_in_stock);
+        let price_drops = Self::collect_product_names(&summary.results, |r| r.is_price_drop);
 
-        // Collect product names with price drops
-        let price_drop_products: Vec<&str> = summary
-            .results
-            .iter()
-            .filter(|r| r.is_price_drop)
-            .map(|r| r.product_name.as_str())
-            .collect();
+        let body = Self::compose_notification_body(&back_in_stock, &price_drops);
+        let title = Self::compose_notification_title(&back_in_stock, &price_drops);
 
-        // Build notification body based on what happened
+        Ok(Some(NotificationData { title, body }))
+    }
+
+    /// Collect product names from results based on a filter predicate
+    fn collect_product_names<F>(results: &[BulkCheckResult], predicate: F) -> Vec<&str>
+    where
+        F: Fn(&BulkCheckResult) -> bool,
+    {
+        results
+            .iter()
+            .filter(|r| predicate(r))
+            .map(|r| r.product_name.as_str())
+            .collect()
+    }
+
+    /// Compose the notification body from back-in-stock and price drop product lists
+    fn compose_notification_body(back_in_stock: &[&str], price_drops: &[&str]) -> String {
         let mut parts = Vec::new();
 
-        if !back_in_stock_products.is_empty() {
-            if back_in_stock_products.len() == 1 {
-                parts.push(format!("{} is back in stock!", back_in_stock_products[0]));
-            } else {
-                parts.push(format!(
-                    "{} products back in stock: {}",
-                    back_in_stock_products.len(),
-                    back_in_stock_products.join(", ")
-                ));
-            }
+        if !back_in_stock.is_empty() {
+            parts.push(Self::format_back_in_stock_message(back_in_stock));
         }
 
-        if !price_drop_products.is_empty() {
-            if price_drop_products.len() == 1 {
-                parts.push(format!("{} has a price drop!", price_drop_products[0]));
-            } else {
-                parts.push(format!(
-                    "{} products have price drops: {}",
-                    price_drop_products.len(),
-                    price_drop_products.join(", ")
-                ));
-            }
+        if !price_drops.is_empty() {
+            parts.push(Self::format_price_drop_message(price_drops));
         }
 
-        let title = if !back_in_stock_products.is_empty() && !price_drop_products.is_empty() {
-            "Stock & Price Updates!".to_string()
-        } else if !back_in_stock_products.is_empty() {
-            "Products Back in Stock!".to_string()
+        parts.join(" ")
+    }
+
+    /// Format the back-in-stock portion of a notification message
+    fn format_back_in_stock_message(products: &[&str]) -> String {
+        if products.len() == 1 {
+            format!("{} is back in stock!", products[0])
         } else {
-            "Price Drops!".to_string()
-        };
+            format!(
+                "{} products back in stock: {}",
+                products.len(),
+                products.join(", ")
+            )
+        }
+    }
 
-        Ok(Some(NotificationData {
-            title,
-            body: parts.join(" "),
-        }))
+    /// Format the price drop portion of a notification message
+    fn format_price_drop_message(products: &[&str]) -> String {
+        if products.len() == 1 {
+            format!("{} has a price drop!", products[0])
+        } else {
+            format!(
+                "{} products have price drops: {}",
+                products.len(),
+                products.join(", ")
+            )
+        }
+    }
+
+    /// Compose the notification title based on what events occurred
+    fn compose_notification_title(back_in_stock: &[&str], price_drops: &[&str]) -> String {
+        match (!back_in_stock.is_empty(), !price_drops.is_empty()) {
+            (true, true) => "Stock & Price Updates!".to_string(),
+            (true, false) => "Products Back in Stock!".to_string(),
+            (false, true) => "Price Drops!".to_string(),
+            (false, false) => String::new(), // Should not happen given earlier checks
+        }
     }
 }
 
@@ -745,6 +758,132 @@ mod tests {
     #[test]
     fn test_is_price_drop_both_none() {
         assert!(!AvailabilityService::is_price_drop(None, None));
+    }
+
+    // Notification helper method tests
+
+    #[test]
+    fn test_format_back_in_stock_message_single_product() {
+        let products = vec!["Product A"];
+        let message = AvailabilityService::format_back_in_stock_message(&products);
+        assert_eq!(message, "Product A is back in stock!");
+    }
+
+    #[test]
+    fn test_format_back_in_stock_message_multiple_products() {
+        let products = vec!["Product A", "Product B", "Product C"];
+        let message = AvailabilityService::format_back_in_stock_message(&products);
+        assert_eq!(message, "3 products back in stock: Product A, Product B, Product C");
+    }
+
+    #[test]
+    fn test_format_price_drop_message_single_product() {
+        let products = vec!["Product A"];
+        let message = AvailabilityService::format_price_drop_message(&products);
+        assert_eq!(message, "Product A has a price drop!");
+    }
+
+    #[test]
+    fn test_format_price_drop_message_multiple_products() {
+        let products = vec!["Product A", "Product B"];
+        let message = AvailabilityService::format_price_drop_message(&products);
+        assert_eq!(message, "2 products have price drops: Product A, Product B");
+    }
+
+    #[test]
+    fn test_compose_notification_title_both_events() {
+        let back_in_stock = vec!["Product A"];
+        let price_drops = vec!["Product B"];
+        let title = AvailabilityService::compose_notification_title(&back_in_stock, &price_drops);
+        assert_eq!(title, "Stock & Price Updates!");
+    }
+
+    #[test]
+    fn test_compose_notification_title_only_back_in_stock() {
+        let back_in_stock = vec!["Product A"];
+        let price_drops: Vec<&str> = vec![];
+        let title = AvailabilityService::compose_notification_title(&back_in_stock, &price_drops);
+        assert_eq!(title, "Products Back in Stock!");
+    }
+
+    #[test]
+    fn test_compose_notification_title_only_price_drops() {
+        let back_in_stock: Vec<&str> = vec![];
+        let price_drops = vec!["Product B"];
+        let title = AvailabilityService::compose_notification_title(&back_in_stock, &price_drops);
+        assert_eq!(title, "Price Drops!");
+    }
+
+    #[test]
+    fn test_compose_notification_body_both_events() {
+        let back_in_stock = vec!["Product A"];
+        let price_drops = vec!["Product B"];
+        let body = AvailabilityService::compose_notification_body(&back_in_stock, &price_drops);
+        assert_eq!(body, "Product A is back in stock! Product B has a price drop!");
+    }
+
+    #[test]
+    fn test_compose_notification_body_only_back_in_stock() {
+        let back_in_stock = vec!["Product A", "Product B"];
+        let price_drops: Vec<&str> = vec![];
+        let body = AvailabilityService::compose_notification_body(&back_in_stock, &price_drops);
+        assert_eq!(body, "2 products back in stock: Product A, Product B");
+    }
+
+    #[test]
+    fn test_compose_notification_body_only_price_drops() {
+        let back_in_stock: Vec<&str> = vec![];
+        let price_drops = vec!["Product C"];
+        let body = AvailabilityService::compose_notification_body(&back_in_stock, &price_drops);
+        assert_eq!(body, "Product C has a price drop!");
+    }
+
+    #[test]
+    fn test_collect_product_names_filters_correctly() {
+        let results = vec![
+            BulkCheckResult {
+                product_id: "1".to_string(),
+                product_name: "Product A".to_string(),
+                status: "in_stock".to_string(),
+                previous_status: Some("out_of_stock".to_string()),
+                is_back_in_stock: true,
+                price_cents: None,
+                price_currency: None,
+                previous_price_cents: None,
+                is_price_drop: false,
+                error: None,
+            },
+            BulkCheckResult {
+                product_id: "2".to_string(),
+                product_name: "Product B".to_string(),
+                status: "in_stock".to_string(),
+                previous_status: Some("in_stock".to_string()),
+                is_back_in_stock: false,
+                price_cents: Some(5000),
+                price_currency: Some("USD".to_string()),
+                previous_price_cents: Some(7000),
+                is_price_drop: true,
+                error: None,
+            },
+            BulkCheckResult {
+                product_id: "3".to_string(),
+                product_name: "Product C".to_string(),
+                status: "out_of_stock".to_string(),
+                previous_status: None,
+                is_back_in_stock: false,
+                price_cents: None,
+                price_currency: None,
+                previous_price_cents: None,
+                is_price_drop: false,
+                error: None,
+            },
+        ];
+
+        let back_in_stock = AvailabilityService::collect_product_names(&results, |r| r.is_back_in_stock);
+        assert_eq!(back_in_stock, vec!["Product A"]);
+
+        let price_drops = AvailabilityService::collect_product_names(&results, |r| r.is_price_drop);
+        assert_eq!(price_drops, vec!["Product B"]);
     }
 
     // CheckResultWithNotification tests
