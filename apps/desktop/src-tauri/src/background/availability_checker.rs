@@ -73,7 +73,7 @@ async fn background_checker_loop(app: AppHandle, conn: Arc<DatabaseConnection>) 
 
         // Perform the check (includes notification logic)
         log::info!("Starting background availability check");
-        match AvailabilityService::check_all_products_with_notification(&conn).await {
+        match AvailabilityService::check_all_products_with_notification(&conn, &app).await {
             Ok(result) => {
                 log::info!(
                     "Background check complete: {}/{} successful, {} back in stock, {} price drops",
