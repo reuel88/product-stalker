@@ -2,9 +2,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
 use crate::db::DbState;
-use crate::entities::setting::Model as SettingModel;
 use crate::error::AppError;
-use crate::repositories::UpdateSettingsParams;
+use crate::services::setting_service::{Settings, UpdateSettingsParams};
 use crate::services::SettingService;
 use crate::TrayState;
 
@@ -39,20 +38,20 @@ pub struct SettingsResponse {
     pub updated_at: String,
 }
 
-impl From<SettingModel> for SettingsResponse {
-    fn from(model: SettingModel) -> Self {
+impl From<Settings> for SettingsResponse {
+    fn from(settings: Settings) -> Self {
         Self {
-            theme: model.theme,
-            show_in_tray: model.show_in_tray,
-            launch_at_login: model.launch_at_login,
-            enable_logging: model.enable_logging,
-            log_level: model.log_level,
-            enable_notifications: model.enable_notifications,
-            sidebar_expanded: model.sidebar_expanded,
-            background_check_enabled: model.background_check_enabled,
-            background_check_interval_minutes: model.background_check_interval_minutes,
-            enable_headless_browser: model.enable_headless_browser,
-            updated_at: model.updated_at.to_rfc3339(),
+            theme: settings.theme,
+            show_in_tray: settings.show_in_tray,
+            launch_at_login: settings.launch_at_login,
+            enable_logging: settings.enable_logging,
+            log_level: settings.log_level,
+            enable_notifications: settings.enable_notifications,
+            sidebar_expanded: settings.sidebar_expanded,
+            background_check_enabled: settings.background_check_enabled,
+            background_check_interval_minutes: settings.background_check_interval_minutes,
+            enable_headless_browser: settings.enable_headless_browser,
+            updated_at: settings.updated_at.to_rfc3339(),
         }
     }
 }
@@ -120,10 +119,9 @@ mod tests {
     use chrono::Utc;
 
     #[test]
-    fn test_settings_response_from_model() {
+    fn test_settings_response_from_settings() {
         let now = Utc::now();
-        let model = SettingModel {
-            id: 1,
+        let settings = Settings {
             theme: "dark".to_string(),
             show_in_tray: true,
             launch_at_login: false,
@@ -137,7 +135,7 @@ mod tests {
             updated_at: now,
         };
 
-        let response = SettingsResponse::from(model);
+        let response = SettingsResponse::from(settings);
 
         assert_eq!(response.theme, "dark");
         assert!(response.show_in_tray);
@@ -152,10 +150,9 @@ mod tests {
     }
 
     #[test]
-    fn test_settings_response_from_model_light_theme() {
+    fn test_settings_response_from_settings_light_theme() {
         let now = Utc::now();
-        let model = SettingModel {
-            id: 1,
+        let settings = Settings {
             theme: "light".to_string(),
             show_in_tray: false,
             launch_at_login: true,
@@ -169,7 +166,7 @@ mod tests {
             updated_at: now,
         };
 
-        let response = SettingsResponse::from(model);
+        let response = SettingsResponse::from(settings);
 
         assert_eq!(response.theme, "light");
         assert!(!response.show_in_tray);
@@ -184,10 +181,9 @@ mod tests {
     }
 
     #[test]
-    fn test_settings_response_from_model_system_theme() {
+    fn test_settings_response_from_settings_system_theme() {
         let now = Utc::now();
-        let model = SettingModel {
-            id: 1,
+        let settings = Settings {
             theme: "system".to_string(),
             show_in_tray: true,
             launch_at_login: true,
@@ -201,7 +197,7 @@ mod tests {
             updated_at: now,
         };
 
-        let response = SettingsResponse::from(model);
+        let response = SettingsResponse::from(settings);
 
         assert_eq!(response.theme, "system");
         assert_eq!(response.log_level, "debug");
@@ -210,8 +206,7 @@ mod tests {
     #[test]
     fn test_settings_response_serializes_to_json() {
         let now = Utc::now();
-        let model = SettingModel {
-            id: 1,
+        let settings = Settings {
             theme: "dark".to_string(),
             show_in_tray: true,
             launch_at_login: false,
@@ -225,7 +220,7 @@ mod tests {
             updated_at: now,
         };
 
-        let response = SettingsResponse::from(model);
+        let response = SettingsResponse::from(settings);
         let json = serde_json::to_string(&response).unwrap();
 
         assert!(json.contains("\"theme\":\"dark\""));
@@ -239,8 +234,7 @@ mod tests {
     #[test]
     fn test_settings_response_timestamp_is_rfc3339() {
         let now = Utc::now();
-        let model = SettingModel {
-            id: 1,
+        let settings = Settings {
             theme: "dark".to_string(),
             show_in_tray: true,
             launch_at_login: false,
@@ -254,7 +248,7 @@ mod tests {
             updated_at: now,
         };
 
-        let response = SettingsResponse::from(model);
+        let response = SettingsResponse::from(settings);
 
         // RFC3339 format includes 'T' separator
         assert!(response.updated_at.contains('T'));

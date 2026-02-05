@@ -203,23 +203,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_init_db_from_url_creates_settings_table() {
+    async fn test_init_db_from_url_creates_app_settings_table() {
         let conn = init_db_from_url("sqlite::memory:".to_string())
             .await
             .unwrap();
 
-        // Verify settings table exists
+        // Verify app_settings table exists (EAV model)
         let result = conn
             .query_one(Statement::from_string(
                 conn.get_database_backend(),
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='settings';".to_owned(),
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='app_settings';"
+                    .to_owned(),
             ))
             .await
             .unwrap();
 
         assert!(
             result.is_some(),
-            "settings table should exist after migrations"
+            "app_settings table should exist after migrations"
         );
     }
 

@@ -2,10 +2,10 @@ use sea_orm::DatabaseConnection;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::entities::setting::Model as SettingModel;
 use crate::error::AppError;
 use crate::repositories::ProductRepository;
 use crate::services::availability_service::BulkCheckResult;
+use crate::services::setting_service::Settings;
 
 /// Data needed to display a notification (Tauri-agnostic)
 #[derive(Debug, Clone, Serialize)]
@@ -33,7 +33,7 @@ impl NotificationService {
     pub async fn build_single_notification(
         conn: &DatabaseConnection,
         product_id: Uuid,
-        settings: &SettingModel,
+        settings: &Settings,
         is_back_in_stock: bool,
     ) -> Result<Option<NotificationData>, AppError> {
         if !is_back_in_stock {
@@ -70,7 +70,7 @@ impl NotificationService {
     /// This is the preferred method when settings have already been fetched
     /// by the orchestrator, avoiding duplicate database queries.
     pub fn build_bulk_notification(
-        settings: &SettingModel,
+        settings: &Settings,
         back_in_stock_count: usize,
         price_drop_count: usize,
         results: &[BulkCheckResult],
@@ -349,10 +349,9 @@ mod tests {
     /// Tests for build_bulk_notification
     mod build_bulk_notification_tests {
         use super::*;
-        use crate::entities::setting::Model as SettingModel;
 
-        fn create_test_settings(enable_notifications: bool) -> SettingModel {
-            SettingModel {
+        fn create_test_settings(enable_notifications: bool) -> Settings {
+            Settings {
                 enable_notifications,
                 ..Default::default()
             }

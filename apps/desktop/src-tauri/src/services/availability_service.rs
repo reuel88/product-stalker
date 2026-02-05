@@ -7,13 +7,11 @@ use uuid::Uuid;
 
 use crate::entities::availability_check::AvailabilityStatus;
 use crate::entities::prelude::AvailabilityCheckModel;
-use crate::entities::setting::Model as SettingModel;
 use crate::error::AppError;
-use crate::repositories::{
-    AvailabilityCheckRepository, CreateCheckParams, ProductRepository, SettingRepository,
-};
+use crate::repositories::{AvailabilityCheckRepository, CreateCheckParams, ProductRepository};
 use crate::services::notification_service::NotificationData;
 use crate::services::scraper_service::ScrapingResult;
+use crate::services::setting_service::Settings;
 use crate::services::{NotificationService, ScraperService, SettingService};
 
 /// Event name for per-product progress updates during bulk check
@@ -455,7 +453,7 @@ impl AvailabilityService {
         product_id: Uuid,
     ) -> Result<CheckResultWithNotification, AppError> {
         // Step 1: Fetch settings upfront for notification check
-        let settings = SettingRepository::get_or_create(conn).await?;
+        let settings = SettingService::get(conn).await?;
 
         // Step 2: Get previous status before checking
         let previous_check = Self::get_latest(conn, product_id).await?;
@@ -499,7 +497,7 @@ impl AvailabilityService {
         app: &AppHandle,
     ) -> Result<BulkCheckResultWithNotification, AppError> {
         // Step 1: Fetch settings upfront for notification check
-        let settings = SettingRepository::get_or_create(conn).await?;
+        let settings = SettingService::get(conn).await?;
 
         // Step 2: Fetch all products
         let products = ProductRepository::find_all(conn).await?;
@@ -531,7 +529,7 @@ impl AvailabilityService {
     ///
     /// Delegates to NotificationService for actual notification composition.
     fn build_bulk_notification_with_settings(
-        settings: &SettingModel,
+        settings: &Settings,
         summary: &BulkCheckSummary,
     ) -> Option<NotificationData> {
         NotificationService::build_bulk_notification(

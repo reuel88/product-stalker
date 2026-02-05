@@ -190,12 +190,13 @@ mod tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::repositories::{SettingRepository, UpdateSettingsParams};
-    use crate::test_utils::setup_settings_db;
+    use crate::services::setting_service::UpdateSettingsParams;
+    use crate::services::SettingService;
+    use crate::test_utils::setup_app_settings_db;
 
     #[tokio::test]
     async fn test_check_notifications_enabled_default() {
-        let conn = setup_settings_db().await;
+        let conn = setup_app_settings_db().await;
 
         // Default settings have notifications enabled
         let enabled = check_notifications_enabled(&conn).await.unwrap();
@@ -204,26 +205,14 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_check_notifications_enabled_when_disabled() {
-        let conn = setup_settings_db().await;
-
-        // Create settings first
-        let settings = SettingRepository::get_or_create(&conn).await.unwrap();
+        let conn = setup_app_settings_db().await;
 
         // Disable notifications
-        SettingRepository::update(
+        SettingService::update(
             &conn,
-            settings,
             UpdateSettingsParams {
                 enable_notifications: Some(false),
-                theme: None,
-                show_in_tray: None,
-                launch_at_login: None,
-                enable_logging: None,
-                log_level: None,
-                sidebar_expanded: None,
-                background_check_enabled: None,
-                background_check_interval_minutes: None,
-                enable_headless_browser: None,
+                ..Default::default()
             },
         )
         .await
@@ -235,7 +224,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_should_send_notification_default() {
-        let conn = setup_settings_db().await;
+        let conn = setup_app_settings_db().await;
 
         let should_send = should_send_notification(&conn).await.unwrap();
         assert!(should_send);
@@ -243,24 +232,14 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_should_send_notification_when_disabled() {
-        let conn = setup_settings_db().await;
+        let conn = setup_app_settings_db().await;
 
-        // Create and disable notifications
-        let settings = SettingRepository::get_or_create(&conn).await.unwrap();
-        SettingRepository::update(
+        // Disable notifications
+        SettingService::update(
             &conn,
-            settings,
             UpdateSettingsParams {
                 enable_notifications: Some(false),
-                theme: None,
-                show_in_tray: None,
-                launch_at_login: None,
-                enable_logging: None,
-                log_level: None,
-                sidebar_expanded: None,
-                background_check_enabled: None,
-                background_check_interval_minutes: None,
-                enable_headless_browser: None,
+                ..Default::default()
             },
         )
         .await
@@ -272,27 +251,17 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_notification_respects_setting_toggle() {
-        let conn = setup_settings_db().await;
+        let conn = setup_app_settings_db().await;
 
         // Initially enabled
         assert!(check_notifications_enabled(&conn).await.unwrap());
 
         // Disable
-        let settings = SettingRepository::get_or_create(&conn).await.unwrap();
-        let settings = SettingRepository::update(
+        SettingService::update(
             &conn,
-            settings,
             UpdateSettingsParams {
                 enable_notifications: Some(false),
-                theme: None,
-                show_in_tray: None,
-                launch_at_login: None,
-                enable_logging: None,
-                log_level: None,
-                sidebar_expanded: None,
-                background_check_enabled: None,
-                background_check_interval_minutes: None,
-                enable_headless_browser: None,
+                ..Default::default()
             },
         )
         .await
@@ -301,20 +270,11 @@ mod integration_tests {
         assert!(!check_notifications_enabled(&conn).await.unwrap());
 
         // Re-enable
-        SettingRepository::update(
+        SettingService::update(
             &conn,
-            settings,
             UpdateSettingsParams {
                 enable_notifications: Some(true),
-                theme: None,
-                show_in_tray: None,
-                launch_at_login: None,
-                enable_logging: None,
-                log_level: None,
-                sidebar_expanded: None,
-                background_check_enabled: None,
-                background_check_interval_minutes: None,
-                enable_headless_browser: None,
+                ..Default::default()
             },
         )
         .await

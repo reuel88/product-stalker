@@ -5,21 +5,10 @@
 use sea_orm::{ConnectionTrait, Database, DatabaseBackend, DatabaseConnection, Schema};
 use uuid::Uuid;
 
+use crate::entities::app_setting::Entity as AppSettingEntity;
 use crate::entities::availability_check::Entity as AvailabilityCheckEntity;
 use crate::entities::product::Entity as ProductEntity;
-use crate::entities::setting::Entity as SettingEntity;
 use crate::repositories::ProductRepository;
-
-/// Creates an in-memory SQLite test database with settings table only
-pub async fn setup_settings_db() -> DatabaseConnection {
-    let conn = Database::connect("sqlite::memory:").await.unwrap();
-    let schema = Schema::new(DatabaseBackend::Sqlite);
-    let stmt = schema.create_table_from_entity(SettingEntity);
-    conn.execute(conn.get_database_backend().build(&stmt))
-        .await
-        .unwrap();
-    conn
-}
 
 /// Creates an in-memory SQLite test database with products table only
 pub async fn setup_products_db() -> DatabaseConnection {
@@ -71,4 +60,15 @@ pub async fn create_test_product(conn: &DatabaseConnection, url: &str) -> Uuid {
 /// Creates a test product with default URL (https://example.com/product)
 pub async fn create_test_product_default(conn: &DatabaseConnection) -> Uuid {
     create_test_product(conn, "https://example.com/product").await
+}
+
+/// Creates an in-memory SQLite test database with app_settings table only (EAV model)
+pub async fn setup_app_settings_db() -> DatabaseConnection {
+    let conn = Database::connect("sqlite::memory:").await.unwrap();
+    let schema = Schema::new(DatabaseBackend::Sqlite);
+    let stmt = schema.create_table_from_entity(AppSettingEntity);
+    conn.execute(conn.get_database_backend().build(&stmt))
+        .await
+        .unwrap();
+    conn
 }

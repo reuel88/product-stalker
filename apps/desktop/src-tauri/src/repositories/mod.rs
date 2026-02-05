@@ -1,7 +1,8 @@
+mod app_settings_repository;
 mod availability_check_repository;
 mod product_repository;
-mod setting_repository;
+mod settings_helpers;
 
 pub use availability_check_repository::{AvailabilityCheckRepository, CreateCheckParams};
 pub use product_repository::{ProductRepository, ProductUpdateInput};
-pub use setting_repository::{SettingRepository, UpdateSettingsParams};
+pub use settings_helpers::SettingsHelpers;
