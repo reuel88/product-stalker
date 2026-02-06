@@ -157,7 +157,10 @@ impl SettingService {
 
         let scope = SettingScope::Global;
 
-        // Update only provided fields (flat, step-based updates)
+        // Update each setting independently if a value was provided.
+        // This pattern enables partial updates where clients only send changed fields.
+        // String settings (theme, log_level) are handled first, followed by boolean
+        // settings, then integer settings.
         if let Some(theme) = params.theme {
             SettingsHelpers::set_string(conn, &scope, keys::THEME, &theme).await?;
         }
@@ -229,28 +232,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_validate_theme_light() {
+    fn test_validate_theme_accepts_light() {
         assert!(SettingService::validate_theme("light").is_ok());
     }
 
     #[test]
-    fn test_validate_theme_dark() {
+    fn test_validate_theme_accepts_dark() {
         assert!(SettingService::validate_theme("dark").is_ok());
     }
 
     #[test]
-    fn test_validate_theme_system() {
+    fn test_validate_theme_accepts_system() {
         assert!(SettingService::validate_theme("system").is_ok());
     }
 
     #[test]
-    fn test_validate_theme_invalid() {
+    fn test_validate_theme_rejects_invalid_value() {
         let result = SettingService::validate_theme("blue");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_validate_log_level_all_valid() {
+    fn test_validate_log_level_accepts_all_valid_levels() {
         assert!(SettingService::validate_log_level("error").is_ok());
         assert!(SettingService::validate_log_level("warn").is_ok());
         assert!(SettingService::validate_log_level("info").is_ok());
@@ -259,13 +262,13 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_log_level_invalid() {
+    fn test_validate_log_level_rejects_invalid_value() {
         let result = SettingService::validate_log_level("verbose");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_validate_background_check_interval_valid() {
+    fn test_validate_background_check_interval_accepts_positive_values() {
         assert!(SettingService::validate_background_check_interval(15).is_ok());
         assert!(SettingService::validate_background_check_interval(30).is_ok());
         assert!(SettingService::validate_background_check_interval(60).is_ok());
@@ -273,13 +276,13 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_background_check_interval_zero() {
+    fn test_validate_background_check_interval_rejects_zero() {
         let result = SettingService::validate_background_check_interval(0);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_validate_background_check_interval_negative() {
+    fn test_validate_background_check_interval_rejects_negative_values() {
         let result = SettingService::validate_background_check_interval(-1);
         assert!(result.is_err());
         let result = SettingService::validate_background_check_interval(-100);

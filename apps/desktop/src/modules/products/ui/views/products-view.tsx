@@ -51,6 +51,21 @@ function formatCheckAllSuccessMessage(result: BulkCheckSummary): string {
 }
 
 /**
+ * Returns the appropriate button text based on the check state.
+ *
+ * Three states: idle, checking without progress, checking with progress.
+ */
+function getCheckButtonText(
+	isChecking: boolean,
+	progress: { currentIndex: number; totalCount: number } | null,
+): string {
+	if (!isChecking) return "Check All";
+	if (progress)
+		return `Checking ${progress.currentIndex}/${progress.totalCount}...`;
+	return "Checking...";
+}
+
+/**
  * Validates that required form fields are present.
  * Shows an error toast if validation fails.
  *
@@ -179,11 +194,7 @@ export function ProductsView() {
 						<RefreshCw
 							className={cn("size-4", isCheckingAll && "animate-spin")}
 						/>
-						{isCheckingAll && progress
-							? `Checking ${progress.currentIndex}/${progress.totalCount}...`
-							: isCheckingAll
-								? "Checking..."
-								: "Check All"}
+						{getCheckButtonText(isCheckingAll, progress)}
 					</Button>
 					<Button size="sm" onClick={openCreateDialog}>
 						<Plus className="size-4" />
