@@ -36,7 +36,7 @@ Evaluate the following:
 - Code where understanding one function requires reading 4+ other functions
 
 **Good pattern:**
-```
+```rust
 // Flat, step-based - easy to follow
 fn process_order(order: Order) -> Result<Receipt> {
     let validated = validate_order(&order)?;        // Step 1: returns data
@@ -48,7 +48,7 @@ fn process_order(order: Order) -> Result<Receipt> {
 ```
 
 **Bad pattern:**
-```
+```rust
 // Nested calls - hard to trace
 fn process_order(order: Order) -> Result<Receipt> {
     OrderProcessor::new(order).validate().price().save().notify()
