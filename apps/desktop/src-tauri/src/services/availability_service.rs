@@ -10,7 +10,7 @@ use crate::entities::prelude::AvailabilityCheckModel;
 use crate::error::AppError;
 use crate::repositories::{AvailabilityCheckRepository, CreateCheckParams, ProductRepository};
 use crate::services::notification_service::NotificationData;
-use crate::services::scraper_service::ScrapingResult;
+use crate::services::scraper::ScrapingResult;
 use crate::services::setting_service::Settings;
 use crate::services::{NotificationService, ScraperService, SettingService};
 
