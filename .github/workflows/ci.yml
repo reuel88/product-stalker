@@ -92,8 +92,8 @@ jobs:
       - name: Run tests
         run: pnpm run test
 
-  test-rust:
-    name: Rust Tests
+  rust-checks:
+    name: Rust Checks
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -104,10 +104,15 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf mold
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Cargo
         uses: actions/cache@v4
@@ -122,14 +127,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
       - name: Check formatting
         run: cargo fmt --check
 
       - name: Run Clippy
         run: cargo clippy -- -D warnings
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: sccache
+          RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=mold"
 
-      - name: Run tests
-        run: cargo test
+      - name: Run tests with coverage
+        run: cargo llvm-cov --fail-under-lines 50 --ignore-filename-regex "test_utils|migrations"
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: sccache
+          RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=mold"
 
   js-coverage:
     name: JavaScript Coverage
@@ -157,39 +175,3 @@ jobs:
 
       - name: Run coverage (80% threshold)
         run: pnpm -F desktop test:coverage
-
-  rust-coverage:
-    name: Rust Coverage
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/desktop/src-tauri
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            apps/desktop/src-tauri/target/
-          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-coverage-
-
-      - name: Install cargo-tarpaulin
-        run: command -v cargo-tarpaulin || cargo install cargo-tarpaulin --locked
-
-      - name: Run coverage (50% threshold)
-        run: cargo tarpaulin --ignore-tests --fail-under 50

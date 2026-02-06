@@ -59,18 +59,11 @@ Use descriptive branch names with prefixes:
    cargo clippy -- -D warnings # Run linter - treats all warnings as errors
    cargo test                  # Run unit and integration tests
    ```
-   To check code coverage locally (requires `cargo install cargo-tarpaulin`):
+   To check code coverage locally (requires [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov)):
    ```bash
-   cargo tarpaulin --ignore-tests --fail-under 50
+   cargo llvm-cov --fail-under-lines 50 --ignore-filename-regex "test_utils|migrations"
    ```
    CI enforces a minimum 50% coverage threshold.
-
-   > **Note (Windows users):** `cargo-tarpaulin` has limited Windows support and may fail with parser errors. Use `cargo-llvm-cov` as an alternative:
-   > ```bash
-   > cargo install cargo-llvm-cov
-   > cargo llvm-cov --fail-under-lines 50
-   > ```
-   > CI runs on Linux where tarpaulin works reliably.
 5. Push your branch and open a PR against `main`
 6. All CI checks must pass before merging
 
@@ -99,13 +92,8 @@ pnpm -F desktop test:integration  # Run integration tests only
 ```bash
 cd apps/desktop/src-tauri
 cargo test                     # Run tests
-cargo tarpaulin --ignore-tests --fail-under 50  # Coverage (50% threshold)
+cargo llvm-cov --fail-under-lines 50 --ignore-filename-regex "test_utils|migrations"  # Coverage (50% threshold)
 ```
-
-> **Windows users:** If tarpaulin fails, use `cargo-llvm-cov` instead:
-> ```bash
-> cargo llvm-cov --fail-under-lines 50
-> ```
 
 ## Release Process (Maintainers)
 
