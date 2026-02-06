@@ -157,61 +157,37 @@ impl SettingService {
 
         let scope = SettingScope::Global;
 
-        // Update only provided fields
+        // Update only provided fields (flat, step-based updates)
         if let Some(theme) = params.theme {
             SettingsHelpers::set_string(conn, &scope, keys::THEME, &theme).await?;
-        }
-        if let Some(show_in_tray) = params.show_in_tray {
-            SettingsHelpers::set_bool(conn, &scope, keys::SHOW_IN_TRAY, show_in_tray).await?;
-        }
-        if let Some(launch_at_login) = params.launch_at_login {
-            SettingsHelpers::set_bool(conn, &scope, keys::LAUNCH_AT_LOGIN, launch_at_login).await?;
-        }
-        if let Some(enable_logging) = params.enable_logging {
-            SettingsHelpers::set_bool(conn, &scope, keys::ENABLE_LOGGING, enable_logging).await?;
         }
         if let Some(log_level) = params.log_level {
             SettingsHelpers::set_string(conn, &scope, keys::LOG_LEVEL, &log_level).await?;
         }
-        if let Some(enable_notifications) = params.enable_notifications {
-            SettingsHelpers::set_bool(
-                conn,
-                &scope,
-                keys::ENABLE_NOTIFICATIONS,
-                enable_notifications,
-            )
-            .await?;
+        if let Some(v) = params.show_in_tray {
+            SettingsHelpers::set_bool(conn, &scope, keys::SHOW_IN_TRAY, v).await?;
         }
-        if let Some(sidebar_expanded) = params.sidebar_expanded {
-            SettingsHelpers::set_bool(conn, &scope, keys::SIDEBAR_EXPANDED, sidebar_expanded)
+        if let Some(v) = params.launch_at_login {
+            SettingsHelpers::set_bool(conn, &scope, keys::LAUNCH_AT_LOGIN, v).await?;
+        }
+        if let Some(v) = params.enable_logging {
+            SettingsHelpers::set_bool(conn, &scope, keys::ENABLE_LOGGING, v).await?;
+        }
+        if let Some(v) = params.enable_notifications {
+            SettingsHelpers::set_bool(conn, &scope, keys::ENABLE_NOTIFICATIONS, v).await?;
+        }
+        if let Some(v) = params.sidebar_expanded {
+            SettingsHelpers::set_bool(conn, &scope, keys::SIDEBAR_EXPANDED, v).await?;
+        }
+        if let Some(v) = params.background_check_enabled {
+            SettingsHelpers::set_bool(conn, &scope, keys::BACKGROUND_CHECK_ENABLED, v).await?;
+        }
+        if let Some(v) = params.enable_headless_browser {
+            SettingsHelpers::set_bool(conn, &scope, keys::ENABLE_HEADLESS_BROWSER, v).await?;
+        }
+        if let Some(v) = params.background_check_interval_minutes {
+            SettingsHelpers::set_i32(conn, &scope, keys::BACKGROUND_CHECK_INTERVAL_MINUTES, v)
                 .await?;
-        }
-        if let Some(background_check_enabled) = params.background_check_enabled {
-            SettingsHelpers::set_bool(
-                conn,
-                &scope,
-                keys::BACKGROUND_CHECK_ENABLED,
-                background_check_enabled,
-            )
-            .await?;
-        }
-        if let Some(background_check_interval_minutes) = params.background_check_interval_minutes {
-            SettingsHelpers::set_i32(
-                conn,
-                &scope,
-                keys::BACKGROUND_CHECK_INTERVAL_MINUTES,
-                background_check_interval_minutes,
-            )
-            .await?;
-        }
-        if let Some(enable_headless_browser) = params.enable_headless_browser {
-            SettingsHelpers::set_bool(
-                conn,
-                &scope,
-                keys::ENABLE_HEADLESS_BROWSER,
-                enable_headless_browser,
-            )
-            .await?;
         }
 
         // Return current settings
