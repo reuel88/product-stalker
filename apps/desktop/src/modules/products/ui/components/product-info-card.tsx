@@ -9,7 +9,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { formatPrice } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import type {
 	AvailabilityCheckResponse,
 	AvailabilityStatus,
@@ -23,41 +23,52 @@ interface ProductInfoCardProps {
 	onCheck?: () => void;
 }
 
-function StatusBadge({ status }: { status: AvailabilityStatus }) {
-	const config: Record<
-		AvailabilityStatus,
-		{ label: string; className: string }
-	> = {
-		in_stock: {
-			label: "In Stock",
-			className:
-				"bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-		},
-		out_of_stock: {
-			label: "Out of Stock",
-			className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-		},
-		back_order: {
-			label: "Back Order",
-			className:
-				"bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-		},
-		unknown: {
-			label: "Unknown",
-			className:
-				"bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
-		},
-	};
+const STATUS_BADGE_CONFIG: Record<
+	AvailabilityStatus,
+	{ label: string; className: string }
+> = {
+	in_stock: {
+		label: "In Stock",
+		className:
+			"bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+	},
+	out_of_stock: {
+		label: "Out of Stock",
+		className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+	},
+	back_order: {
+		label: "Back Order",
+		className:
+			"bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+	},
+	unknown: {
+		label: "Unknown",
+		className: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
+	},
+};
 
-	const { label, className } = config[status];
+function StatusBadge({ status }: { status: AvailabilityStatus }) {
+	const { label, className } = STATUS_BADGE_CONFIG[status];
 
 	return (
 		<span
-			className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-medium text-xs ${className}`}
+			className={cn(
+				"inline-flex items-center rounded-full px-2.5 py-0.5 font-medium text-xs",
+				className,
+			)}
 		>
 			{label}
 		</span>
 	);
+}
+
+function getCurrentPrice(
+	check: AvailabilityCheckResponse | null | undefined,
+): string | null {
+	if (check?.price_cents == null || !check.price_currency) {
+		return null;
+	}
+	return formatPrice(check.price_cents, check.price_currency);
 }
 
 export function ProductInfoCard({
@@ -66,10 +77,7 @@ export function ProductInfoCard({
 	isChecking,
 	onCheck,
 }: ProductInfoCardProps) {
-	const currentPrice =
-		latestCheck?.price_cents !== null && latestCheck?.price_currency
-			? formatPrice(latestCheck.price_cents, latestCheck.price_currency)
-			: null;
+	const currentPrice = getCurrentPrice(latestCheck);
 
 	return (
 		<Card>

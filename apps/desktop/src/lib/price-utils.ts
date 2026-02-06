@@ -4,6 +4,18 @@ import type {
 	TimeRange,
 } from "@/modules/products/types";
 
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** Type guard to check if an availability check has valid price data */
+function hasValidPrice(
+	check: AvailabilityCheckResponse,
+): check is AvailabilityCheckResponse & {
+	price_cents: number;
+	price_currency: string;
+} {
+	return check.price_cents !== null && check.price_currency !== null;
+}
+
 /**
  * Filter availability checks by time range.
  * @param checks - Array of availability check responses
@@ -20,7 +32,9 @@ export function filterByTimeRange(
 
 	const now = new Date();
 	const daysToSubtract = range === "7d" ? 7 : 30;
-	const cutoff = new Date(now.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
+	const cutoff = new Date(
+		now.getTime() - daysToSubtract * MILLISECONDS_PER_DAY,
+	);
 
 	return checks.filter((check) => new Date(check.checked_at) >= cutoff);
 }
@@ -35,13 +49,11 @@ export function transformToPriceDataPoints(
 	checks: AvailabilityCheckResponse[],
 ): PriceDataPoint[] {
 	return checks
-		.filter(
-			(check) => check.price_cents !== null && check.price_currency !== null,
-		)
+		.filter(hasValidPrice)
 		.map((check) => ({
 			date: check.checked_at,
-			price: check.price_cents as number,
-			currency: check.price_currency as string,
+			price: check.price_cents,
+			currency: check.price_currency,
 		}))
 		.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
