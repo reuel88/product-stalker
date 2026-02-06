@@ -55,7 +55,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUwNzQ0NUNGQjFDMkQ5NEQKUldSTjJjS3h6MFYwNEdkbDlWelYrWVdSV3RXeW0xd2grVmlyaDYrdzM4NWlVM1ZRcERVN2Rqb24K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERFQTMzNTg2RDIxNUE3MEYKUldRUHB4WFNoaldqM2xTb3hEbVU2eXFwZmxrTVJKckp5Q2FmOTRUc2VyS0szLzJIb3RqNkFwSEkK",
       "endpoints": [
         "https://github.com/reuel88/product-stalker/releases/latest/download/latest.json"
       ],
