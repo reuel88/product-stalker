@@ -26,7 +26,20 @@ export interface Settings {
 
 export type UpdateSettingsInput = Partial<Omit<Settings, "updated_at">>;
 
-export function useSettings() {
+/**
+ * Return type for the useSettings hook.
+ * Provides explicit typing for better API discoverability and IDE support.
+ */
+export interface UseSettingsReturn {
+	settings: Settings | undefined;
+	isLoading: boolean;
+	error: Error | null;
+	updateSettings: (input: UpdateSettingsInput) => void;
+	updateSettingsAsync: (input: UpdateSettingsInput) => Promise<Settings>;
+	isUpdating: boolean;
+}
+
+export function useSettings(): UseSettingsReturn {
 	const queryClient = useQueryClient();
 
 	const {
