@@ -75,22 +75,6 @@ impl ProductRepository {
     ///
     /// * `model` - The existing product model to update
     /// * `input` - The fields to update (see [`ProductUpdateInput`] for details)
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// // Keep name, update URL, clear description, set notes
-    /// ProductRepository::update(
-    ///     &conn,
-    ///     product,
-    ///     ProductUpdateInput {
-    ///         url: Some("https://new.com".into()),
-    ///         description: Some(None),                     // clear description
-    ///         notes: Some(Some("New notes".into())),       // set notes
-    ///         ..Default::default()                         // keep name unchanged
-    ///     },
-    /// )
-    /// ```
     pub async fn update(
         conn: &DatabaseConnection,
         model: ProductModel,

@@ -13,13 +13,6 @@ pub struct SettingsHelpers;
 ///
 /// Provides a cleaner API for fetching multiple settings with the same scope,
 /// reducing repetitive parameter passing.
-///
-/// # Example
-/// ```ignore
-/// let reader = ScopedSettingsReader::new(conn, &scope);
-/// let theme = reader.string(keys::THEME, defaults::THEME).await?;
-/// let enabled = reader.bool(keys::ENABLED, defaults::ENABLED).await?;
-/// ```
 pub struct ScopedSettingsReader<'a> {
     conn: &'a DatabaseConnection,
     scope: &'a SettingScope,
