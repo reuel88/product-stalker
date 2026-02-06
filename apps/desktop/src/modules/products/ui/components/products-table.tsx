@@ -37,7 +37,12 @@ interface ProductsTableProps {
 	onDelete?: (product: ProductResponse) => void;
 }
 
-function AvailabilityCell({ productId }: { productId: string }) {
+/**
+ * Custom hook that wraps useAvailability with check handling logic.
+ * Extracted to enable sharing between AvailabilityCell and PriceCell,
+ * making explicit that both cells use the same underlying data source.
+ */
+function useProductAvailabilityData(productId: string) {
 	const { latestCheck, isChecking, checkAvailability } =
 		useAvailability(productId);
 
@@ -54,6 +59,13 @@ function AvailabilityCell({ productId }: { productId: string }) {
 		}
 	};
 
+	return { latestCheck, isChecking, handleCheck };
+}
+
+function AvailabilityCell({ productId }: { productId: string }) {
+	const { latestCheck, isChecking, handleCheck } =
+		useProductAvailabilityData(productId);
+
 	return (
 		<AvailabilityBadge
 			status={latestCheck?.status ?? null}
@@ -66,7 +78,7 @@ function AvailabilityCell({ productId }: { productId: string }) {
 }
 
 function PriceCell({ productId }: { productId: string }) {
-	const { latestCheck } = useAvailability(productId);
+	const { latestCheck } = useProductAvailabilityData(productId);
 
 	const price = formatPrice(
 		latestCheck?.price_cents ?? null,
