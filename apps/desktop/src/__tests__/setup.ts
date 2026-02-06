@@ -42,6 +42,34 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 	revealItemInDir: vi.fn(() => Promise.resolve()),
 }));
 
+// Mock @tanstack/react-router Link component
+vi.mock("@tanstack/react-router", async () => {
+	const React = await import("react");
+	return {
+		Link: ({
+			children,
+			to,
+			params,
+			...props
+		}: {
+			children: React.ReactNode;
+			to: string;
+			params?: Record<string, string>;
+		}) => {
+			// Build href with params if provided
+			let href = to;
+			if (params) {
+				for (const [key, value] of Object.entries(params)) {
+					href = href.replace(`$${key}`, value);
+				}
+			}
+			return React.createElement("a", { href, ...props }, children);
+		},
+		createFileRoute: () => () => ({}),
+		useParams: () => ({}),
+	};
+});
+
 // Clear all mocks between tests
 beforeEach(() => {
 	vi.clearAllMocks();

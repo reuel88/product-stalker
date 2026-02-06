@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ExternalLink, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
@@ -28,7 +29,13 @@ export function createProductColumns(
 			accessorKey: "name",
 			header: "Name",
 			cell: ({ row }) => (
-				<span className="font-medium">{row.getValue("name")}</span>
+				<Link
+					to="/products/$id"
+					params={{ id: row.original.id }}
+					className="font-medium text-primary hover:underline"
+				>
+					{row.getValue("name")}
+				</Link>
 			),
 		},
 		{

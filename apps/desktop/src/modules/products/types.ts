@@ -57,3 +57,20 @@ export interface CheckProgressEvent {
 export interface CheckCompleteEvent {
 	summary: BulkCheckSummary;
 }
+
+/**
+ * Time range options for filtering price history charts.
+ */
+export type TimeRange = "7d" | "30d" | "all";
+
+/**
+ * Data point for price history charts.
+ */
+export interface PriceDataPoint {
+	/** ISO 8601 timestamp of the price check */
+	date: string;
+	/** Price in smallest currency unit (cents) */
+	price: number;
+	/** ISO 4217 currency code */
+	currency: string;
+}

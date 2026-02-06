@@ -13,6 +13,7 @@ import { Route as TestSettingsRouteImport } from './routes/test-settings'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProductsIdRouteImport } from './routes/products_.$id'
 
 const TestSettingsRoute = TestSettingsRouteImport.update({
   id: '/test-settings',
@@ -34,18 +35,25 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductsIdRoute = ProductsIdRouteImport.update({
+  id: '/products_/$id',
+  path: '/products/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/products': typeof ProductsRoute
   '/settings': typeof SettingsRoute
   '/test-settings': typeof TestSettingsRoute
+  '/products/$id': typeof ProductsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/products': typeof ProductsRoute
   '/settings': typeof SettingsRoute
   '/test-settings': typeof TestSettingsRoute
+  '/products/$id': typeof ProductsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,25 @@ export interface FileRoutesById {
   '/products': typeof ProductsRoute
   '/settings': typeof SettingsRoute
   '/test-settings': typeof TestSettingsRoute
+  '/products_/$id': typeof ProductsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/products' | '/settings' | '/test-settings'
+  fullPaths:
+    | '/'
+    | '/products'
+    | '/settings'
+    | '/test-settings'
+    | '/products/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/products' | '/settings' | '/test-settings'
-  id: '__root__' | '/' | '/products' | '/settings' | '/test-settings'
+  to: '/' | '/products' | '/settings' | '/test-settings' | '/products/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/products'
+    | '/settings'
+    | '/test-settings'
+    | '/products_/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +87,7 @@ export interface RootRouteChildren {
   ProductsRoute: typeof ProductsRoute
   SettingsRoute: typeof SettingsRoute
   TestSettingsRoute: typeof TestSettingsRoute
+  ProductsIdRoute: typeof ProductsIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/products_/$id': {
+      id: '/products_/$id'
+      path: '/products/$id'
+      fullPath: '/products/$id'
+      preLoaderRoute: typeof ProductsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +135,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProductsRoute: ProductsRoute,
   SettingsRoute: SettingsRoute,
   TestSettingsRoute: TestSettingsRoute,
+  ProductsIdRoute: ProductsIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

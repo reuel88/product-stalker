@@ -18,6 +18,7 @@ use db::DbState;
 use tauri::tray::TrayIcon;
 use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_notification::NotificationExt;
 
 /// State wrapper for the system tray icon, allowing runtime show/hide
 pub struct TrayState(pub Mutex<Option<TrayIcon<tauri::Wry>>>);
@@ -48,6 +49,12 @@ pub fn run() {
                         ))
                         .build(),
                 )?;
+            }
+
+            // Request notification permission (triggers macOS prompt on first launch)
+            match app.notification().request_permission() {
+                Ok(state) => log::info!("Notification permission state: {:?}", state),
+                Err(e) => log::warn!("Failed to request notification permission: {}", e),
             }
 
             let handle = app.handle().clone();
