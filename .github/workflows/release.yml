@@ -96,6 +96,6 @@ jobs:
             - **`.AppImage`** - Portable, works on most distributions. Make executable with `chmod +x` and run directly.
             - **`.deb`** - For Debian, Ubuntu, and derivatives. Install with `sudo dpkg -i <file>.deb`.
             - **`.rpm`** - For Fedora, RHEL, and derivatives. Install with `sudo rpm -i <file>.rpm`.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
