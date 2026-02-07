@@ -2,8 +2,6 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, QueryFilter, Set,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use serde_json::Value;
-use std::collections::HashMap;
 
 use crate::entities::app_setting::{
     ActiveModel, Column, Entity as AppSetting, Model as AppSettingModel, SettingScope,
@@ -68,29 +66,6 @@ impl AppSettingsRepository {
                 Ok(inserted)
             }
         }
-    }
-
-    /// List all settings for a given scope as a HashMap
-    #[allow(dead_code)]
-    pub async fn list_settings(
-        conn: &DatabaseConnection,
-        scope: &SettingScope,
-    ) -> Result<HashMap<String, Value>, AppError> {
-        let condition = Self::scope_condition(scope);
-        let models = AppSetting::find().filter(condition).all(conn).await?;
-
-        let mut map = HashMap::new();
-        for model in models {
-            let value: Value = serde_json::from_str(&model.value).map_err(|e| {
-                AppError::Internal(format!(
-                    "Failed to deserialize setting '{}': {}",
-                    model.key, e
-                ))
-            })?;
-            map.insert(model.key, value);
-        }
-
-        Ok(map)
     }
 
     /// Delete a setting by scope and key
@@ -221,30 +196,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(value, Some("dark".to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_list_settings() {
-        let conn = setup_app_settings_db().await;
-        let scope = SettingScope::Global;
-
-        AppSettingsRepository::set_setting(&conn, &scope, "theme", &"dark")
-            .await
-            .unwrap();
-        AppSettingsRepository::set_setting(&conn, &scope, "show_in_tray", &true)
-            .await
-            .unwrap();
-
-        let settings = AppSettingsRepository::list_settings(&conn, &scope)
-            .await
-            .unwrap();
-
-        assert_eq!(settings.len(), 2);
-        assert_eq!(
-            settings.get("theme"),
-            Some(&Value::String("dark".to_string()))
-        );
-        assert_eq!(settings.get("show_in_tray"), Some(&Value::Bool(true)));
     }
 
     #[tokio::test]

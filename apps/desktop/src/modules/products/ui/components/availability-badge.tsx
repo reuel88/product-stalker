@@ -1,8 +1,8 @@
 import { Loader2, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { cn } from "@/lib/utils";
+import { useRelativeTime } from "@/modules/products/hooks/useRelativeTime";
 import type { AvailabilityStatus } from "@/modules/products/types";
 import { STATUS_BADGE_CONFIG } from "./status-config";
 

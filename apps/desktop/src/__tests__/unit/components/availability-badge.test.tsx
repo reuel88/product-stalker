@@ -3,7 +3,7 @@ import { AvailabilityBadge } from "@/modules/products/ui/components/availability
 import { render, screen } from "../../test-utils";
 
 // Mock useRelativeTime hook
-vi.mock("@/hooks/useRelativeTime", () => ({
+vi.mock("@/modules/products/hooks/useRelativeTime", () => ({
 	useRelativeTime: vi.fn((dateStr: string | null) => {
 		if (!dateStr) return "";
 		return "5m ago";

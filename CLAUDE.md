@@ -27,14 +27,14 @@ cargo fmt --check         # Check formatting (cargo fmt to auto-fix)
 cargo clippy -- -D warnings  # Linter - treats warnings as errors
 cargo test                # Run all tests (~420 tests)
 cargo test <module_name>  # Run tests for specific module (e.g., cargo test services::availability_service)
-cargo llvm-cov --fail-under-lines 50 --ignore-filename-regex "test_utils|migrations"  # Coverage check
+cargo llvm-cov --fail-under-lines 65 --ignore-filename-regex "test_utils|migrations"  # Coverage check
 ```
 
 ### Coverage Thresholds
 - **Frontend (Vitest):**
   - Unit tests: 80% for statements, branches, functions, lines
   - Integration tests: 60% for statements, branches, functions, lines
-- **Rust:** 50% line coverage (use `cargo llvm-cov --text` to see detailed report)
+- **Rust:** 65% line coverage (use `cargo llvm-cov --text` to see detailed report)
 
 ### Rust Test Structure
 Tests are co-located with source code using `#[cfg(test)]` modules:

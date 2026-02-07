@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useRelativeTime } from "@/hooks/useRelativeTime";
+import { useRelativeTime } from "@/modules/products/hooks/useRelativeTime";
 
 describe("useRelativeTime", () => {
 	beforeEach(() => {

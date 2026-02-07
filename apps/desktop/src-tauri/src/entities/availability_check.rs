@@ -1,6 +1,20 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+/// Schema.org availability values that map to InStock status
+const IN_STOCK_INDICATORS: &[&str] = &[
+    "instock",
+    "instoreonly",
+    "onlineonly",
+    "limitedavailability",
+];
+
+/// Schema.org availability values that map to OutOfStock status
+const OUT_OF_STOCK_INDICATORS: &[&str] = &["outofstock", "soldout", "discontinued"];
+
+/// Schema.org availability values that map to BackOrder status
+const BACK_ORDER_INDICATORS: &[&str] = &["backorder", "preorder", "presale"];
+
 /// Availability status for a product
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -11,20 +25,40 @@ pub enum AvailabilityStatus {
     Unknown,
 }
 
+/// Check if the normalized availability string contains any of the given indicators
+fn contains_any_indicator(normalized: &str, indicators: &[&str]) -> bool {
+    indicators
+        .iter()
+        .any(|indicator| normalized.contains(indicator))
+}
+
 impl AvailabilityStatus {
     /// Parse a Schema.org availability value into an AvailabilityStatus
+    ///
+    /// Handles all 10 official Schema.org ItemAvailability values:
+    /// - InStock, InStoreOnly, OnlineOnly, LimitedAvailability -> InStock
+    /// - OutOfStock, SoldOut, Discontinued -> OutOfStock
+    /// - BackOrder, PreOrder, PreSale -> BackOrder
     pub fn from_schema_org(value: &str) -> Self {
         let normalized = value.to_lowercase();
 
-        if normalized.contains("instock") {
-            Self::InStock
-        } else if normalized.contains("outofstock") {
-            Self::OutOfStock
-        } else if normalized.contains("backorder") || normalized.contains("preorder") {
-            Self::BackOrder
-        } else {
-            Self::Unknown
+        if contains_any_indicator(&normalized, IN_STOCK_INDICATORS) {
+            return Self::InStock;
         }
+
+        if contains_any_indicator(&normalized, OUT_OF_STOCK_INDICATORS) {
+            return Self::OutOfStock;
+        }
+
+        if contains_any_indicator(&normalized, BACK_ORDER_INDICATORS) {
+            return Self::BackOrder;
+        }
+
+        log::warn!(
+            "Unrecognized Schema.org availability value: '{}' - returning Unknown",
+            value
+        );
+        Self::Unknown
     }
 
     /// Convert to database string representation
@@ -270,5 +304,42 @@ mod tests {
             AvailabilityStatus::from_schema_org("  InStock  "),
             AvailabilityStatus::InStock
         );
+    }
+
+    /// Assert that a Schema.org value (bare, http://, https://) all map to the expected status
+    fn assert_schema_org_maps_to(value: &str, expected: AvailabilityStatus) {
+        let variants = [
+            value.to_string(),
+            format!("http://schema.org/{}", value),
+            format!("https://schema.org/{}", value),
+        ];
+        for input in &variants {
+            assert_eq!(
+                AvailabilityStatus::from_schema_org(input),
+                expected,
+                "Failed for input: '{}'",
+                input
+            );
+        }
+    }
+
+    // Tests for additional Schema.org ItemAvailability values
+
+    #[test]
+    fn test_from_schema_org_in_stock_variants() {
+        assert_schema_org_maps_to("InStoreOnly", AvailabilityStatus::InStock);
+        assert_schema_org_maps_to("OnlineOnly", AvailabilityStatus::InStock);
+        assert_schema_org_maps_to("LimitedAvailability", AvailabilityStatus::InStock);
+    }
+
+    #[test]
+    fn test_from_schema_org_out_of_stock_variants() {
+        assert_schema_org_maps_to("SoldOut", AvailabilityStatus::OutOfStock);
+        assert_schema_org_maps_to("Discontinued", AvailabilityStatus::OutOfStock);
+    }
+
+    #[test]
+    fn test_from_schema_org_back_order_variants() {
+        assert_schema_org_maps_to("PreSale", AvailabilityStatus::BackOrder);
     }
 }
