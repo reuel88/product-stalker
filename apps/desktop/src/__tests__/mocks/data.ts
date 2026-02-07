@@ -111,6 +111,8 @@ export function createMockAvailabilityCheck(
 		price_cents: null,
 		price_currency: null,
 		raw_price: null,
+		previous_price_cents: null,
+		is_price_drop: false,
 		...overrides,
 	};
 }

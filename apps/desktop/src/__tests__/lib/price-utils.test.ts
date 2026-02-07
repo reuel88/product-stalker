@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+	calculatePriceChangePercent,
 	filterByTimeRange,
+	formatPriceChangePercent,
 	getDateRangeLabel,
+	getPriceChangeDirection,
 	transformToPriceDataPoints,
 } from "@/lib/price-utils";
 import type { AvailabilityCheckResponse } from "@/modules/products/types";
@@ -19,6 +22,8 @@ function createCheck(
 		price_cents: 9999,
 		price_currency: "USD",
 		raw_price: "99.99",
+		previous_price_cents: null,
+		is_price_drop: false,
 		...overrides,
 	};
 }
@@ -213,5 +218,80 @@ describe("getDateRangeLabel", () => {
 		const firstDate = new Date("2024-01-01T10:00:00Z").toLocaleDateString();
 		const lastDate = new Date("2024-01-30T10:00:00Z").toLocaleDateString();
 		expect(result).toBe(`${firstDate} - ${lastDate}`);
+	});
+});
+
+describe("getPriceChangeDirection", () => {
+	it("should return 'down' when current price is lower", () => {
+		expect(getPriceChangeDirection(8000, 10000)).toBe("down");
+	});
+
+	it("should return 'up' when current price is higher", () => {
+		expect(getPriceChangeDirection(12000, 10000)).toBe("up");
+	});
+
+	it("should return 'unchanged' when prices are equal", () => {
+		expect(getPriceChangeDirection(10000, 10000)).toBe("unchanged");
+	});
+
+	it("should return 'unknown' when current price is null", () => {
+		expect(getPriceChangeDirection(null, 10000)).toBe("unknown");
+	});
+
+	it("should return 'unknown' when previous price is null", () => {
+		expect(getPriceChangeDirection(10000, null)).toBe("unknown");
+	});
+
+	it("should return 'unknown' when both prices are null", () => {
+		expect(getPriceChangeDirection(null, null)).toBe("unknown");
+	});
+});
+
+describe("calculatePriceChangePercent", () => {
+	it("should calculate positive percentage for price increase", () => {
+		expect(calculatePriceChangePercent(11000, 10000)).toBe(10);
+	});
+
+	it("should calculate negative percentage for price decrease", () => {
+		expect(calculatePriceChangePercent(9000, 10000)).toBe(-10);
+	});
+
+	it("should return 0 when prices are equal", () => {
+		expect(calculatePriceChangePercent(10000, 10000)).toBe(0);
+	});
+
+	it("should return null when current price is null", () => {
+		expect(calculatePriceChangePercent(null, 10000)).toBeNull();
+	});
+
+	it("should return null when previous price is null", () => {
+		expect(calculatePriceChangePercent(10000, null)).toBeNull();
+	});
+
+	it("should return null when previous price is zero", () => {
+		expect(calculatePriceChangePercent(10000, 0)).toBeNull();
+	});
+
+	it("should round percentage to integer", () => {
+		expect(calculatePriceChangePercent(10333, 10000)).toBe(3);
+		expect(calculatePriceChangePercent(10666, 10000)).toBe(7);
+	});
+});
+
+describe("formatPriceChangePercent", () => {
+	it("should format positive percentage with plus sign", () => {
+		expect(formatPriceChangePercent(15)).toBe("+15%");
+	});
+
+	it("should format negative percentage", () => {
+		expect(formatPriceChangePercent(-12)).toBe("-12%");
+	});
+
+	it("should format zero with plus sign", () => {
+		expect(formatPriceChangePercent(0)).toBe("+0%");
+	});
+
+	it("should return empty string for null", () => {
+		expect(formatPriceChangePercent(null)).toBe("");
 	});
 });

@@ -61,6 +61,26 @@ impl AvailabilityCheckRepository {
         Ok(check.and_then(|c| c.price_cents))
     }
 
+    /// Find the second-most-recent price for a product
+    /// Used for comparing the latest check's price against the previous price
+    pub async fn find_second_previous_price(
+        conn: &DatabaseConnection,
+        product_id: Uuid,
+    ) -> Result<Option<i64>, AppError> {
+        use sea_orm::QuerySelect;
+
+        let checks = AvailabilityCheck::find()
+            .filter(AvailabilityCheckColumn::ProductId.eq(product_id))
+            .filter(AvailabilityCheckColumn::PriceCents.is_not_null())
+            .order_by_desc(AvailabilityCheckColumn::CheckedAt)
+            .limit(2)
+            .all(conn)
+            .await?;
+
+        // Return the second check's price if it exists
+        Ok(checks.get(1).and_then(|c| c.price_cents))
+    }
+
     /// Find the most recent availability check for a product
     pub async fn find_latest_for_product(
         conn: &DatabaseConnection,
@@ -232,6 +252,95 @@ mod tests {
             .unwrap();
 
         assert_eq!(previous_price, None);
+    }
+
+    #[tokio::test]
+    async fn test_find_second_previous_price() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
+
+        // Create first check with price
+        AvailabilityCheckRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            product_id,
+            CreateCheckParams {
+                status: "in_stock".to_string(),
+                price_cents: Some(78900),
+                price_currency: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        // Small delay to ensure different timestamps
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+
+        // Create second check with different price
+        AvailabilityCheckRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            product_id,
+            CreateCheckParams {
+                status: "in_stock".to_string(),
+                price_cents: Some(69900),
+                price_currency: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let second_previous_price =
+            AvailabilityCheckRepository::find_second_previous_price(&conn, product_id)
+                .await
+                .unwrap();
+
+        // Should return the first check's price (78900), not the latest (69900)
+        assert_eq!(second_previous_price, Some(78900));
+    }
+
+    #[tokio::test]
+    async fn test_find_second_previous_price_single_check() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
+
+        // Create only one check
+        AvailabilityCheckRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            product_id,
+            CreateCheckParams {
+                status: "in_stock".to_string(),
+                price_cents: Some(78900),
+                price_currency: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let second_previous_price =
+            AvailabilityCheckRepository::find_second_previous_price(&conn, product_id)
+                .await
+                .unwrap();
+
+        // Should return None since there's only one check
+        assert_eq!(second_previous_price, None);
+    }
+
+    #[tokio::test]
+    async fn test_find_second_previous_price_no_checks() {
+        let conn = setup_availability_db().await;
+        let product_id = create_test_product_default(&conn).await;
+
+        let second_previous_price =
+            AvailabilityCheckRepository::find_second_previous_price(&conn, product_id)
+                .await
+                .unwrap();
+
+        assert_eq!(second_previous_price, None);
     }
 
     #[tokio::test]

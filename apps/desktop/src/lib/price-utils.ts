@@ -79,3 +79,69 @@ export function getDateRangeLabel(dataPoints: PriceDataPoint[]): string {
 
 	return `${first} - ${last}`;
 }
+
+/** Price change direction */
+export type PriceChangeDirection = "up" | "down" | "unchanged" | "unknown";
+
+/**
+ * Determine the direction of price change.
+ * @param currentPriceCents - Current price in cents
+ * @param previousPriceCents - Previous price in cents
+ * @returns Direction of price change
+ */
+export function getPriceChangeDirection(
+	currentPriceCents: number | null,
+	previousPriceCents: number | null,
+): PriceChangeDirection {
+	if (currentPriceCents === null || previousPriceCents === null) {
+		return "unknown";
+	}
+
+	if (currentPriceCents < previousPriceCents) {
+		return "down";
+	}
+
+	if (currentPriceCents > previousPriceCents) {
+		return "up";
+	}
+
+	return "unchanged";
+}
+
+/**
+ * Calculate the percentage change between two prices.
+ * @param currentPriceCents - Current price in cents
+ * @param previousPriceCents - Previous price in cents
+ * @returns Percentage change (positive for increase, negative for decrease), or null if cannot be calculated
+ */
+export function calculatePriceChangePercent(
+	currentPriceCents: number | null,
+	previousPriceCents: number | null,
+): number | null {
+	if (
+		currentPriceCents === null ||
+		previousPriceCents === null ||
+		previousPriceCents === 0
+	) {
+		return null;
+	}
+
+	const change = currentPriceCents - previousPriceCents;
+	const percentChange = (change / previousPriceCents) * 100;
+
+	return Math.round(percentChange);
+}
+
+/**
+ * Format a price change percentage for display.
+ * @param percent - The percentage change (can be positive or negative)
+ * @returns Formatted string like "+15%" or "-12%"
+ */
+export function formatPriceChangePercent(percent: number | null): string {
+	if (percent === null) {
+		return "";
+	}
+
+	const sign = percent >= 0 ? "+" : "";
+	return `${sign}${percent}%`;
+}
