@@ -36,7 +36,7 @@ function TruncatedText({
 interface ColumnOptions {
 	onEdit?: (product: ProductResponse) => void;
 	onDelete?: (product: ProductResponse) => void;
-	AvailabilityCell: React.ComponentType<{ productId: string }>;
+	AvailabilityCell: React.ComponentType<Record<string, never>>;
 	PriceCell: React.ComponentType<{ productId: string }>;
 }
 
@@ -79,7 +79,7 @@ export function createProductColumns(
 		{
 			id: "availability",
 			header: "Availability",
-			cell: ({ row }) => <AvailabilityCell productId={row.original.id} />,
+			cell: () => <AvailabilityCell />,
 		},
 		{
 			id: "price",

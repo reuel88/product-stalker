@@ -98,6 +98,8 @@ impl ProductService {
         if url.trim().is_empty() {
             return Err(AppError::Validation("URL cannot be empty".to_string()));
         }
+        url::Url::parse(url)
+            .map_err(|e| AppError::Validation(format!("Invalid URL format: {}", e)))?;
         Ok(())
     }
 }
@@ -134,6 +136,15 @@ mod tests {
     #[test]
     fn test_validate_url_valid() {
         assert!(ProductService::validate_url("https://example.com").is_ok());
+    }
+
+    #[test]
+    fn test_validate_url_invalid_format() {
+        let result = ProductService::validate_url("not-a-valid-url");
+        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AppError::Validation(msg)) if msg.contains("Invalid URL format"))
+        );
     }
 }
 

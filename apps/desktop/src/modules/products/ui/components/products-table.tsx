@@ -10,7 +10,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 } from "lucide-react";
-import { useMemo } from "react";
+import { createContext, useCallback, useContext, useMemo } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,10 @@ import {
 import { MESSAGES, UI } from "@/constants";
 import { cn } from "@/lib/utils";
 import { useAvailability } from "@/modules/products/hooks/useAvailability";
-import type { ProductResponse } from "@/modules/products/types";
+import type {
+	AvailabilityCheckResponse,
+	ProductResponse,
+} from "@/modules/products/types";
 import { AvailabilityBadge } from "./availability-badge";
 import { PriceChangeIndicator } from "./price-change-indicator";
 import { createProductColumns } from "./products-table-columns";
@@ -38,16 +41,41 @@ interface ProductsTableProps {
 	onDelete?: (product: ProductResponse) => void;
 }
 
+interface ProductAvailabilityData {
+	latestCheck: AvailabilityCheckResponse | null | undefined;
+	isChecking: boolean;
+	handleCheck: () => Promise<void>;
+}
+
+const ProductAvailabilityContext =
+	createContext<ProductAvailabilityData | null>(null);
+
+function useProductAvailabilityData() {
+	const context = useContext(ProductAvailabilityContext);
+	if (!context) {
+		throw new Error(
+			"useProductAvailabilityData must be used within a ProductAvailabilityProvider",
+		);
+	}
+	return context;
+}
+
 /**
- * Custom hook that wraps useAvailability with check handling logic.
- * Extracted to enable sharing between AvailabilityCell and PriceCell,
- * making explicit that both cells use the same underlying data source.
+ * Row-level provider that shares a single useAvailability subscription
+ * between AvailabilityCell and PriceCell, avoiding duplicate queries
+ * and ensuring shared mutation state (e.g. isChecking).
  */
-function useProductAvailabilityData(productId: string) {
+function ProductAvailabilityProvider({
+	productId,
+	children,
+}: {
+	productId: string;
+	children: React.ReactNode;
+}) {
 	const { latestCheck, isChecking, checkAvailability } =
 		useAvailability(productId);
 
-	const handleCheck = async () => {
+	const handleCheck = useCallback(async () => {
 		try {
 			const result = await checkAvailability();
 			if (result.error_message) {
@@ -58,14 +86,22 @@ function useProductAvailabilityData(productId: string) {
 		} catch {
 			toast.error(MESSAGES.AVAILABILITY.CHECK_FAILED);
 		}
-	};
+	}, [checkAvailability]);
 
-	return { latestCheck, isChecking, handleCheck };
+	const value = useMemo(
+		() => ({ latestCheck, isChecking, handleCheck }),
+		[latestCheck, isChecking, handleCheck],
+	);
+
+	return (
+		<ProductAvailabilityContext.Provider value={value}>
+			{children}
+		</ProductAvailabilityContext.Provider>
+	);
 }
 
-function AvailabilityCell({ productId }: { productId: string }) {
-	const { latestCheck, isChecking, handleCheck } =
-		useProductAvailabilityData(productId);
+function AvailabilityCell() {
+	const { latestCheck, isChecking, handleCheck } = useProductAvailabilityData();
 
 	return (
 		<AvailabilityBadge
@@ -79,7 +115,7 @@ function AvailabilityCell({ productId }: { productId: string }) {
 }
 
 function PriceCell({ productId }: { productId: string }) {
-	const { latestCheck } = useProductAvailabilityData(productId);
+	const { latestCheck } = useProductAvailabilityData();
 
 	return (
 		<span data-testid={`price-${productId}`}>
@@ -151,16 +187,21 @@ export function ProductsTable({
 				<TableBody>
 					{table.getRowModel().rows?.length ? (
 						table.getRowModel().rows.map((row) => (
-							<TableRow
+							<ProductAvailabilityProvider
 								key={row.id}
-								data-state={row.getIsSelected() && "selected"}
+								productId={row.original.id}
 							>
-								{row.getVisibleCells().map((cell) => (
-									<TableCell key={cell.id}>
-										{flexRender(cell.column.columnDef.cell, cell.getContext())}
-									</TableCell>
-								))}
-							</TableRow>
+								<TableRow data-state={row.getIsSelected() && "selected"}>
+									{row.getVisibleCells().map((cell) => (
+										<TableCell key={cell.id}>
+											{flexRender(
+												cell.column.columnDef.cell,
+												cell.getContext(),
+											)}
+										</TableCell>
+									))}
+								</TableRow>
+							</ProductAvailabilityProvider>
 						))
 					) : (
 						<TableRow>

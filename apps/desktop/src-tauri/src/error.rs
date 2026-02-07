@@ -45,46 +45,6 @@ impl AppError {
             AppError::HttpStatus { .. } => "HTTP_STATUS_ERROR",
         }
     }
-
-    /// Check if this is a database error
-    pub fn is_database_error(&self) -> bool {
-        matches!(self, AppError::Database(_))
-    }
-
-    /// Check if this is a not found error
-    pub fn is_not_found(&self) -> bool {
-        matches!(self, AppError::NotFound(_))
-    }
-
-    /// Check if this is a validation error
-    pub fn is_validation_error(&self) -> bool {
-        matches!(self, AppError::Validation(_))
-    }
-
-    /// Check if this is an internal error
-    pub fn is_internal_error(&self) -> bool {
-        matches!(self, AppError::Internal(_))
-    }
-
-    /// Check if this is an HTTP error
-    pub fn is_http_error(&self) -> bool {
-        matches!(self, AppError::Http(_))
-    }
-
-    /// Check if this is a scraping error
-    pub fn is_scraping_error(&self) -> bool {
-        matches!(self, AppError::Scraping(_))
-    }
-
-    /// Check if this is a bot protection error
-    pub fn is_bot_protection_error(&self) -> bool {
-        matches!(self, AppError::BotProtection(_))
-    }
-
-    /// Check if this is an HTTP status error
-    pub fn is_http_status_error(&self) -> bool {
-        matches!(self, AppError::HttpStatus { .. })
-    }
 }
 
 /// JSON error response for frontend
@@ -193,93 +153,20 @@ mod tests {
         assert_eq!(err.code(), "DATABASE_ERROR");
     }
 
-    // Type check tests
-
-    #[test]
-    fn test_is_not_found() {
-        let err = AppError::NotFound("test".to_string());
-        assert!(err.is_not_found());
-        assert!(!err.is_validation_error());
-        assert!(!err.is_internal_error());
-        assert!(!err.is_database_error());
-    }
-
-    #[test]
-    fn test_is_validation_error() {
-        let err = AppError::Validation("test".to_string());
-        assert!(err.is_validation_error());
-        assert!(!err.is_not_found());
-        assert!(!err.is_internal_error());
-        assert!(!err.is_database_error());
-    }
-
-    #[test]
-    fn test_is_internal_error() {
-        let err = AppError::Internal("test".to_string());
-        assert!(err.is_internal_error());
-        assert!(!err.is_not_found());
-        assert!(!err.is_validation_error());
-        assert!(!err.is_database_error());
-    }
-
-    #[test]
-    fn test_is_database_error() {
-        let db_err = sea_orm::DbErr::Custom("test".to_string());
-        let err = AppError::Database(db_err);
-        assert!(err.is_database_error());
-        assert!(!err.is_not_found());
-        assert!(!err.is_validation_error());
-        assert!(!err.is_internal_error());
-    }
-
-    // Debug trait tests
-
-    #[test]
-    fn test_debug_not_found() {
-        let err = AppError::NotFound("item".to_string());
-        let debug_str = format!("{:?}", err);
-        assert!(debug_str.contains("NotFound"));
-        assert!(debug_str.contains("item"));
-    }
-
-    #[test]
-    fn test_debug_validation() {
-        let err = AppError::Validation("invalid".to_string());
-        let debug_str = format!("{:?}", err);
-        assert!(debug_str.contains("Validation"));
-        assert!(debug_str.contains("invalid"));
-    }
-
-    #[test]
-    fn test_debug_internal() {
-        let err = AppError::Internal("failure".to_string());
-        let debug_str = format!("{:?}", err);
-        assert!(debug_str.contains("Internal"));
-        assert!(debug_str.contains("failure"));
-    }
-
-    #[test]
-    fn test_debug_database() {
-        let db_err = sea_orm::DbErr::Custom("db failure".to_string());
-        let err = AppError::Database(db_err);
-        let debug_str = format!("{:?}", err);
-        assert!(debug_str.contains("Database"));
-    }
-
     // From trait tests
 
     #[test]
     fn test_from_db_err() {
         let db_err = sea_orm::DbErr::Custom("test error".to_string());
         let app_err: AppError = db_err.into();
-        assert!(app_err.is_database_error());
+        assert!(matches!(app_err, AppError::Database(_)));
     }
 
     #[test]
     fn test_from_db_err_record_not_found() {
         let db_err = sea_orm::DbErr::RecordNotFound("entity".to_string());
         let app_err: AppError = db_err.into();
-        assert!(app_err.is_database_error());
+        assert!(matches!(app_err, AppError::Database(_)));
         assert!(app_err.to_string().contains("entity"));
     }
 
@@ -330,32 +217,6 @@ mod tests {
         let response = ErrorResponse::from_app_error(&err);
         assert!(response.error.contains("Connection timeout"));
         assert_eq!(response.code, "DATABASE_ERROR");
-    }
-
-    #[test]
-    fn test_error_response_clone() {
-        let response = ErrorResponse::new("error", "CODE");
-        let cloned = response.clone();
-        assert_eq!(response, cloned);
-    }
-
-    #[test]
-    fn test_error_response_debug() {
-        let response = ErrorResponse::new("test error", "TEST_CODE");
-        let debug_str = format!("{:?}", response);
-        assert!(debug_str.contains("ErrorResponse"));
-        assert!(debug_str.contains("test error"));
-        assert!(debug_str.contains("TEST_CODE"));
-    }
-
-    #[test]
-    fn test_error_response_partial_eq() {
-        let response1 = ErrorResponse::new("error", "CODE");
-        let response2 = ErrorResponse::new("error", "CODE");
-        let response3 = ErrorResponse::new("different", "CODE");
-
-        assert_eq!(response1, response2);
-        assert_ne!(response1, response3);
     }
 
     // Serialization tests
@@ -453,39 +314,11 @@ mod tests {
     }
 
     #[test]
-    fn test_http_code() {
-        // We can't easily create a reqwest::Error for testing, but we can test the code method
-        // indirectly through scraping since it uses the same pattern
-        let err = AppError::Scraping("test".to_string());
-        assert!(!err.is_http_error());
-        assert!(err.is_scraping_error());
-    }
-
-    #[test]
-    fn test_is_scraping_error() {
-        let err = AppError::Scraping("test".to_string());
-        assert!(err.is_scraping_error());
-        assert!(!err.is_not_found());
-        assert!(!err.is_validation_error());
-        assert!(!err.is_internal_error());
-        assert!(!err.is_database_error());
-        assert!(!err.is_http_error());
-    }
-
-    #[test]
     fn test_error_response_from_scraping() {
         let err = AppError::Scraping("No JSON-LD found".to_string());
         let response = ErrorResponse::from_app_error(&err);
         assert_eq!(response.error, "No JSON-LD found");
         assert_eq!(response.code, "SCRAPING_ERROR");
-    }
-
-    #[test]
-    fn test_debug_scraping() {
-        let err = AppError::Scraping("parse error".to_string());
-        let debug_str = format!("{:?}", err);
-        assert!(debug_str.contains("Scraping"));
-        assert!(debug_str.contains("parse error"));
     }
 
     // Bot protection error tests
@@ -506,31 +339,11 @@ mod tests {
     }
 
     #[test]
-    fn test_is_bot_protection_error() {
-        let err = AppError::BotProtection("test".to_string());
-        assert!(err.is_bot_protection_error());
-        assert!(!err.is_not_found());
-        assert!(!err.is_validation_error());
-        assert!(!err.is_internal_error());
-        assert!(!err.is_database_error());
-        assert!(!err.is_http_error());
-        assert!(!err.is_scraping_error());
-    }
-
-    #[test]
     fn test_error_response_from_bot_protection() {
         let err = AppError::BotProtection("Chrome required".to_string());
         let response = ErrorResponse::from_app_error(&err);
         assert_eq!(response.error, "Chrome required");
         assert_eq!(response.code, "BOT_PROTECTION");
-    }
-
-    #[test]
-    fn test_debug_bot_protection() {
-        let err = AppError::BotProtection("challenge error".to_string());
-        let debug_str = format!("{:?}", err);
-        assert!(debug_str.contains("BotProtection"));
-        assert!(debug_str.contains("challenge error"));
     }
 
     // HTTP status error tests
@@ -566,22 +379,6 @@ mod tests {
     }
 
     #[test]
-    fn test_is_http_status_error() {
-        let err = AppError::HttpStatus {
-            status: 500,
-            url: "test".to_string(),
-        };
-        assert!(err.is_http_status_error());
-        assert!(!err.is_not_found());
-        assert!(!err.is_validation_error());
-        assert!(!err.is_internal_error());
-        assert!(!err.is_database_error());
-        assert!(!err.is_http_error());
-        assert!(!err.is_scraping_error());
-        assert!(!err.is_bot_protection_error());
-    }
-
-    #[test]
     fn test_error_response_from_http_status() {
         let err = AppError::HttpStatus {
             status: 403,
@@ -593,18 +390,6 @@ mod tests {
             "HTTP 403 for URL: https://example.com/blocked"
         );
         assert_eq!(response.code, "HTTP_STATUS_ERROR");
-    }
-
-    #[test]
-    fn test_debug_http_status() {
-        let err = AppError::HttpStatus {
-            status: 418,
-            url: "https://example.com/teapot".to_string(),
-        };
-        let debug_str = format!("{:?}", err);
-        assert!(debug_str.contains("HttpStatus"));
-        assert!(debug_str.contains("418"));
-        assert!(debug_str.contains("teapot"));
     }
 
     #[test]

@@ -195,42 +195,28 @@ fn extract_price_info(product: &Value) -> PriceInfo {
     }
 }
 
+/// Try to extract a string representation from a JSON value (String or Number)
+fn value_as_string(value: &Value) -> Option<String> {
+    match value {
+        Value::String(s) => Some(s.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    }
+}
+
 /// Extract price string from various possible field names
 fn extract_price_string(product: &Value) -> Option<String> {
-    // Try "price" field as string
-    if let Some(price) = product.get("price") {
-        match price {
-            Value::String(s) => return Some(s.clone()),
-            Value::Number(n) => return Some(n.to_string()),
-            _ => {}
-        }
-    }
-
-    // Try "currentPrice" or "salePrice"
-    if let Some(price) = product.get("currentPrice") {
-        match price {
-            Value::String(s) => return Some(s.clone()),
-            Value::Number(n) => return Some(n.to_string()),
-            _ => {}
-        }
-    }
-
-    if let Some(price) = product.get("salePrice") {
-        match price {
-            Value::String(s) => return Some(s.clone()),
-            Value::Number(n) => return Some(n.to_string()),
-            _ => {}
+    // Try direct price fields
+    for key in ["price", "currentPrice", "salePrice"] {
+        if let Some(result) = product.get(key).and_then(value_as_string) {
+            return Some(result);
         }
     }
 
     // Try nested pricing object
     if let Some(pricing) = product.get("pricing") {
-        if let Some(price) = pricing.get("price") {
-            match price {
-                Value::String(s) => return Some(s.clone()),
-                Value::Number(n) => return Some(n.to_string()),
-                _ => {}
-            }
+        if let Some(result) = pricing.get("price").and_then(value_as_string) {
+            return Some(result);
         }
     }
 
