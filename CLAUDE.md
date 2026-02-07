@@ -25,7 +25,7 @@ pnpm -F desktop test:integration  # Run integration tests only
 cd apps/desktop/src-tauri
 cargo fmt --check         # Check formatting (cargo fmt to auto-fix)
 cargo clippy -- -D warnings  # Linter - treats warnings as errors
-cargo test                # Run all tests (~300 tests)
+cargo test                # Run all tests (~420 tests)
 cargo test <module_name>  # Run tests for specific module (e.g., cargo test services::availability_service)
 cargo llvm-cov --fail-under-lines 50 --ignore-filename-regex "test_utils|migrations"  # Coverage check
 ```

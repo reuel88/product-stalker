@@ -496,6 +496,277 @@ pub async fn something() {
 }
 ```
 
+## AvailabilityCheck Entity Pattern
+
+```rust
+use sea_orm::entity::prelude::*;
+
+/// Availability status enum with Schema.org parsing
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AvailabilityStatus {
+    InStock,
+    OutOfStock,
+    BackOrder,
+    Unknown,
+}
+
+impl AvailabilityStatus {
+    /// Parse Schema.org availability value
+    pub fn from_schema_org(value: &str) -> Self {
+        let normalized = value.to_lowercase();
+        if normalized.contains("instock") { Self::InStock }
+        else if normalized.contains("outofstock") { Self::OutOfStock }
+        else if normalized.contains("backorder") || normalized.contains("preorder") { Self::BackOrder }
+        else { Self::Unknown }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::InStock => "in_stock",
+            Self::OutOfStock => "out_of_stock",
+            Self::BackOrder => "back_order",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+/// Entity with foreign key relation
+#[derive(Clone, Debug, DeriveEntityModel)]
+#[sea_orm(table_name = "availability_checks")]
+pub struct Model {
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub id: Uuid,
+    pub product_id: Uuid,
+    pub status: String,
+    pub price_cents: Option<i64>,
+    pub price_currency: Option<String>,
+    pub checked_at: DateTimeUtc,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::product::Entity",
+        from = "Column::ProductId",
+        to = "super::product::Column::Id"
+    )]
+    Product,
+}
+
+impl Related<super::product::Entity> for Entity {
+    fn to() -> RelationDef { Relation::Product.def() }
+}
+```
+
+## AppSetting Entity Pattern (EAV Model)
+
+```rust
+/// Scope enum for hierarchical settings
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum SettingScope {
+    #[default]
+    Global,
+    User(String),
+    Workspace(String),
+    Org(String),
+}
+
+impl SettingScope {
+    pub fn scope_type(&self) -> &'static str {
+        match self {
+            SettingScope::Global => "global",
+            SettingScope::User(_) => "user",
+            SettingScope::Workspace(_) => "workspace",
+            SettingScope::Org(_) => "org",
+        }
+    }
+
+    pub fn scope_id(&self) -> Option<&str> {
+        match self {
+            SettingScope::Global => None,
+            SettingScope::User(id) | SettingScope::Workspace(id) | SettingScope::Org(id) => Some(id),
+        }
+    }
+}
+
+/// EAV-style settings entity
+#[derive(Clone, Debug, DeriveEntityModel)]
+#[sea_orm(table_name = "app_settings")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    pub id: i32,
+    pub scope_type: String,
+    pub scope_id: Option<String>,
+    pub key: String,
+    #[sea_orm(column_type = "Text")]
+    pub value: String,  // JSON-encoded value
+    pub updated_at: DateTimeUtc,
+}
+```
+
+## Scraper Module Patterns
+
+### Orchestrator Pattern
+
+```rust
+/// ScraperService coordinates multiple extraction strategies
+pub struct ScraperService;
+
+impl ScraperService {
+    pub async fn check_availability_with_headless(
+        url: &str,
+        enable_headless: bool,
+    ) -> Result<ScrapingResult, AppError> {
+        // Step 1: Validate URL scheme
+        Self::validate_url_scheme(url)?;
+
+        // Step 2: Fetch HTML (with headless fallback if bot protection)
+        let html = http_client::fetch_html_with_fallback(url, enable_headless).await?;
+
+        // Step 3: Try Schema.org extraction first
+        if let Ok(result) = Self::try_schema_org_extraction(&html, url) {
+            return Ok(result);
+        }
+
+        // Step 4: Fall back to site-specific parsers
+        Self::try_site_specific_extraction(&html, url)
+    }
+}
+```
+
+### Site-Specific Adapter Pattern
+
+```rust
+/// Chemist Warehouse adapter - checks URL and parses Next.js data
+pub fn is_chemist_warehouse_url(url: &str) -> bool {
+    url.contains("chemistwarehouse.com.au")
+}
+
+pub fn parse_chemist_warehouse_data(page_props: &Value) -> Result<ScrapingResult, AppError> {
+    let product = page_props.get("product")
+        .ok_or_else(|| AppError::Scraping("No product in pageProps".to_string()))?;
+
+    let availability = product.get("availability")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::Scraping("No availability field".to_string()))?;
+
+    let price = product.get("price")
+        .and_then(|v| v.as_str())
+        .map(|p| price_parser::parse_price(p, "AUD"))
+        .unwrap_or_default();
+
+    Ok(ScrapingResult {
+        status: parse_availability_status(availability),
+        raw_availability: Some(availability.to_string()),
+        price,
+    })
+}
+```
+
+## Background Task Pattern
+
+```rust
+/// Start background availability checker with Tauri async runtime
+pub fn start_availability_checker(app_handle: AppHandle, db: Arc<DbState>) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            // Get interval from settings
+            let interval = match SettingService::get_background_check_interval(db.conn()).await {
+                Ok(mins) => Duration::from_secs(mins as u64 * 60),
+                Err(_) => Duration::from_secs(60 * 60), // Default 1 hour
+            };
+
+            tokio::time::sleep(interval).await;
+
+            // Check if background checks are enabled
+            if let Ok(enabled) = SettingService::get_background_check_enabled(db.conn()).await {
+                if enabled {
+                    let _ = AvailabilityService::check_all_products_with_notification(
+                        db.conn(),
+                        &app_handle,
+                    ).await;
+                }
+            }
+        }
+    });
+}
+```
+
+## Service Composition Pattern
+
+```rust
+/// NotificationService composes with AvailabilityService
+impl NotificationService {
+    pub fn prepare_back_in_stock_notification(
+        product_name: &str,
+        previous_status: &str,
+        current_status: &str,
+    ) -> Option<NotificationData> {
+        // Only notify if transitioning TO in_stock
+        if current_status == "in_stock" && previous_status != "in_stock" {
+            Some(NotificationData {
+                title: format!("{} is back in stock!", product_name),
+                body: "Click to view the product.".to_string(),
+            })
+        } else {
+            None
+        }
+    }
+}
+
+/// AvailabilityService uses NotificationService
+impl AvailabilityService {
+    pub async fn check_product_with_notification(
+        conn: &DatabaseConnection,
+        product_id: Uuid,
+    ) -> Result<CheckWithNotification, AppError> {
+        let previous = Self::get_latest(conn, product_id).await?;
+        let check = Self::check_product(conn, product_id).await?;
+
+        let notification = previous.as_ref().and_then(|prev| {
+            NotificationService::prepare_back_in_stock_notification(
+                &product.name,
+                &prev.status,
+                &check.status,
+            )
+        });
+
+        Ok(CheckWithNotification { check, notification, daily_comparison })
+    }
+}
+```
+
+## Extended Error Handling
+
+```rust
+pub enum AppError {
+    Database(DbErr),           // DATABASE_ERROR
+    NotFound(String),          // NOT_FOUND
+    Validation(String),        // VALIDATION_ERROR
+    Internal(String),          // INTERNAL_ERROR
+    Http(reqwest::Error),      // HTTP_ERROR
+    Scraping(String),          // SCRAPING_ERROR
+    BotProtection(String),     // BOT_PROTECTION
+    HttpStatus { status: u16, url: String },  // HTTP_STATUS_ERROR
+}
+
+impl AppError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            AppError::Database(_) => "DATABASE_ERROR",
+            AppError::NotFound(_) => "NOT_FOUND",
+            AppError::Validation(_) => "VALIDATION_ERROR",
+            AppError::Internal(_) => "INTERNAL_ERROR",
+            AppError::Http(_) => "HTTP_ERROR",
+            AppError::Scraping(_) => "SCRAPING_ERROR",
+            AppError::BotProtection(_) => "BOT_PROTECTION",
+            AppError::HttpStatus { .. } => "HTTP_STATUS_ERROR",
+        }
+    }
+}
+```
+
 ## Summary
 
 **Key Principles:**
@@ -505,3 +776,7 @@ pub async fn something() {
 4. Use connection pool directly (no Mutex)
 5. Return AppError, not DbErr
 6. Keep it simple and explicit
+7. Orchestrator pattern for multi-step operations
+8. Site-specific adapters for custom parsing
+9. Background tasks via Tauri async_runtime::spawn
+10. Service composition for cross-cutting concerns

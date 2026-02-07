@@ -1,8 +1,17 @@
-# product-stalker
+# Product Stalker
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, and more.
+A desktop application for tracking product availability and prices across online stores.
 
-## Features
+## Product Features
+
+- **Product Tracking** - Add products by URL and monitor their availability
+- **Price Monitoring** - Track price changes with daily averages and drop detection
+- **Availability Alerts** - Desktop notifications when products come back in stock
+- **Background Checks** - Automatic periodic availability checks
+- **Multi-Site Support** - Schema.org parsing + site-specific adapters (Chemist Warehouse)
+- **System Tray** - Runs in background with quick access menu
+
+## Tech Stack
 
 - **TypeScript** - For type safety and improved developer experience
 - **TanStack Router** - File-based routing with full type safety
@@ -15,7 +24,8 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **Vitest** - Testing framework
 - **Biome** - Linting and formatting
 - **Husky** - Git hooks for code quality
-- **Tauri** - Build native desktop applications
+- **Tauri 2.x** - Build native desktop applications with Rust backend
+- **SeaORM** - Async ORM for SQLite database
 - **Turborepo** - Optimized monorepo build system
 
 ## Getting Started
@@ -66,16 +76,23 @@ product-stalker/
 
 ## Testing
 
-This project uses [Vitest](https://vitest.dev/) for testing. Run tests with:
+### Frontend (Vitest)
 
 ```bash
-pnpm -F desktop test
+pnpm -F desktop test:run          # Run all tests
+pnpm -F desktop test:unit         # Run unit tests only
+pnpm -F desktop test:integration  # Run integration tests only
+pnpm -F desktop test:ui           # Interactive test UI
 ```
 
-For an interactive test UI:
+### Rust Backend
 
 ```bash
-pnpm -F desktop test:ui
+cd apps/desktop/src-tauri
+cargo test                        # Run all tests (~420 tests)
+cargo test <module_name>          # Run tests for specific module
+cargo clippy -- -D warnings       # Linter
+cargo fmt --check                 # Check formatting
 ```
 
 ## Documentation

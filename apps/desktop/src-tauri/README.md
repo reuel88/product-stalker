@@ -32,34 +32,66 @@ cargo tauri build
 src/
 ├── lib.rs                          # App initialization & setup
 ├── main.rs                         # Entry point
-├── error.rs                        # Error types & conversions
+├── error.rs                        # Error types (8 variants)
+├── utils.rs                        # Shared utilities
 │
 ├── commands/                       # Tauri IPC layer
 │   ├── mod.rs
-│   └── products.rs                 # Product CRUD commands
+│   ├── products.rs                 # Product CRUD commands
+│   ├── availability.rs             # Availability check commands
+│   ├── settings.rs                 # Settings management
+│   ├── notifications.rs            # Notification commands
+│   ├── window.rs                   # Window management
+│   └── updater.rs                  # App update commands
 │
 ├── services/                       # Business logic layer
 │   ├── mod.rs
-│   └── product_service.rs          # Product business logic
+│   ├── product_service.rs          # Product business logic
+│   ├── availability_service.rs     # Bulk checking, price tracking
+│   ├── notification_service.rs     # Desktop notifications
+│   ├── setting_service.rs          # App settings
+│   ├── headless_service.rs         # Headless browser support
+│   └── scraper/                    # Web scraping module
+│       ├── mod.rs                  # ScraperService orchestrator
+│       ├── bot_detection.rs        # Cloudflare detection
+│       ├── http_client.rs          # HTTP with fallback
+│       ├── schema_org.rs           # JSON-LD parsing
+│       ├── nextjs_data.rs          # Next.js data extraction
+│       ├── price_parser.rs         # Price normalization
+│       └── chemist_warehouse.rs    # Site-specific adapter
 │
 ├── repositories/                   # Data access layer
 │   ├── mod.rs
-│   └── product_repository.rs       # Product data access
+│   ├── product_repository.rs       # Product data access
+│   ├── availability_check_repository.rs
+│   ├── app_settings_repository.rs
+│   └── settings_helpers.rs
 │
 ├── entities/                       # SeaORM entities
 │   ├── mod.rs
 │   ├── prelude.rs
-│   └── product.rs                  # Product entity
+│   ├── product.rs                  # Product entity
+│   ├── availability_check.rs       # Availability with price
+│   └── app_setting.rs              # EAV settings
 │
-├── migrations/                     # Database migrations
+├── migrations/                     # Database migrations (9 total)
 │   ├── mod.rs
 │   ├── migrator.rs
-│   └── m20240101_000001_create_products_table.rs
+│   └── m20240101_*.rs ... m20250208_*.rs
 │
-└── db/                            # Database setup
-    ├── mod.rs
-    ├── connection.rs              # Connection & WAL config
-    └── README.md
+├── background/                     # Background tasks
+│   ├── mod.rs
+│   └── availability_checker.rs     # Periodic availability checks
+│
+├── plugins/                        # Tauri plugins
+│   ├── mod.rs
+│   └── system_tray.rs              # System tray integration
+│
+├── db/                             # Database setup
+│   ├── mod.rs
+│   └── connection.rs               # Connection & WAL config
+│
+└── test_utils.rs                   # Test helpers
 ```
 
 ## Architecture
@@ -100,7 +132,9 @@ Frontend (TypeScript/React)
 - **Foreign Keys**: Enabled
 - **Location**: Platform-specific app data directory
 
-### Entity: Product
+### Entities
+
+#### Product
 
 | Column | Type | Constraints |
 |--------|------|------------|
@@ -112,77 +146,152 @@ Frontend (TypeScript/React)
 | created_at | TIMESTAMP (TEXT) | NOT NULL, INDEXED |
 | updated_at | TIMESTAMP (TEXT) | NOT NULL |
 
+#### AvailabilityCheck
+
+| Column | Type | Constraints |
+|--------|------|------------|
+| id | UUID (TEXT) | PRIMARY KEY |
+| product_id | UUID (TEXT) | FK → products.id, CASCADE DELETE |
+| status | TEXT | NOT NULL (in_stock, out_of_stock, back_order, unknown) |
+| raw_availability | TEXT | NULLABLE (Schema.org value) |
+| error_message | TEXT | NULLABLE |
+| checked_at | TIMESTAMP (TEXT) | NOT NULL, INDEXED |
+| price_cents | INTEGER | NULLABLE |
+| price_currency | TEXT | NULLABLE (ISO 4217) |
+| raw_price | TEXT | NULLABLE |
+
+#### AppSetting (EAV Model)
+
+| Column | Type | Constraints |
+|--------|------|------------|
+| id | INTEGER | PRIMARY KEY, AUTO INCREMENT |
+| scope_type | TEXT | NOT NULL (global, user, workspace, org) |
+| scope_id | TEXT | NULLABLE |
+| key | TEXT | NOT NULL |
+| value | TEXT | NOT NULL (JSON-encoded) |
+| updated_at | TIMESTAMP (TEXT) | NOT NULL |
+
 ## API Reference
 
 ### Commands
 
 All commands are exposed to the frontend via Tauri's IPC system.
 
-#### Get All Products
+#### Product Commands
 
 ```typescript
+// Get all products
 const products = await invoke<ProductResponse[]>('get_products');
-```
 
-#### Get Single Product
+// Get single product
+const product = await invoke<ProductResponse>('get_product', { id: 'uuid' });
 
-```typescript
-const product = await invoke<ProductResponse>('get_product', {
-    id: 'uuid-string'
-});
-```
-
-#### Create Product
-
-```typescript
+// Create product
 const product = await invoke<ProductResponse>('create_product', {
-    input: {
-        name: 'iPhone 15',
-        url: 'https://example.com/iphone-15',
-        description: 'Latest model',  // optional
-        notes: 'Track deals'           // optional
-    }
+    input: { name: 'iPhone 15', url: 'https://example.com/iphone', description?: string, notes?: string }
 });
-```
 
-#### Update Product
-
-```typescript
+// Update product (all fields optional)
 const product = await invoke<ProductResponse>('update_product', {
-    id: 'uuid-string',
-    input: {
-        name: 'iPhone 15 Pro',  // All fields optional
-        url: 'https://example.com/new-url',
-        description: 'Updated description',
-        notes: 'Updated notes'
-    }
+    id: 'uuid', input: { name?: string, url?: string, description?: string, notes?: string }
+});
+
+// Delete product
+await invoke<void>('delete_product', { id: 'uuid' });
+```
+
+#### Availability Commands
+
+```typescript
+// Check single product availability (returns with price and daily comparison)
+const check = await invoke<AvailabilityCheckResponse>('check_availability', { product_id: 'uuid' });
+
+// Check all products (emits progress events)
+const summary = await invoke<BulkCheckSummary>('check_all_availability');
+
+// Get latest availability for product
+const latest = await invoke<AvailabilityCheckResponse | null>('get_latest_availability', { product_id: 'uuid' });
+
+// Get availability history
+const history = await invoke<AvailabilityCheckResponse[]>('get_availability_history', {
+    product_id: 'uuid', limit?: number
 });
 ```
 
-#### Delete Product
+#### Settings Commands
 
 ```typescript
-await invoke<void>('delete_product', {
-    id: 'uuid-string'
+// Get all settings
+const settings = await invoke<SettingsResponse>('get_settings');
+
+// Update settings (all fields optional)
+await invoke<SettingsResponse>('update_settings', {
+    input: { theme?: string, notifications_enabled?: boolean, background_check_enabled?: boolean, ... }
 });
+```
+
+#### Notification Commands
+
+```typescript
+await invoke('request_notification_permission');
+const hasPermission = await invoke<boolean>('check_notification_permission');
+```
+
+#### Window & Updater Commands
+
+```typescript
+await invoke('show_window');  // Shows main window
+const update = await invoke('check_for_update');  // Returns update info or null
+await invoke('install_update');  // Downloads and installs
 ```
 
 ### Types
 
 ```typescript
 interface ProductResponse {
-    id: string;           // UUID
+    id: string;
     name: string;
     url: string;
     description?: string;
     notes?: string;
-    created_at: string;   // ISO 8601 timestamp
-    updated_at: string;   // ISO 8601 timestamp
+    created_at: string;
+    updated_at: string;
+}
+
+interface AvailabilityCheckResponse {
+    id: string;
+    product_id: string;
+    status: 'in_stock' | 'out_of_stock' | 'back_order' | 'unknown';
+    raw_availability?: string;
+    error_message?: string;
+    checked_at: string;
+    price_cents?: number;
+    price_currency?: string;
+    raw_price?: string;
+    today_average_price_cents?: number;
+    yesterday_average_price_cents?: number;
+    is_price_drop: boolean;
+}
+
+interface BulkCheckSummary {
+    total: number;
+    successful: number;
+    failed: number;
+}
+
+interface SettingsResponse {
+    theme: string;
+    show_in_tray: boolean;
+    notifications_enabled: boolean;
+    background_check_enabled: boolean;
+    background_check_interval_minutes: number;
+    headless_browser_enabled: boolean;
 }
 
 interface ErrorResponse {
     error: string;
-    code: 'DATABASE_ERROR' | 'NOT_FOUND' | 'VALIDATION_ERROR';
+    code: 'DATABASE_ERROR' | 'NOT_FOUND' | 'VALIDATION_ERROR' | 'INTERNAL_ERROR'
+        | 'HTTP_ERROR' | 'SCRAPING_ERROR' | 'BOT_PROTECTION' | 'HTTP_STATUS_ERROR';
 }
 ```
 
@@ -193,6 +302,11 @@ interface ErrorResponse {
 - **DATABASE_ERROR**: Database operation failed
 - **NOT_FOUND**: Entity not found
 - **VALIDATION_ERROR**: Input validation failed
+- **INTERNAL_ERROR**: Unexpected internal error
+- **HTTP_ERROR**: HTTP request failed (network issues)
+- **SCRAPING_ERROR**: Web scraping failed (no data found)
+- **BOT_PROTECTION**: Bot protection detected (Cloudflare, etc.)
+- **HTTP_STATUS_ERROR**: HTTP status error (403, 404, 503, etc.)
 
 ### Example Error Handling (TypeScript)
 
@@ -202,6 +316,16 @@ try {
 } catch (error) {
     const err = JSON.parse(error as string) as ErrorResponse;
     console.error(`${err.code}: ${err.error}`);
+
+    // Handle specific error types
+    switch (err.code) {
+        case 'BOT_PROTECTION':
+            // Suggest enabling headless browser
+            break;
+        case 'SCRAPING_ERROR':
+            // Site may not support Schema.org
+            break;
+    }
 }
 ```
 
@@ -331,11 +455,14 @@ Key dependencies:
 - [x] SQLite with WAL mode
 - [x] Clean architecture
 - [x] Error handling
-- [ ] Price history tracking
-- [ ] Web scraping
-- [ ] Price alerts
+- [x] Price history tracking (AvailabilityCheck with daily averages)
+- [x] Web scraping (Schema.org + site-specific adapters)
+- [x] Price alerts (desktop notifications)
+- [x] User preferences (EAV settings model)
+- [x] Background checks (configurable interval)
+- [x] System tray integration
+- [x] Bot protection handling (headless browser fallback)
 - [ ] Export functionality
-- [ ] User preferences
 
 ---
 
