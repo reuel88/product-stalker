@@ -79,9 +79,11 @@ export interface BulkCheckResult {
 	price_cents: number | null;
 	/** Currency code for current price */
 	price_currency: string | null;
-	/** Previous price in cents for comparison */
-	previous_price_cents: number | null;
-	/** True if current price is lower than previous price */
+	/** Today's average price in cents for daily comparison */
+	today_average_price_cents: number | null;
+	/** Yesterday's average price in cents for daily comparison */
+	yesterday_average_price_cents: number | null;
+	/** True if today's average price is lower than yesterday's average */
 	is_price_drop: boolean;
 	/** Error message if this product's check failed */
 	error: string | null;

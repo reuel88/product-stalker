@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::entities::availability_check::AvailabilityStatus;
 use crate::entities::prelude::AvailabilityCheckModel;
 use crate::error::AppError;
+pub use crate::repositories::DailyPriceComparison;
 use crate::repositories::{AvailabilityCheckRepository, CreateCheckParams, ProductRepository};
 use crate::services::notification_service::NotificationData;
 use crate::services::scraper::ScrapingResult;
@@ -44,7 +45,8 @@ pub struct BulkCheckResult {
     pub is_back_in_stock: bool,
     pub price_cents: Option<i64>,
     pub price_currency: Option<String>,
-    pub previous_price_cents: Option<i64>,
+    pub today_average_price_cents: Option<i64>,
+    pub yesterday_average_price_cents: Option<i64>,
     pub is_price_drop: bool,
     pub error: Option<String>,
 }
@@ -87,7 +89,6 @@ struct CheckProcessingResult {
 /// Context for checking a single product in a bulk operation
 struct ProductCheckContext {
     previous_status: Option<String>,
-    previous_price_cents: Option<i64>,
 }
 
 /// Accumulated counters for bulk check results
@@ -163,12 +164,12 @@ impl AvailabilityService {
     fn process_check_result(
         check_result: Result<AvailabilityCheckModel, AppError>,
         previous_status: &Option<String>,
-        previous_price_cents: Option<i64>,
+        daily_comparison: &DailyPriceComparison,
     ) -> CheckProcessingResult {
         match check_result {
             Ok(check) if check.error_message.is_some() => Self::result_with_scraper_error(check),
             Ok(check) => {
-                Self::result_from_successful_check(check, previous_status, previous_price_cents)
+                Self::result_from_successful_check(check, previous_status, daily_comparison)
             }
             Err(e) => Self::result_from_infrastructure_error(e),
         }
@@ -190,10 +191,13 @@ impl AvailabilityService {
     fn result_from_successful_check(
         check: AvailabilityCheckModel,
         previous_status: &Option<String>,
-        previous_price_cents: Option<i64>,
+        daily_comparison: &DailyPriceComparison,
     ) -> CheckProcessingResult {
         let is_back_in_stock = Self::is_back_in_stock(previous_status, &check.status);
-        let is_price_drop = Self::is_price_drop(previous_price_cents, check.price_cents);
+        let is_price_drop = Self::is_price_drop(
+            daily_comparison.yesterday_average_cents,
+            daily_comparison.today_average_cents,
+        );
 
         CheckProcessingResult {
             status: check.status,
@@ -282,14 +286,17 @@ impl AvailabilityService {
         // Step 2: Perform the availability check
         let check_result = Self::check_product(conn, product.id).await;
 
-        // Step 3: Process the result
-        let result = Self::process_check_result(
-            check_result,
-            &context.previous_status,
-            context.previous_price_cents,
-        );
+        // Step 3: Get daily price comparison (includes the new check in today's average)
+        let daily_comparison = match Self::get_daily_price_comparison(conn, product.id).await {
+            Ok(dc) => dc,
+            Err(e) => return Self::build_context_error_result(product, e),
+        };
 
-        // Step 4: Build the bulk result
+        // Step 4: Process the result
+        let result =
+            Self::process_check_result(check_result, &context.previous_status, &daily_comparison);
+
+        // Step 5: Build the bulk result
         let bulk_result = BulkCheckResult {
             product_id: product.id.to_string(),
             product_name: product.name.clone(),
@@ -298,7 +305,8 @@ impl AvailabilityService {
             is_back_in_stock: result.is_back_in_stock,
             price_cents: result.price_cents,
             price_currency: result.price_currency.clone(),
-            previous_price_cents: context.previous_price_cents,
+            today_average_price_cents: daily_comparison.today_average_cents,
+            yesterday_average_price_cents: daily_comparison.yesterday_average_cents,
             is_price_drop: result.is_price_drop,
             error: result.error.clone(),
         };
@@ -328,7 +336,8 @@ impl AvailabilityService {
             is_back_in_stock: false,
             price_cents: None,
             price_currency: None,
-            previous_price_cents: None,
+            today_average_price_cents: None,
+            yesterday_average_price_cents: None,
             is_price_drop: false,
             error: Some(error_message),
         };
@@ -351,20 +360,15 @@ impl AvailabilityService {
         Self::build_bulk_summary(total, counters, bulk_results)
     }
 
-    /// Get the context needed before checking a product (previous status and price)
+    /// Get the context needed before checking a product (previous status)
     async fn get_product_check_context(
         conn: &DatabaseConnection,
         product_id: Uuid,
     ) -> Result<ProductCheckContext, AppError> {
         let previous_check = Self::get_latest(conn, product_id).await?;
         let previous_status = previous_check.as_ref().map(|c| c.status.clone());
-        let previous_price_cents =
-            AvailabilityCheckRepository::find_previous_price(conn, product_id).await?;
 
-        Ok(ProductCheckContext {
-            previous_status,
-            previous_price_cents,
-        })
+        Ok(ProductCheckContext { previous_status })
     }
 
     /// Update counters based on the check result
@@ -422,6 +426,14 @@ impl AvailabilityService {
             (Some(prev), Some(new)) => new < prev,
             _ => false, // No price drop if either is None
         }
+    }
+
+    /// Get today's and yesterday's average prices for comparison
+    pub async fn get_daily_price_comparison(
+        conn: &DatabaseConnection,
+        product_id: Uuid,
+    ) -> Result<DailyPriceComparison, AppError> {
+        AvailabilityCheckRepository::get_daily_price_comparison(conn, product_id).await
     }
 
     /// Get the latest availability check for a product
@@ -799,7 +811,8 @@ mod tests {
                 is_back_in_stock: true,
                 price_cents: Some(78900),
                 price_currency: Some("USD".to_string()),
-                previous_price_cents: Some(89900),
+                today_average_price_cents: Some(78900),
+                yesterday_average_price_cents: Some(89900),
                 is_price_drop: true,
                 error: None,
             };
@@ -821,7 +834,8 @@ mod tests {
                 is_back_in_stock: false,
                 price_cents: None,
                 price_currency: None,
-                previous_price_cents: None,
+                today_average_price_cents: None,
+                yesterday_average_price_cents: None,
                 is_price_drop: false,
                 error: Some("Failed to fetch".to_string()),
             };
@@ -840,7 +854,8 @@ mod tests {
                 is_back_in_stock: false,
                 price_cents: None,
                 price_currency: None,
-                previous_price_cents: None,
+                today_average_price_cents: None,
+                yesterday_average_price_cents: None,
                 is_price_drop: false,
                 error: None,
             };
@@ -881,7 +896,8 @@ mod tests {
                 is_back_in_stock: true,
                 price_cents: Some(78900),
                 price_currency: Some("USD".to_string()),
-                previous_price_cents: None,
+                today_average_price_cents: None,
+                yesterday_average_price_cents: None,
                 is_price_drop: false,
                 error: None,
             };
