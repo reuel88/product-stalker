@@ -8,7 +8,6 @@ use uuid::Uuid;
 use crate::entities::availability_check::AvailabilityStatus;
 use crate::entities::prelude::AvailabilityCheckModel;
 use crate::error::AppError;
-pub use crate::repositories::DailyPriceComparison;
 use crate::repositories::{AvailabilityCheckRepository, CreateCheckParams, ProductRepository};
 use crate::services::notification_service::NotificationData;
 use crate::services::scraper::ScrapingResult;
@@ -98,6 +97,13 @@ struct BulkCheckCounters {
     failed: usize,
     back_in_stock_count: usize,
     price_drop_count: usize,
+}
+
+/// Result of comparing today's average price vs yesterday's average price
+#[derive(Debug, Clone, Default)]
+pub struct DailyPriceComparison {
+    pub today_average_cents: Option<i64>,
+    pub yesterday_average_cents: Option<i64>,
 }
 
 /// Service layer for availability checking business logic
@@ -429,11 +435,27 @@ impl AvailabilityService {
     }
 
     /// Get today's and yesterday's average prices for comparison
+    ///
+    /// Uses UTC dates for consistency. Returns a DailyPriceComparison struct
+    /// containing both averages (or None if no data exists for that day).
     pub async fn get_daily_price_comparison(
         conn: &DatabaseConnection,
         product_id: Uuid,
     ) -> Result<DailyPriceComparison, AppError> {
-        AvailabilityCheckRepository::get_daily_price_comparison(conn, product_id).await
+        let today = chrono::Utc::now().date_naive();
+        let yesterday = today - chrono::Duration::days(1);
+
+        let today_average =
+            AvailabilityCheckRepository::get_average_price_for_date(conn, product_id, today)
+                .await?;
+        let yesterday_average =
+            AvailabilityCheckRepository::get_average_price_for_date(conn, product_id, yesterday)
+                .await?;
+
+        Ok(DailyPriceComparison {
+            today_average_cents: today_average,
+            yesterday_average_cents: yesterday_average,
+        })
     }
 
     /// Get the latest availability check for a product
@@ -1044,6 +1066,53 @@ mod tests {
             };
             let debug_str = format!("{:?}", result);
             assert!(debug_str.contains("BulkCheckResultWithNotification"));
+        }
+    }
+
+    /// Tests for get_daily_price_comparison method
+    mod daily_price_comparison_tests {
+        use super::*;
+        use crate::test_utils::{create_test_product, setup_availability_db};
+
+        #[tokio::test]
+        async fn test_no_data() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product(&conn, "https://example.com").await;
+
+            let comparison = AvailabilityService::get_daily_price_comparison(&conn, product_id)
+                .await
+                .unwrap();
+
+            assert_eq!(comparison.today_average_cents, None);
+            assert_eq!(comparison.yesterday_average_cents, None);
+        }
+
+        #[tokio::test]
+        async fn test_today_only() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product(&conn, "https://example.com").await;
+
+            // Create check today
+            AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product_id,
+                CreateCheckParams {
+                    status: "in_stock".to_string(),
+                    price_cents: Some(15000),
+                    price_currency: Some("USD".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+            let comparison = AvailabilityService::get_daily_price_comparison(&conn, product_id)
+                .await
+                .unwrap();
+
+            assert_eq!(comparison.today_average_cents, Some(15000));
+            assert_eq!(comparison.yesterday_average_cents, None);
         }
     }
 }
