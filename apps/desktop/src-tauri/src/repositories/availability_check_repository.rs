@@ -3,14 +3,13 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbBackend, EntityTrait, FromQueryResult,
     QueryFilter, QueryOrder, Set, Statement,
 };
-use serde::Serialize;
 use uuid::Uuid;
 
 use crate::entities::prelude::*;
 use crate::error::AppError;
 
 /// Result of comparing today's average price vs yesterday's average price
-#[derive(Debug, Clone, Serialize, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct DailyPriceComparison {
     pub today_average_cents: Option<i64>,
     pub yesterday_average_cents: Option<i64>,
@@ -60,21 +59,6 @@ impl AvailabilityCheckRepository {
 
         let check = active_model.insert(conn).await?;
         Ok(check)
-    }
-
-    /// Find the previous price for a product (for price drop detection)
-    /// Returns the most recent check that has a price
-    pub async fn find_previous_price(
-        conn: &DatabaseConnection,
-        product_id: Uuid,
-    ) -> Result<Option<i64>, AppError> {
-        let check = AvailabilityCheck::find()
-            .filter(AvailabilityCheckColumn::ProductId.eq(product_id))
-            .filter(AvailabilityCheckColumn::PriceCents.is_not_null())
-            .order_by_desc(AvailabilityCheckColumn::CheckedAt)
-            .one(conn)
-            .await?;
-        Ok(check.and_then(|c| c.price_cents))
     }
 
     /// Find the most recent availability check for a product
@@ -251,58 +235,6 @@ mod tests {
         assert_eq!(check.price_cents, Some(78900));
         assert_eq!(check.price_currency, Some("USD".to_string()));
         assert_eq!(check.raw_price, Some("789.00".to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_find_previous_price() {
-        let conn = setup_availability_db().await;
-        let product_id = create_test_product_default(&conn).await;
-
-        // Create a check with price
-        AvailabilityCheckRepository::create(
-            &conn,
-            Uuid::new_v4(),
-            product_id,
-            CreateCheckParams {
-                status: "in_stock".to_string(),
-                price_cents: Some(78900),
-                price_currency: Some("USD".to_string()),
-                ..Default::default()
-            },
-        )
-        .await
-        .unwrap();
-
-        let previous_price = AvailabilityCheckRepository::find_previous_price(&conn, product_id)
-            .await
-            .unwrap();
-
-        assert_eq!(previous_price, Some(78900));
-    }
-
-    #[tokio::test]
-    async fn test_find_previous_price_no_price() {
-        let conn = setup_availability_db().await;
-        let product_id = create_test_product_default(&conn).await;
-
-        // Create a check without price
-        AvailabilityCheckRepository::create(
-            &conn,
-            Uuid::new_v4(),
-            product_id,
-            CreateCheckParams {
-                status: "in_stock".to_string(),
-                ..Default::default()
-            },
-        )
-        .await
-        .unwrap();
-
-        let previous_price = AvailabilityCheckRepository::find_previous_price(&conn, product_id)
-            .await
-            .unwrap();
-
-        assert_eq!(previous_price, None);
     }
 
     #[tokio::test]

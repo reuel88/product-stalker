@@ -5,7 +5,7 @@ mod product_service;
 mod scraper;
 pub mod setting_service;
 
-pub use availability_service::{AvailabilityService, BulkCheckSummary};
+pub use availability_service::{AvailabilityService, BulkCheckSummary, DailyPriceComparison};
 pub use headless_service::HeadlessService;
 pub use notification_service::{NotificationData, NotificationService};
 pub use product_service::ProductService;

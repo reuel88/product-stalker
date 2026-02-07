@@ -5,8 +5,9 @@ use tauri_plugin_notification::NotificationExt;
 use crate::db::DbState;
 use crate::entities::prelude::AvailabilityCheckModel;
 use crate::error::AppError;
-use crate::repositories::{AvailabilityCheckRepository, DailyPriceComparison};
-use crate::services::{AvailabilityService, BulkCheckSummary, NotificationData};
+use crate::services::{
+    AvailabilityService, BulkCheckSummary, DailyPriceComparison, NotificationData,
+};
 use crate::utils::parse_uuid;
 
 /// Response DTO for availability checks
@@ -94,8 +95,7 @@ pub async fn check_availability(
     }
 
     // Get daily price comparison after the check (includes the new check in today's average)
-    let daily_comparison =
-        AvailabilityCheckRepository::get_daily_price_comparison(db.conn(), uuid).await?;
+    let daily_comparison = AvailabilityService::get_daily_price_comparison(db.conn(), uuid).await?;
 
     Ok(AvailabilityCheckResponse::from_model_with_daily_comparison(
         result.check,
@@ -117,7 +117,7 @@ pub async fn get_latest_availability(
         Some(model) => {
             // Get daily price comparison for today vs yesterday
             let daily_comparison =
-                AvailabilityCheckRepository::get_daily_price_comparison(db.conn(), uuid).await?;
+                AvailabilityService::get_daily_price_comparison(db.conn(), uuid).await?;
             Ok(Some(
                 AvailabilityCheckResponse::from_model_with_daily_comparison(
                     model,
