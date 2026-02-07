@@ -7,12 +7,14 @@
 /// - `nextjs_data`: Next.js __NEXT_DATA__ extraction
 /// - `price_parser`: Price extraction and normalization
 /// - `schema_org`: JSON-LD Schema.org data parsing
+/// - `shopify`: Shopify store adapter using cart API for availability
 mod bot_detection;
 mod chemist_warehouse;
 mod http_client;
 mod nextjs_data;
 mod price_parser;
 mod schema_org;
+mod shopify;
 
 use url::Url;
 
@@ -38,7 +40,7 @@ impl ScraperService {
     ///
     /// Uses HTTP as the fast path. Falls back to headless browser if bot
     /// protection (Cloudflare, etc.) is detected and headless is enabled.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub async fn check_availability(url: &str) -> Result<ScrapingResult, AppError> {
         Self::check_availability_with_headless(url, true).await
     }
@@ -49,7 +51,8 @@ impl ScraperService {
     /// 1. Validate URL scheme
     /// 2. Fetch HTML (with automatic headless fallback if bot protection detected)
     /// 3. Try Schema.org extraction first
-    /// 4. Fall back to site-specific parsers (e.g., Next.js data for Chemist Warehouse)
+    /// 4. Try Shopify-specific extraction for Shopify stores
+    /// 5. Fall back to other site-specific parsers (e.g., Next.js data)
     pub async fn check_availability_with_headless(
         url: &str,
         enable_headless: bool,
@@ -65,7 +68,18 @@ impl ScraperService {
             return Ok(result);
         }
 
-        // Step 4: Fall back to site-specific parsers
+        // Step 4: Try Shopify extraction (async - uses cart API)
+        if shopify::is_potential_shopify_product_url(url) {
+            log::debug!(
+                "URL matches Shopify pattern, trying Shopify extraction for {}",
+                url
+            );
+            if let Ok(result) = shopify::check_shopify_availability(url, &html).await {
+                return Ok(result);
+            }
+        }
+
+        // Step 5: Fall back to other site-specific parsers (sync)
         Self::try_site_specific_extraction(&html, url)
     }
 
@@ -74,10 +88,27 @@ impl ScraperService {
         let variant_id = schema_org::extract_variant_id(url);
         let json_ld_blocks = schema_org::extract_json_ld_blocks(html)?;
 
-        for block in json_ld_blocks {
+        log::debug!(
+            "Schema.org extraction: found {} JSON-LD block(s) for URL: {}",
+            json_ld_blocks.len(),
+            url
+        );
+
+        for (i, block) in json_ld_blocks.iter().enumerate() {
+            let block_type = block
+                .get("@type")
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| "unknown".to_string());
+            log::debug!("JSON-LD block {}: @type = {}", i, block_type);
+
             if let Some((availability, price)) =
-                schema_org::extract_availability_and_price(&block, variant_id.as_deref())
+                schema_org::extract_availability_and_price(block, variant_id.as_deref())
             {
+                log::debug!(
+                    "Extracted raw availability value: '{}' -> status: {:?}",
+                    availability,
+                    AvailabilityStatus::from_schema_org(&availability)
+                );
                 return Ok(ScrapingResult {
                     status: AvailabilityStatus::from_schema_org(&availability),
                     raw_availability: Some(availability),
@@ -138,35 +169,145 @@ impl ScraperService {
     }
 }
 
+/// Test helper module for generating HTML templates
+#[cfg(test)]
+mod test_html {
+    /// Generate HTML with a simple Product offer
+    ///
+    /// # Arguments
+    /// * `availability` - Schema.org availability value (e.g., "http://schema.org/InStock")
+    /// * `price` - Optional price value
+    /// * `currency` - Optional currency code (e.g., "USD")
+    pub fn html_with_product_offer(
+        availability: &str,
+        price: Option<&str>,
+        currency: Option<&str>,
+    ) -> String {
+        let price_json = match (price, currency) {
+            (Some(p), Some(c)) => format!(r#""price": "{}", "priceCurrency": "{}","#, p, c),
+            (Some(p), None) => format!(r#""price": "{}","#, p),
+            _ => String::new(),
+        };
+
+        format!(
+            r#"<!DOCTYPE html>
+<html>
+<head>
+    <script type="application/ld+json">
+    {{
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Test Product",
+        "offers": {{
+            "@type": "Offer",
+            {}
+            "availability": "{}"
+        }}
+    }}
+    </script>
+</head>
+<body></body>
+</html>"#,
+            price_json, availability
+        )
+    }
+
+    /// Variant info for ProductGroup HTML generation
+    pub struct VariantInfo<'a> {
+        pub variant_id: &'a str,
+        pub availability: &'a str,
+        pub price: Option<&'a str>,
+        pub currency: Option<&'a str>,
+    }
+
+    /// Generate HTML with a ProductGroup containing variants
+    ///
+    /// # Arguments
+    /// * `variants` - Slice of variant information
+    pub fn html_with_product_group(variants: &[VariantInfo]) -> String {
+        let variants_json: Vec<String> = variants
+            .iter()
+            .map(|v| {
+                let price_json = match (v.price, v.currency) {
+                    (Some(p), Some(c)) => format!(r#""price": "{}", "priceCurrency": "{}","#, p, c),
+                    (Some(p), None) => format!(r#""price": "{}","#, p),
+                    _ => String::new(),
+                };
+                format!(
+                    r#"{{
+                "@id": "/products/test?variant={}#variant",
+                "@type": "Product",
+                "offers": {{
+                    "@type": "Offer",
+                    {}
+                    "availability": "{}"
+                }}
+            }}"#,
+                    v.variant_id, price_json, v.availability
+                )
+            })
+            .collect();
+
+        format!(
+            r#"<!DOCTYPE html>
+<html>
+<head>
+    <script type="application/ld+json">
+    {{
+        "@context": "http://schema.org/",
+        "@type": "ProductGroup",
+        "name": "Test Product",
+        "hasVariant": [
+            {}
+        ]
+    }}
+    </script>
+</head>
+<body></body>
+</html>"#,
+            variants_json.join(",\n            ")
+        )
+    }
+
+    /// Generate HTML with Next.js __NEXT_DATA__ for Chemist Warehouse-style pages
+    ///
+    /// # Arguments
+    /// * `product_json` - The product JSON to embed in pageProps
+    pub fn html_with_next_data(product_json: &str) -> String {
+        format!(
+            r#"<!DOCTYPE html>
+<html>
+<head>
+    <script id="__NEXT_DATA__" type="application/json">
+    {{
+        "props": {{
+            "pageProps": {{
+                "product": {}
+            }}
+        }}
+    }}
+    </script>
+</head>
+<body></body>
+</html>"#,
+            product_json
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::test_html::{
+        html_with_next_data, html_with_product_group, html_with_product_offer, VariantInfo,
+    };
     use super::*;
 
     #[test]
     fn test_parse_schema_org_in_stock() {
-        let html = r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script type="application/ld+json">
-                {
-                    "@context": "https://schema.org",
-                    "@type": "Product",
-                    "name": "Test Product",
-                    "offers": {
-                        "@type": "Offer",
-                        "availability": "http://schema.org/InStock",
-                        "price": "99.99"
-                    }
-                }
-                </script>
-            </head>
-            <body></body>
-            </html>
-        "#;
+        let html = html_with_product_offer("http://schema.org/InStock", Some("99.99"), None);
 
         let result =
-            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+            ScraperService::parse_schema_org_with_url(&html, "https://example.com").unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
         assert_eq!(
             result.raw_availability,
@@ -176,54 +317,19 @@ mod tests {
 
     #[test]
     fn test_parse_schema_org_out_of_stock() {
-        let html = r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script type="application/ld+json">
-                {
-                    "@context": "https://schema.org",
-                    "@type": "Product",
-                    "name": "Test Product",
-                    "offers": {
-                        "@type": "Offer",
-                        "availability": "https://schema.org/OutOfStock"
-                    }
-                }
-                </script>
-            </head>
-            <body></body>
-            </html>
-        "#;
+        let html = html_with_product_offer("https://schema.org/OutOfStock", None, None);
 
         let result =
-            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+            ScraperService::parse_schema_org_with_url(&html, "https://example.com").unwrap();
         assert_eq!(result.status, AvailabilityStatus::OutOfStock);
     }
 
     #[test]
     fn test_parse_schema_org_back_order() {
-        let html = r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script type="application/ld+json">
-                {
-                    "@context": "https://schema.org",
-                    "@type": "Product",
-                    "name": "Test Product",
-                    "offers": {
-                        "availability": "http://schema.org/BackOrder"
-                    }
-                }
-                </script>
-            </head>
-            <body></body>
-            </html>
-        "#;
+        let html = html_with_product_offer("http://schema.org/BackOrder", None, None);
 
         let result =
-            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+            ScraperService::parse_schema_org_with_url(&html, "https://example.com").unwrap();
         assert_eq!(result.status, AvailabilityStatus::BackOrder);
     }
 
@@ -486,31 +592,16 @@ mod tests {
 
     #[test]
     fn test_parse_schema_org_product_group_no_variant_id() {
-        let html = r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script type="application/ld+json">
-                {
-                    "@type": "ProductGroup",
-                    "hasVariant": [
-                        {
-                            "@type": "Product",
-                            "offers": {
-                                "availability": "http://schema.org/BackOrder"
-                            }
-                        }
-                    ]
-                }
-                </script>
-            </head>
-            <body></body>
-            </html>
-        "#;
+        let html = html_with_product_group(&[VariantInfo {
+            variant_id: "123",
+            availability: "http://schema.org/BackOrder",
+            price: None,
+            currency: None,
+        }]);
 
         // Without variant ID in URL, should return first variant
         let result =
-            ScraperService::parse_schema_org_with_url(html, "https://example.com/products/test")
+            ScraperService::parse_schema_org_with_url(&html, "https://example.com/products/test")
                 .unwrap();
         assert_eq!(result.status, AvailabilityStatus::BackOrder);
     }
@@ -627,29 +718,11 @@ mod tests {
 
     #[test]
     fn test_price_extraction_from_product() {
-        let html = r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script type="application/ld+json">
-                {
-                    "@type": "Product",
-                    "name": "Test Product",
-                    "offers": {
-                        "@type": "Offer",
-                        "availability": "http://schema.org/InStock",
-                        "price": "789.00",
-                        "priceCurrency": "USD"
-                    }
-                }
-                </script>
-            </head>
-            <body></body>
-            </html>
-        "#;
+        let html =
+            html_with_product_offer("http://schema.org/InStock", Some("789.00"), Some("USD"));
 
         let result =
-            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+            ScraperService::parse_schema_org_with_url(&html, "https://example.com").unwrap();
         assert_eq!(result.price.price_cents, Some(78900));
         assert_eq!(result.price.price_currency, Some("USD".to_string()));
         assert_eq!(result.price.raw_price, Some("789.00".to_string()));
@@ -657,33 +730,15 @@ mod tests {
 
     #[test]
     fn test_price_extraction_from_shopify_product_group() {
-        let html = r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script type="application/ld+json">
-                {
-                    "@type": "ProductGroup",
-                    "hasVariant": [
-                        {
-                            "@id": "/products/test?variant=123#variant",
-                            "@type": "Product",
-                            "offers": {
-                                "availability": "http://schema.org/InStock",
-                                "price": "1,299.00",
-                                "priceCurrency": "AUD"
-                            }
-                        }
-                    ]
-                }
-                </script>
-            </head>
-            <body></body>
-            </html>
-        "#;
+        let html = html_with_product_group(&[VariantInfo {
+            variant_id: "123",
+            availability: "http://schema.org/InStock",
+            price: Some("1,299.00"),
+            currency: Some("AUD"),
+        }]);
 
         let result = ScraperService::parse_schema_org_with_url(
-            html,
+            &html,
             "https://example.com/products/test?variant=123",
         )
         .unwrap();
@@ -722,26 +777,10 @@ mod tests {
 
     #[test]
     fn test_price_extraction_no_price() {
-        let html = r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script type="application/ld+json">
-                {
-                    "@type": "Product",
-                    "name": "Test Product",
-                    "offers": {
-                        "availability": "http://schema.org/InStock"
-                    }
-                }
-                </script>
-            </head>
-            <body></body>
-            </html>
-        "#;
+        let html = html_with_product_offer("http://schema.org/InStock", None, None);
 
         let result =
-            ScraperService::parse_schema_org_with_url(html, "https://example.com").unwrap();
+            ScraperService::parse_schema_org_with_url(&html, "https://example.com").unwrap();
         assert_eq!(result.price.price_cents, None);
         assert_eq!(result.price.price_currency, None);
         assert_eq!(result.price.raw_price, None);
@@ -751,30 +790,16 @@ mod tests {
 
     #[test]
     fn test_chemist_warehouse_extraction_in_stock() {
-        let html = r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script id="__NEXT_DATA__" type="application/json">
-                {
-                    "props": {
-                        "pageProps": {
-                            "product": {
-                                "name": "Curash Simply Water Wipes 6 x 80 Pack",
-                                "sku": "2678514",
-                                "price": "23.99",
-                                "availability": "in-stock"
-                            }
-                        }
-                    }
-                }
-                </script>
-            </head>
-            <body></body>
-            </html>
-        "#;
+        let html = html_with_next_data(
+            r#"{
+                "name": "Curash Simply Water Wipes 6 x 80 Pack",
+                "sku": "2678514",
+                "price": "23.99",
+                "availability": "in-stock"
+            }"#,
+        );
 
-        let result = ScraperService::try_chemist_warehouse_extraction(html).unwrap();
+        let result = ScraperService::try_chemist_warehouse_extraction(&html).unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
         assert_eq!(result.raw_availability, Some("in-stock".to_string()));
         assert_eq!(result.price.price_cents, Some(2399));
@@ -783,60 +808,32 @@ mod tests {
 
     #[test]
     fn test_chemist_warehouse_extraction_out_of_stock() {
-        let html = r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script id="__NEXT_DATA__" type="application/json">
-                {
-                    "props": {
-                        "pageProps": {
-                            "product": {
-                                "name": "Some Product",
-                                "sku": "12345",
-                                "price": "19.99",
-                                "availability": "out-of-stock"
-                            }
-                        }
-                    }
-                }
-                </script>
-            </head>
-            <body></body>
-            </html>
-        "#;
+        let html = html_with_next_data(
+            r#"{
+                "name": "Some Product",
+                "sku": "12345",
+                "price": "19.99",
+                "availability": "out-of-stock"
+            }"#,
+        );
 
-        let result = ScraperService::try_chemist_warehouse_extraction(html).unwrap();
+        let result = ScraperService::try_chemist_warehouse_extraction(&html).unwrap();
         assert_eq!(result.status, AvailabilityStatus::OutOfStock);
         assert_eq!(result.raw_availability, Some("out-of-stock".to_string()));
     }
 
     #[test]
     fn test_site_specific_extraction_chemist_warehouse() {
-        let html = r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script id="__NEXT_DATA__" type="application/json">
-                {
-                    "props": {
-                        "pageProps": {
-                            "product": {
-                                "name": "Test Product",
-                                "price": "29.99",
-                                "availability": "in-stock"
-                            }
-                        }
-                    }
-                }
-                </script>
-            </head>
-            <body></body>
-            </html>
-        "#;
+        let html = html_with_next_data(
+            r#"{
+                "name": "Test Product",
+                "price": "29.99",
+                "availability": "in-stock"
+            }"#,
+        );
 
         let result = ScraperService::try_site_specific_extraction(
-            html,
+            &html,
             "https://www.chemistwarehouse.com.au/buy/87324/curash-simply-water-wipes",
         )
         .unwrap();
@@ -869,36 +866,21 @@ mod tests {
     #[test]
     fn test_fallback_from_schema_org_to_chemist_warehouse() {
         // HTML with no Schema.org but has Next.js data
-        let html = r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Chemist Warehouse Product</title>
-                <script id="__NEXT_DATA__" type="application/json">
-                {
-                    "props": {
-                        "pageProps": {
-                            "product": {
-                                "name": "Baby Wipes",
-                                "price": "15.50",
-                                "availability": "in-stock"
-                            }
-                        }
-                    }
-                }
-                </script>
-            </head>
-            <body></body>
-            </html>
-        "#;
+        let html = html_with_next_data(
+            r#"{
+                "name": "Baby Wipes",
+                "price": "15.50",
+                "availability": "in-stock"
+            }"#,
+        );
 
         // Schema.org should fail (no ld+json)
         let schema_result =
-            ScraperService::try_schema_org_extraction(html, "https://chemistwarehouse.com.au");
+            ScraperService::try_schema_org_extraction(&html, "https://chemistwarehouse.com.au");
         assert!(schema_result.is_err());
 
         // But Chemist Warehouse extraction should work
-        let cw_result = ScraperService::try_chemist_warehouse_extraction(html).unwrap();
+        let cw_result = ScraperService::try_chemist_warehouse_extraction(&html).unwrap();
         assert_eq!(cw_result.status, AvailabilityStatus::InStock);
         assert_eq!(cw_result.price.price_cents, Some(1550));
     }

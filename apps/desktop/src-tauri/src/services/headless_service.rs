@@ -271,12 +271,6 @@ impl HeadlessService {
             .iter()
             .any(|indicator| html_lower.contains(indicator))
     }
-
-    /// Check if Chrome is available on this system
-    #[allow(dead_code)]
-    pub fn is_chrome_available() -> bool {
-        Self::find_chrome_binary().is_some()
-    }
 }
 
 impl Default for HeadlessService {
@@ -347,11 +341,5 @@ mod tests {
         // This test just verifies the function runs without panic
         // The result depends on whether Chrome is installed
         let _result = HeadlessService::find_chrome_binary();
-    }
-
-    #[test]
-    fn test_is_chrome_available_returns_bool() {
-        // This test just verifies the function runs without panic
-        let _result = HeadlessService::is_chrome_available();
     }
 }
