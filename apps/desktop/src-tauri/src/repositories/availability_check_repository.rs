@@ -1,4 +1,4 @@
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbBackend, EntityTrait, FromQueryResult,
     QueryFilter, QueryOrder, Set, Statement,
@@ -7,13 +7,6 @@ use uuid::Uuid;
 
 use crate::entities::prelude::*;
 use crate::error::AppError;
-
-/// Result of comparing today's average price vs yesterday's average price
-#[derive(Debug, Clone, Default)]
-pub struct DailyPriceComparison {
-    pub today_average_cents: Option<i64>,
-    pub yesterday_average_cents: Option<i64>,
-}
 
 /// Helper struct for parsing SQLite AVG query results
 #[derive(Debug, FromQueryResult)]
@@ -106,7 +99,6 @@ impl AvailabilityCheckRepository {
 
         let date_str = date.format("%Y-%m-%d").to_string();
 
-        // UUID is stored as raw bytes in SQLite, so we pass it as bytes
         let result = AveragePriceResult::find_by_statement(Statement::from_sql_and_values(
             DbBackend::Sqlite,
             r#"
@@ -116,36 +108,12 @@ impl AvailabilityCheckRepository {
                   AND SUBSTR(checked_at, 1, 10) = ?
                   AND price_cents IS NOT NULL
             "#,
-            [
-                Value::Bytes(Some(Box::new(product_id.as_bytes().to_vec()))),
-                date_str.into(),
-            ],
+            [Value::Uuid(Some(Box::new(product_id))), date_str.into()],
         ))
         .one(conn)
         .await?;
 
         Ok(result.and_then(|r| r.avg_price.map(|avg| avg.round() as i64)))
-    }
-
-    /// Get today's and yesterday's average prices for comparison
-    ///
-    /// Uses UTC dates for consistency. Returns a DailyPriceComparison struct
-    /// containing both averages (or None if no data exists for that day).
-    pub async fn get_daily_price_comparison(
-        conn: &DatabaseConnection,
-        product_id: Uuid,
-    ) -> Result<DailyPriceComparison, AppError> {
-        let today = Utc::now().date_naive();
-        let yesterday = today - chrono::Duration::days(1);
-
-        let today_average = Self::get_average_price_for_date(conn, product_id, today).await?;
-        let yesterday_average =
-            Self::get_average_price_for_date(conn, product_id, yesterday).await?;
-
-        Ok(DailyPriceComparison {
-            today_average_cents: today_average,
-            yesterday_average_cents: yesterday_average,
-        })
     }
 }
 
@@ -555,11 +523,11 @@ mod tests {
     async fn test_get_average_price_for_date_with_prices() {
         let conn = setup_availability_db().await;
         let product_id = create_test_product_default(&conn).await;
-        let today = Utc::now().date_naive();
 
         // Create multiple checks with different prices today
+        let mut checked_date = None;
         for price in [10000_i64, 20000, 30000] {
-            AvailabilityCheckRepository::create(
+            let check = AvailabilityCheckRepository::create(
                 &conn,
                 Uuid::new_v4(),
                 product_id,
@@ -572,12 +540,16 @@ mod tests {
             )
             .await
             .unwrap();
+            checked_date = Some(check.checked_at.date_naive());
         }
 
-        let average =
-            AvailabilityCheckRepository::get_average_price_for_date(&conn, product_id, today)
-                .await
-                .unwrap();
+        let average = AvailabilityCheckRepository::get_average_price_for_date(
+            &conn,
+            product_id,
+            checked_date.unwrap(),
+        )
+        .await
+        .unwrap();
 
         // Average of 10000, 20000, 30000 = 20000
         assert_eq!(average, Some(20000));
@@ -587,10 +559,9 @@ mod tests {
     async fn test_get_average_price_for_date_no_prices() {
         let conn = setup_availability_db().await;
         let product_id = create_test_product_default(&conn).await;
-        let today = Utc::now().date_naive();
 
         // Create check without price
-        AvailabilityCheckRepository::create(
+        let check = AvailabilityCheckRepository::create(
             &conn,
             Uuid::new_v4(),
             product_id,
@@ -601,11 +572,15 @@ mod tests {
         )
         .await
         .unwrap();
+        let checked_date = check.checked_at.date_naive();
 
-        let average =
-            AvailabilityCheckRepository::get_average_price_for_date(&conn, product_id, today)
-                .await
-                .unwrap();
+        let average = AvailabilityCheckRepository::get_average_price_for_date(
+            &conn,
+            product_id,
+            checked_date,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(average, None);
     }
@@ -614,10 +589,9 @@ mod tests {
     async fn test_get_average_price_for_date_different_date() {
         let conn = setup_availability_db().await;
         let product_id = create_test_product_default(&conn).await;
-        let yesterday = Utc::now().date_naive() - chrono::Duration::days(1);
 
         // Create check today (not yesterday)
-        AvailabilityCheckRepository::create(
+        let check = AvailabilityCheckRepository::create(
             &conn,
             Uuid::new_v4(),
             product_id,
@@ -630,6 +604,8 @@ mod tests {
         )
         .await
         .unwrap();
+        let checked_date = check.checked_at.date_naive();
+        let yesterday = checked_date - chrono::Duration::days(1);
 
         // Query for yesterday should return None
         let average =
@@ -641,56 +617,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_daily_price_comparison_no_data() {
-        let conn = setup_availability_db().await;
-        let product_id = create_test_product_default(&conn).await;
-
-        let comparison = AvailabilityCheckRepository::get_daily_price_comparison(&conn, product_id)
-            .await
-            .unwrap();
-
-        assert_eq!(comparison.today_average_cents, None);
-        assert_eq!(comparison.yesterday_average_cents, None);
-    }
-
-    #[tokio::test]
-    async fn test_get_daily_price_comparison_today_only() {
-        let conn = setup_availability_db().await;
-        let product_id = create_test_product_default(&conn).await;
-
-        // Create check today
-        AvailabilityCheckRepository::create(
-            &conn,
-            Uuid::new_v4(),
-            product_id,
-            CreateCheckParams {
-                status: "in_stock".to_string(),
-                price_cents: Some(15000),
-                price_currency: Some("USD".to_string()),
-                ..Default::default()
-            },
-        )
-        .await
-        .unwrap();
-
-        let comparison = AvailabilityCheckRepository::get_daily_price_comparison(&conn, product_id)
-            .await
-            .unwrap();
-
-        assert_eq!(comparison.today_average_cents, Some(15000));
-        assert_eq!(comparison.yesterday_average_cents, None);
-    }
-
-    #[tokio::test]
     async fn test_get_average_price_rounds_correctly() {
         let conn = setup_availability_db().await;
         let product_id = create_test_product_default(&conn).await;
-        let today = Utc::now().date_naive();
 
         // Create checks with prices that average to a non-integer
         // 10001 + 10002 = 20003 / 2 = 10001.5 -> rounds to 10002
+        let mut checked_date = None;
         for price in [10001_i64, 10002] {
-            AvailabilityCheckRepository::create(
+            let check = AvailabilityCheckRepository::create(
                 &conn,
                 Uuid::new_v4(),
                 product_id,
@@ -703,12 +638,16 @@ mod tests {
             )
             .await
             .unwrap();
+            checked_date = Some(check.checked_at.date_naive());
         }
 
-        let average =
-            AvailabilityCheckRepository::get_average_price_for_date(&conn, product_id, today)
-                .await
-                .unwrap();
+        let average = AvailabilityCheckRepository::get_average_price_for_date(
+            &conn,
+            product_id,
+            checked_date.unwrap(),
+        )
+        .await
+        .unwrap();
 
         // 10001.5 rounds to 10002
         assert_eq!(average, Some(10002));
