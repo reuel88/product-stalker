@@ -8,13 +8,18 @@ import { cn, formatPrice } from "@/lib/utils";
 
 interface PriceChangeIndicatorProps {
 	currentPriceCents: number | null;
-	previousPriceCents: number | null;
+	/** Today's average price in cents for comparison */
+	todayAverageCents: number | null;
+	/** Yesterday's average price in cents for comparison */
+	yesterdayAverageCents: number | null;
 	currency: string | null;
 	variant: "compact" | "detailed";
 }
 
 /**
- * Displays price with optional change indicator.
+ * Displays price with optional change indicator based on daily averages.
+ *
+ * Compares today's average price vs yesterday's average price.
  *
  * Compact variant (for table):
  * - `$799 ↓-12%` (green for drops)
@@ -27,18 +32,19 @@ interface PriceChangeIndicatorProps {
  */
 export function PriceChangeIndicator({
 	currentPriceCents,
-	previousPriceCents,
+	todayAverageCents,
+	yesterdayAverageCents,
 	currency,
 	variant,
 }: PriceChangeIndicatorProps) {
 	const currentPrice = formatPrice(currentPriceCents, currency);
 	const direction = getPriceChangeDirection(
-		currentPriceCents,
-		previousPriceCents,
+		todayAverageCents,
+		yesterdayAverageCents,
 	);
 	const percent = calculatePriceChangePercent(
-		currentPriceCents,
-		previousPriceCents,
+		todayAverageCents,
+		yesterdayAverageCents,
 	);
 
 	if (currentPriceCents === null) {
@@ -65,7 +71,7 @@ export function PriceChangeIndicator({
 	return (
 		<DetailedIndicator
 			currentPrice={currentPrice}
-			previousPriceCents={previousPriceCents}
+			yesterdayAverageCents={yesterdayAverageCents}
 			currency={currency}
 			direction={direction}
 			percent={percent}
@@ -108,7 +114,7 @@ function CompactIndicator({
 
 interface DetailedIndicatorProps {
 	currentPrice: string;
-	previousPriceCents: number | null;
+	yesterdayAverageCents: number | null;
 	currency: string | null;
 	direction: "up" | "down";
 	percent: number | null;
@@ -116,14 +122,14 @@ interface DetailedIndicatorProps {
 
 function DetailedIndicator({
 	currentPrice,
-	previousPriceCents,
+	yesterdayAverageCents,
 	currency,
 	direction,
 	percent,
 }: DetailedIndicatorProps) {
 	const isDown = direction === "down";
 	const Icon = isDown ? TrendingDown : TrendingUp;
-	const previousPrice = formatPrice(previousPriceCents, currency);
+	const yesterdayPrice = formatPrice(yesterdayAverageCents, currency);
 	const percentValue = percent !== null ? Math.abs(percent) : 0;
 	const directionLabel = isDown ? "Down" : "Up";
 
@@ -139,7 +145,7 @@ function DetailedIndicator({
 				)}
 			>
 				<Icon className="size-3" />
-				{directionLabel} {percentValue}% from {previousPrice}
+				{directionLabel} {percentValue}% from {yesterdayPrice}
 			</p>
 		</div>
 	);

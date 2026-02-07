@@ -111,7 +111,8 @@ export function ProductInfoCard({
 						<p className="text-muted-foreground text-xs">Current Price</p>
 						<PriceChangeIndicator
 							currentPriceCents={latestCheck.price_cents}
-							previousPriceCents={latestCheck.previous_price_cents}
+							todayAverageCents={latestCheck.today_average_price_cents}
+							yesterdayAverageCents={latestCheck.yesterday_average_price_cents}
 							currency={latestCheck.price_currency}
 							variant="detailed"
 						/>

@@ -85,7 +85,10 @@ function PriceCell({ productId }: { productId: string }) {
 		<span data-testid={`price-${productId}`}>
 			<PriceChangeIndicator
 				currentPriceCents={latestCheck?.price_cents ?? null}
-				previousPriceCents={latestCheck?.previous_price_cents ?? null}
+				todayAverageCents={latestCheck?.today_average_price_cents ?? null}
+				yesterdayAverageCents={
+					latestCheck?.yesterday_average_price_cents ?? null
+				}
 				currency={latestCheck?.price_currency ?? null}
 				variant="compact"
 			/>
