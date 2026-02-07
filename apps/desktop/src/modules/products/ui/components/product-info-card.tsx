@@ -9,12 +9,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { cn, formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type {
 	AvailabilityCheckResponse,
 	AvailabilityStatus,
 	ProductResponse,
 } from "@/modules/products/types";
+import { PriceChangeIndicator } from "./price-change-indicator";
 
 interface ProductInfoCardProps {
 	product: ProductResponse;
@@ -62,22 +63,13 @@ function StatusBadge({ status }: { status: AvailabilityStatus }) {
 	);
 }
 
-function getCurrentPrice(
-	check: AvailabilityCheckResponse | null | undefined,
-): string | null {
-	if (check?.price_cents == null || !check.price_currency) {
-		return null;
-	}
-	return formatPrice(check.price_cents, check.price_currency);
-}
-
 export function ProductInfoCard({
 	product,
 	latestCheck,
 	isChecking,
 	onCheck,
 }: ProductInfoCardProps) {
-	const currentPrice = getCurrentPrice(latestCheck);
+	const hasPrice = latestCheck?.price_cents != null;
 
 	return (
 		<Card>
@@ -114,10 +106,15 @@ export function ProductInfoCard({
 			</CardHeader>
 
 			<CardContent className="space-y-4">
-				{currentPrice && (
+				{hasPrice && (
 					<div>
 						<p className="text-muted-foreground text-xs">Current Price</p>
-						<p className="font-semibold text-2xl">{currentPrice}</p>
+						<PriceChangeIndicator
+							currentPriceCents={latestCheck.price_cents}
+							previousPriceCents={latestCheck.previous_price_cents}
+							currency={latestCheck.price_currency}
+							variant="detailed"
+						/>
 					</div>
 				)}
 

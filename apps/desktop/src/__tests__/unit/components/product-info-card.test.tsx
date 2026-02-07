@@ -34,6 +34,8 @@ function createMockCheck(
 		price_cents: 9999,
 		price_currency: "USD",
 		raw_price: "99.99",
+		previous_price_cents: null,
+		is_price_drop: false,
 		...overrides,
 	};
 }

@@ -2,11 +2,15 @@
 ///
 /// This module is organized into focused submodules:
 /// - `bot_detection`: Cloudflare and bot protection detection
+/// - `chemist_warehouse`: Site-specific adapter for Chemist Warehouse
 /// - `http_client`: HTTP fetching with browser-like headers and headless fallback
+/// - `nextjs_data`: Next.js __NEXT_DATA__ extraction
 /// - `price_parser`: Price extraction and normalization
 /// - `schema_org`: JSON-LD Schema.org data parsing
 mod bot_detection;
+mod chemist_warehouse;
 mod http_client;
+mod nextjs_data;
 mod price_parser;
 mod schema_org;
 
@@ -44,9 +48,8 @@ impl ScraperService {
     /// This is the main orchestrator function that coordinates the scraping workflow:
     /// 1. Validate URL scheme
     /// 2. Fetch HTML (with automatic headless fallback if bot protection detected)
-    /// 3. Extract variant ID from URL
-    /// 4. Parse JSON-LD blocks from HTML
-    /// 5. Find availability and price data
+    /// 3. Try Schema.org extraction first
+    /// 4. Fall back to site-specific parsers (e.g., Next.js data for Chemist Warehouse)
     pub async fn check_availability_with_headless(
         url: &str,
         enable_headless: bool,
@@ -57,13 +60,20 @@ impl ScraperService {
         // Step 2: Fetch HTML (tries HTTP first, falls back to headless if needed)
         let html = http_client::fetch_html_with_fallback(url, enable_headless).await?;
 
-        // Step 3: Extract variant ID from URL query params
+        // Step 3: Try Schema.org extraction first
+        if let Ok(result) = Self::try_schema_org_extraction(&html, url) {
+            return Ok(result);
+        }
+
+        // Step 4: Fall back to site-specific parsers
+        Self::try_site_specific_extraction(&html, url)
+    }
+
+    /// Try to extract availability from Schema.org JSON-LD data
+    fn try_schema_org_extraction(html: &str, url: &str) -> Result<ScrapingResult, AppError> {
         let variant_id = schema_org::extract_variant_id(url);
+        let json_ld_blocks = schema_org::extract_json_ld_blocks(html)?;
 
-        // Step 4: Parse all JSON-LD blocks from HTML
-        let json_ld_blocks = schema_org::extract_json_ld_blocks(&html)?;
-
-        // Step 5: Find first block with valid availability data
         for block in json_ld_blocks {
             if let Some((availability, price)) =
                 schema_org::extract_availability_and_price(&block, variant_id.as_deref())
@@ -79,6 +89,27 @@ impl ScraperService {
         Err(AppError::Scraping(
             "No availability information found in Schema.org data".to_string(),
         ))
+    }
+
+    /// Try site-specific extraction methods based on URL domain
+    fn try_site_specific_extraction(html: &str, url: &str) -> Result<ScrapingResult, AppError> {
+        // Chemist Warehouse: uses Next.js with product data in __NEXT_DATA__
+        if chemist_warehouse::is_chemist_warehouse_url(url) {
+            return Self::try_chemist_warehouse_extraction(html);
+        }
+
+        // No site-specific parser matched
+        Err(AppError::Scraping(
+            "No availability information found. Site does not use Schema.org or a supported data format.".to_string(),
+        ))
+    }
+
+    /// Extract availability from Chemist Warehouse using Next.js data
+    fn try_chemist_warehouse_extraction(html: &str) -> Result<ScrapingResult, AppError> {
+        let next_data = nextjs_data::extract_next_data(html)?;
+        let page_props = nextjs_data::get_page_props(&next_data)
+            .ok_or_else(|| AppError::Scraping("No pageProps found in Next.js data".to_string()))?;
+        chemist_warehouse::parse_chemist_warehouse_data(page_props)
     }
 
     /// Validate that the URL uses http or https scheme
@@ -731,5 +762,206 @@ mod tests {
         assert_eq!(result.price.price_cents, None);
         assert_eq!(result.price.price_currency, None);
         assert_eq!(result.price.raw_price, None);
+    }
+
+    // Chemist Warehouse fallback tests
+
+    #[test]
+    fn test_chemist_warehouse_extraction_in_stock() {
+        let html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script id="__NEXT_DATA__" type="application/json">
+                {
+                    "props": {
+                        "pageProps": {
+                            "product": {
+                                "name": "Curash Simply Water Wipes 6 x 80 Pack",
+                                "sku": "2678514",
+                                "price": "23.99",
+                                "availability": "in-stock"
+                            }
+                        }
+                    }
+                }
+                </script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+
+        let result = ScraperService::try_chemist_warehouse_extraction(html).unwrap();
+        assert_eq!(result.status, AvailabilityStatus::InStock);
+        assert_eq!(result.raw_availability, Some("in-stock".to_string()));
+        assert_eq!(result.price.price_cents, Some(2399));
+        assert_eq!(result.price.price_currency, Some("AUD".to_string()));
+    }
+
+    #[test]
+    fn test_chemist_warehouse_extraction_out_of_stock() {
+        let html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script id="__NEXT_DATA__" type="application/json">
+                {
+                    "props": {
+                        "pageProps": {
+                            "product": {
+                                "name": "Some Product",
+                                "sku": "12345",
+                                "price": "19.99",
+                                "availability": "out-of-stock"
+                            }
+                        }
+                    }
+                }
+                </script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+
+        let result = ScraperService::try_chemist_warehouse_extraction(html).unwrap();
+        assert_eq!(result.status, AvailabilityStatus::OutOfStock);
+        assert_eq!(result.raw_availability, Some("out-of-stock".to_string()));
+    }
+
+    #[test]
+    fn test_site_specific_extraction_chemist_warehouse() {
+        let html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script id="__NEXT_DATA__" type="application/json">
+                {
+                    "props": {
+                        "pageProps": {
+                            "product": {
+                                "name": "Test Product",
+                                "price": "29.99",
+                                "availability": "in-stock"
+                            }
+                        }
+                    }
+                }
+                </script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+
+        let result = ScraperService::try_site_specific_extraction(
+            html,
+            "https://www.chemistwarehouse.com.au/buy/87324/curash-simply-water-wipes",
+        )
+        .unwrap();
+        assert_eq!(result.status, AvailabilityStatus::InStock);
+        assert_eq!(result.price.price_cents, Some(2999));
+    }
+
+    #[test]
+    fn test_site_specific_extraction_unsupported_site() {
+        let html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head><title>Random Site</title></head>
+            <body></body>
+            </html>
+        "#;
+
+        let result =
+            ScraperService::try_site_specific_extraction(html, "https://example.com/product");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            AppError::Scraping(msg) => {
+                assert!(msg.contains("supported data format"));
+            }
+            _ => panic!("Expected Scraping error"),
+        }
+    }
+
+    #[test]
+    fn test_fallback_from_schema_org_to_chemist_warehouse() {
+        // HTML with no Schema.org but has Next.js data
+        let html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Chemist Warehouse Product</title>
+                <script id="__NEXT_DATA__" type="application/json">
+                {
+                    "props": {
+                        "pageProps": {
+                            "product": {
+                                "name": "Baby Wipes",
+                                "price": "15.50",
+                                "availability": "in-stock"
+                            }
+                        }
+                    }
+                }
+                </script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+
+        // Schema.org should fail (no ld+json)
+        let schema_result =
+            ScraperService::try_schema_org_extraction(html, "https://chemistwarehouse.com.au");
+        assert!(schema_result.is_err());
+
+        // But Chemist Warehouse extraction should work
+        let cw_result = ScraperService::try_chemist_warehouse_extraction(html).unwrap();
+        assert_eq!(cw_result.status, AvailabilityStatus::InStock);
+        assert_eq!(cw_result.price.price_cents, Some(1550));
+    }
+
+    #[test]
+    fn test_schema_org_takes_priority_over_nextjs() {
+        // HTML with both Schema.org and Next.js data (Schema.org should win)
+        let html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script type="application/ld+json">
+                {
+                    "@type": "Product",
+                    "name": "Test Product",
+                    "offers": {
+                        "availability": "http://schema.org/OutOfStock",
+                        "price": "99.99"
+                    }
+                }
+                </script>
+                <script id="__NEXT_DATA__" type="application/json">
+                {
+                    "props": {
+                        "pageProps": {
+                            "product": {
+                                "name": "Test Product",
+                                "price": "50.00",
+                                "availability": "in-stock"
+                            }
+                        }
+                    }
+                }
+                </script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+
+        // Schema.org should succeed and take priority
+        let result = ScraperService::try_schema_org_extraction(
+            html,
+            "https://www.chemistwarehouse.com.au/product",
+        )
+        .unwrap();
+        assert_eq!(result.status, AvailabilityStatus::OutOfStock); // From Schema.org
+        assert_eq!(result.price.price_cents, Some(9999)); // From Schema.org
     }
 }

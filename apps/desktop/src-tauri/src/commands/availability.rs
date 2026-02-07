@@ -5,6 +5,7 @@ use tauri_plugin_notification::NotificationExt;
 use crate::db::DbState;
 use crate::entities::prelude::AvailabilityCheckModel;
 use crate::error::AppError;
+use crate::repositories::AvailabilityCheckRepository;
 use crate::services::{AvailabilityService, BulkCheckSummary, NotificationData};
 use crate::utils::parse_uuid;
 
@@ -20,6 +21,32 @@ pub struct AvailabilityCheckResponse {
     pub price_cents: Option<i64>,
     pub price_currency: Option<String>,
     pub raw_price: Option<String>,
+    pub previous_price_cents: Option<i64>,
+    pub is_price_drop: bool,
+}
+
+impl AvailabilityCheckResponse {
+    /// Create a response from a model with previous price information
+    pub fn from_model_with_previous_price(
+        model: AvailabilityCheckModel,
+        previous_price_cents: Option<i64>,
+    ) -> Self {
+        let is_price_drop =
+            AvailabilityService::is_price_drop(previous_price_cents, model.price_cents);
+        Self {
+            id: model.id.to_string(),
+            product_id: model.product_id.to_string(),
+            status: model.status,
+            raw_availability: model.raw_availability,
+            error_message: model.error_message,
+            checked_at: model.checked_at.to_rfc3339(),
+            price_cents: model.price_cents,
+            price_currency: model.price_currency,
+            raw_price: model.raw_price,
+            previous_price_cents,
+            is_price_drop,
+        }
+    }
 }
 
 impl From<AvailabilityCheckModel> for AvailabilityCheckResponse {
@@ -34,6 +61,8 @@ impl From<AvailabilityCheckModel> for AvailabilityCheckResponse {
             price_cents: model.price_cents,
             price_currency: model.price_currency,
             raw_price: model.raw_price,
+            previous_price_cents: None,
+            is_price_drop: false,
         }
     }
 }
@@ -50,13 +79,20 @@ pub async fn check_availability(
 ) -> Result<AvailabilityCheckResponse, AppError> {
     let uuid = parse_uuid(&product_id)?;
 
+    // Fetch previous price before the check for price drop comparison
+    let previous_price_cents =
+        AvailabilityCheckRepository::find_previous_price(db.conn(), uuid).await?;
+
     let result = AvailabilityService::check_product_with_notification(db.conn(), uuid).await?;
 
     if let Some(notification) = result.notification {
         send_desktop_notification(&app, &notification);
     }
 
-    Ok(AvailabilityCheckResponse::from(result.check))
+    Ok(AvailabilityCheckResponse::from_model_with_previous_price(
+        result.check,
+        previous_price_cents,
+    ))
 }
 
 /// Get the latest availability check for a product
@@ -68,7 +104,21 @@ pub async fn get_latest_availability(
     let uuid = parse_uuid(&product_id)?;
 
     let check = AvailabilityService::get_latest(db.conn(), uuid).await?;
-    Ok(check.map(AvailabilityCheckResponse::from))
+
+    match check {
+        Some(model) => {
+            // Get the second-most-recent price (the one before the latest check)
+            let previous_price_cents =
+                AvailabilityCheckRepository::find_second_previous_price(db.conn(), uuid).await?;
+            Ok(Some(
+                AvailabilityCheckResponse::from_model_with_previous_price(
+                    model,
+                    previous_price_cents,
+                ),
+            ))
+        }
+        None => Ok(None),
+    }
 }
 
 /// Get availability check history for a product
@@ -159,6 +209,8 @@ mod tests {
         assert_eq!(response.price_cents, Some(78900));
         assert_eq!(response.price_currency, Some("USD".to_string()));
         assert_eq!(response.raw_price, Some("789.00".to_string()));
+        assert!(response.previous_price_cents.is_none());
+        assert!(!response.is_price_drop);
     }
 
     #[test]
@@ -188,6 +240,7 @@ mod tests {
             Some("Failed to fetch page".to_string())
         );
         assert!(response.price_cents.is_none());
+        assert!(!response.is_price_drop);
     }
 
     #[test]
@@ -216,5 +269,84 @@ mod tests {
         assert!(json.contains(&product_id.to_string()));
         assert!(json.contains("9999"));
         assert!(json.contains("EUR"));
+        assert!(json.contains("\"previous_price_cents\":null"));
+        assert!(json.contains("\"is_price_drop\":false"));
+    }
+
+    #[test]
+    fn test_availability_check_response_with_previous_price() {
+        let id = Uuid::new_v4();
+        let product_id = Uuid::new_v4();
+        let now = Utc::now();
+
+        let model = AvailabilityCheckModel {
+            id,
+            product_id,
+            status: "in_stock".to_string(),
+            raw_availability: Some("http://schema.org/InStock".to_string()),
+            error_message: None,
+            checked_at: now,
+            price_cents: Some(78900),
+            price_currency: Some("USD".to_string()),
+            raw_price: Some("789.00".to_string()),
+        };
+
+        let response =
+            AvailabilityCheckResponse::from_model_with_previous_price(model, Some(89900));
+
+        assert_eq!(response.price_cents, Some(78900));
+        assert_eq!(response.previous_price_cents, Some(89900));
+        assert!(response.is_price_drop);
+    }
+
+    #[test]
+    fn test_availability_check_response_price_increase() {
+        let id = Uuid::new_v4();
+        let product_id = Uuid::new_v4();
+        let now = Utc::now();
+
+        let model = AvailabilityCheckModel {
+            id,
+            product_id,
+            status: "in_stock".to_string(),
+            raw_availability: None,
+            error_message: None,
+            checked_at: now,
+            price_cents: Some(99900),
+            price_currency: Some("USD".to_string()),
+            raw_price: None,
+        };
+
+        let response =
+            AvailabilityCheckResponse::from_model_with_previous_price(model, Some(78900));
+
+        assert_eq!(response.price_cents, Some(99900));
+        assert_eq!(response.previous_price_cents, Some(78900));
+        assert!(!response.is_price_drop);
+    }
+
+    #[test]
+    fn test_availability_check_response_no_previous_price() {
+        let id = Uuid::new_v4();
+        let product_id = Uuid::new_v4();
+        let now = Utc::now();
+
+        let model = AvailabilityCheckModel {
+            id,
+            product_id,
+            status: "in_stock".to_string(),
+            raw_availability: None,
+            error_message: None,
+            checked_at: now,
+            price_cents: Some(78900),
+            price_currency: Some("USD".to_string()),
+            raw_price: None,
+        };
+
+        let response = AvailabilityCheckResponse::from_model_with_previous_price(model, None);
+
+        assert_eq!(response.price_cents, Some(78900));
+        assert!(response.previous_price_cents.is_none());
+        assert!(!response.is_price_drop);
     }
 }

@@ -24,10 +24,11 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { MESSAGES, UI } from "@/constants";
-import { cn, formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useAvailability } from "@/modules/products/hooks/useAvailability";
 import type { ProductResponse } from "@/modules/products/types";
 import { AvailabilityBadge } from "./availability-badge";
+import { PriceChangeIndicator } from "./price-change-indicator";
 import { createProductColumns } from "./products-table-columns";
 
 interface ProductsTableProps {
@@ -80,14 +81,14 @@ function AvailabilityCell({ productId }: { productId: string }) {
 function PriceCell({ productId }: { productId: string }) {
 	const { latestCheck } = useProductAvailabilityData(productId);
 
-	const price = formatPrice(
-		latestCheck?.price_cents ?? null,
-		latestCheck?.price_currency ?? null,
-	);
-
 	return (
-		<span data-testid={`price-${productId}`} className="text-muted-foreground">
-			{price}
+		<span data-testid={`price-${productId}`}>
+			<PriceChangeIndicator
+				currentPriceCents={latestCheck?.price_cents ?? null}
+				previousPriceCents={latestCheck?.previous_price_cents ?? null}
+				currency={latestCheck?.price_currency ?? null}
+				variant="compact"
+			/>
 		</span>
 	);
 }
