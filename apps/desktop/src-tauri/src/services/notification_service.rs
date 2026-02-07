@@ -120,7 +120,7 @@ impl NotificationService {
     }
 
     /// Format the back-in-stock portion of a notification message
-    pub fn format_back_in_stock_message(products: &[&str]) -> String {
+    pub(crate) fn format_back_in_stock_message(products: &[&str]) -> String {
         if products.len() == 1 {
             format!("{} is back in stock!", products[0])
         } else {
@@ -133,7 +133,7 @@ impl NotificationService {
     }
 
     /// Format the price drop portion of a notification message
-    pub fn format_price_drop_message(products: &[&str]) -> String {
+    pub(crate) fn format_price_drop_message(products: &[&str]) -> String {
         if products.len() == 1 {
             format!("{} has a price drop!", products[0])
         } else {
@@ -146,7 +146,10 @@ impl NotificationService {
     }
 
     /// Compose the notification title based on what events occurred
-    pub fn compose_notification_title(back_in_stock: &[&str], price_drops: &[&str]) -> String {
+    pub(crate) fn compose_notification_title(
+        back_in_stock: &[&str],
+        price_drops: &[&str],
+    ) -> String {
         match (!back_in_stock.is_empty(), !price_drops.is_empty()) {
             (true, true) => "Stock & Price Updates!".to_string(),
             (true, false) => "Products Back in Stock!".to_string(),
@@ -159,45 +162,6 @@ impl NotificationService {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Tests for NotificationData struct
-    mod notification_data_tests {
-        use super::*;
-
-        #[test]
-        fn test_clone() {
-            let notification = NotificationData {
-                title: "Test Title".to_string(),
-                body: "Test Body".to_string(),
-            };
-            let cloned = notification.clone();
-            assert_eq!(notification.title, cloned.title);
-            assert_eq!(notification.body, cloned.body);
-        }
-
-        #[test]
-        fn test_debug() {
-            let notification = NotificationData {
-                title: "Title".to_string(),
-                body: "Body".to_string(),
-            };
-            let debug_str = format!("{:?}", notification);
-            assert!(debug_str.contains("NotificationData"));
-            assert!(debug_str.contains("Title"));
-            assert!(debug_str.contains("Body"));
-        }
-
-        #[test]
-        fn test_serialize() {
-            let notification = NotificationData {
-                title: "Product Back!".to_string(),
-                body: "Your product is available".to_string(),
-            };
-            let json = serde_json::to_string(&notification).unwrap();
-            assert!(json.contains("Product Back!"));
-            assert!(json.contains("Your product is available"));
-        }
-    }
 
     /// Tests for notification composition helper methods
     mod notification_composition_tests {

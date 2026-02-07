@@ -94,12 +94,9 @@ pub async fn check_availability(
         send_desktop_notification(&app, &notification);
     }
 
-    // Get daily price comparison after the check (includes the new check in today's average)
-    let daily_comparison = AvailabilityService::get_daily_price_comparison(db.conn(), uuid).await?;
-
     Ok(AvailabilityCheckResponse::from_model_with_daily_comparison(
         result.check,
-        daily_comparison,
+        result.daily_comparison,
     ))
 }
 

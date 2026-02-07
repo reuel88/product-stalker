@@ -130,28 +130,11 @@ impl ScraperService {
     /// Parse Schema.org JSON-LD data from HTML to extract availability
     /// Uses the URL to match specific product variants
     ///
-    /// This is a convenience function that combines the orchestrator steps for
-    /// callers who already have HTML and just need to parse it.
+    /// This is a convenience function for tests that already have HTML
+    /// and just need to parse it. Delegates to `try_schema_org_extraction`.
     #[cfg(test)]
     pub fn parse_schema_org_with_url(html: &str, url: &str) -> Result<ScrapingResult, AppError> {
-        let variant_id = schema_org::extract_variant_id(url);
-        let json_ld_blocks = schema_org::extract_json_ld_blocks(html)?;
-
-        for block in json_ld_blocks {
-            if let Some((availability, price)) =
-                schema_org::extract_availability_and_price(&block, variant_id.as_deref())
-            {
-                return Ok(ScrapingResult {
-                    status: AvailabilityStatus::from_schema_org(&availability),
-                    raw_availability: Some(availability),
-                    price,
-                });
-            }
-        }
-
-        Err(AppError::Scraping(
-            "No availability information found in Schema.org data".to_string(),
-        ))
+        Self::try_schema_org_extraction(html, url)
     }
 }
 

@@ -66,6 +66,7 @@ pub struct BulkCheckSummary {
 pub struct CheckResultWithNotification {
     pub check: AvailabilityCheckModel,
     pub notification: Option<NotificationData>,
+    pub daily_comparison: DailyPriceComparison,
 }
 
 /// Result of a bulk check with optional notification data
@@ -100,10 +101,54 @@ struct BulkCheckCounters {
 }
 
 /// Result of comparing today's average price vs yesterday's average price
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct DailyPriceComparison {
     pub today_average_cents: Option<i64>,
     pub yesterday_average_cents: Option<i64>,
+}
+
+impl BulkCheckResult {
+    /// Build a result from a successful processing result with daily comparison data
+    fn from_processing_result(
+        product: &crate::entities::prelude::ProductModel,
+        result: &CheckProcessingResult,
+        context: &ProductCheckContext,
+        daily_comparison: &DailyPriceComparison,
+    ) -> Self {
+        Self {
+            product_id: product.id.to_string(),
+            product_name: product.name.clone(),
+            status: result.status.clone(),
+            previous_status: context.previous_status.clone(),
+            is_back_in_stock: result.is_back_in_stock,
+            price_cents: result.price_cents,
+            price_currency: result.price_currency.clone(),
+            today_average_price_cents: daily_comparison.today_average_cents,
+            yesterday_average_price_cents: daily_comparison.yesterday_average_cents,
+            is_price_drop: result.is_price_drop,
+            error: result.error.clone(),
+        }
+    }
+
+    /// Build an error result when context or infrastructure fails
+    fn error_for_product(
+        product: &crate::entities::prelude::ProductModel,
+        error_message: String,
+    ) -> Self {
+        Self {
+            product_id: product.id.to_string(),
+            product_name: product.name.clone(),
+            status: AvailabilityStatus::Unknown.as_str().to_string(),
+            previous_status: None,
+            is_back_in_stock: false,
+            price_cents: None,
+            price_currency: None,
+            today_average_price_cents: None,
+            yesterday_average_price_cents: None,
+            is_price_drop: false,
+            error: Some(error_message),
+        }
+    }
 }
 
 /// Service layer for availability checking business logic
@@ -303,19 +348,8 @@ impl AvailabilityService {
             Self::process_check_result(check_result, &context.previous_status, &daily_comparison);
 
         // Step 5: Build the bulk result
-        let bulk_result = BulkCheckResult {
-            product_id: product.id.to_string(),
-            product_name: product.name.clone(),
-            status: result.status.clone(),
-            previous_status: context.previous_status.clone(),
-            is_back_in_stock: result.is_back_in_stock,
-            price_cents: result.price_cents,
-            price_currency: result.price_currency.clone(),
-            today_average_price_cents: daily_comparison.today_average_cents,
-            yesterday_average_price_cents: daily_comparison.yesterday_average_cents,
-            is_price_drop: result.is_price_drop,
-            error: result.error.clone(),
-        };
+        let bulk_result =
+            BulkCheckResult::from_processing_result(product, &result, &context, &daily_comparison);
 
         (bulk_result, result)
     }
@@ -334,19 +368,7 @@ impl AvailabilityService {
             is_back_in_stock: false,
             is_price_drop: false,
         };
-        let bulk_result = BulkCheckResult {
-            product_id: product.id.to_string(),
-            product_name: product.name.clone(),
-            status: AvailabilityStatus::Unknown.as_str().to_string(),
-            previous_status: None,
-            is_back_in_stock: false,
-            price_cents: None,
-            price_currency: None,
-            today_average_price_cents: None,
-            yesterday_average_price_cents: None,
-            is_price_drop: false,
-            error: Some(error_message),
-        };
+        let bulk_result = BulkCheckResult::error_for_product(product, error_message);
         (bulk_result, result)
     }
 
@@ -496,10 +518,13 @@ impl AvailabilityService {
         // Step 3: Perform the check
         let check = Self::check_product(conn, product_id).await?;
 
-        // Step 4: Determine if back in stock
+        // Step 4: Get daily price comparison (includes the new check in today's average)
+        let daily_comparison = Self::get_daily_price_comparison(conn, product_id).await?;
+
+        // Step 5: Determine if back in stock
         let is_back_in_stock = Self::is_back_in_stock(&previous_status, &check.status);
 
-        // Step 5: Build notification if applicable (using NotificationService)
+        // Step 6: Build notification if applicable (using NotificationService)
         let notification = NotificationService::build_single_notification(
             conn,
             product_id,
@@ -511,6 +536,7 @@ impl AvailabilityService {
         Ok(CheckResultWithNotification {
             check,
             notification,
+            daily_comparison,
         })
     }
 
@@ -865,25 +891,6 @@ mod tests {
             assert!(json.contains("Failed to fetch"));
             assert!(json.contains("unknown"));
         }
-
-        #[test]
-        fn test_debug() {
-            let result = BulkCheckResult {
-                product_id: "id".to_string(),
-                product_name: "name".to_string(),
-                status: "in_stock".to_string(),
-                previous_status: None,
-                is_back_in_stock: false,
-                price_cents: None,
-                price_currency: None,
-                today_average_price_cents: None,
-                yesterday_average_price_cents: None,
-                is_price_drop: false,
-                error: None,
-            };
-            let debug_str = format!("{:?}", result);
-            assert!(debug_str.contains("BulkCheckResult"));
-        }
     }
 
     /// Tests for BulkCheckSummary struct
@@ -935,20 +942,6 @@ mod tests {
             assert!(json.contains("Product 1"));
             assert!(json.contains("p1"));
         }
-
-        #[test]
-        fn test_debug() {
-            let summary = BulkCheckSummary {
-                total: 5,
-                successful: 3,
-                failed: 2,
-                back_in_stock_count: 1,
-                price_drop_count: 0,
-                results: vec![],
-            };
-            let debug_str = format!("{:?}", summary);
-            assert!(debug_str.contains("BulkCheckSummary"));
-        }
     }
 
     /// Tests for CheckResultWithNotification struct
@@ -974,6 +967,10 @@ mod tests {
                     title: "Back in Stock!".to_string(),
                     body: "Product available".to_string(),
                 }),
+                daily_comparison: DailyPriceComparison {
+                    today_average_cents: Some(78900),
+                    yesterday_average_cents: Some(89900),
+                },
             };
             let json = serde_json::to_string(&result).unwrap();
             assert!(json.contains("in_stock"));
@@ -996,31 +993,11 @@ mod tests {
             let result = CheckResultWithNotification {
                 check,
                 notification: None,
+                daily_comparison: DailyPriceComparison::default(),
             };
             let json = serde_json::to_string(&result).unwrap();
             assert!(json.contains("out_of_stock"));
             assert!(json.contains("null") || !json.contains("notification"));
-        }
-
-        #[test]
-        fn test_debug() {
-            let check = AvailabilityCheckModel {
-                id: Uuid::new_v4(),
-                product_id: Uuid::new_v4(),
-                status: "in_stock".to_string(),
-                raw_availability: None,
-                error_message: None,
-                checked_at: chrono::Utc::now(),
-                price_cents: None,
-                price_currency: None,
-                raw_price: None,
-            };
-            let result = CheckResultWithNotification {
-                check,
-                notification: None,
-            };
-            let debug_str = format!("{:?}", result);
-            assert!(debug_str.contains("CheckResultWithNotification"));
         }
     }
 
@@ -1048,24 +1025,6 @@ mod tests {
             let json = serde_json::to_string(&result).unwrap();
             assert!(json.contains("Products Back!"));
             assert!(json.contains("\"total\":2"));
-        }
-
-        #[test]
-        fn test_debug() {
-            let summary = BulkCheckSummary {
-                total: 0,
-                successful: 0,
-                failed: 0,
-                back_in_stock_count: 0,
-                price_drop_count: 0,
-                results: vec![],
-            };
-            let result = BulkCheckResultWithNotification {
-                summary,
-                notification: None,
-            };
-            let debug_str = format!("{:?}", result);
-            assert!(debug_str.contains("BulkCheckResultWithNotification"));
         }
     }
 

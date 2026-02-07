@@ -16,6 +16,7 @@ import type {
 	ProductResponse,
 } from "@/modules/products/types";
 import { PriceChangeIndicator } from "./price-change-indicator";
+import { STATUS_BADGE_CONFIG } from "./status-config";
 
 interface ProductInfoCardProps {
 	product: ProductResponse;
@@ -23,30 +24,6 @@ interface ProductInfoCardProps {
 	isChecking?: boolean;
 	onCheck?: () => void;
 }
-
-const STATUS_BADGE_CONFIG: Record<
-	AvailabilityStatus,
-	{ label: string; className: string }
-> = {
-	in_stock: {
-		label: "In Stock",
-		className:
-			"bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-	},
-	out_of_stock: {
-		label: "Out of Stock",
-		className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-	},
-	back_order: {
-		label: "Back Order",
-		className:
-			"bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-	},
-	unknown: {
-		label: "Unknown",
-		className: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
-	},
-};
 
 function StatusBadge({ status }: { status: AvailabilityStatus }) {
 	const { label, className } = STATUS_BADGE_CONFIG[status];
