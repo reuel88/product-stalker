@@ -4,11 +4,12 @@ import { render, screen } from "../../test-utils";
 
 describe("PriceChangeIndicator", () => {
 	describe("compact variant", () => {
-		it("should display price with no indicator when no previous price", () => {
+		it("should display price with no indicator when no yesterday average", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceCents={79900}
-					previousPriceCents={null}
+					todayAverageCents={79900}
+					yesterdayAverageCents={null}
 					currency="USD"
 					variant="compact"
 				/>,
@@ -21,7 +22,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceCents={79900}
-					previousPriceCents={89900}
+					todayAverageCents={79900}
+					yesterdayAverageCents={89900}
 					currency="USD"
 					variant="compact"
 				/>,
@@ -35,7 +37,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceCents={89900}
-					previousPriceCents={79900}
+					todayAverageCents={89900}
+					yesterdayAverageCents={79900}
 					currency="USD"
 					variant="compact"
 				/>,
@@ -49,7 +52,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceCents={null}
-					previousPriceCents={null}
+					todayAverageCents={null}
+					yesterdayAverageCents={null}
 					currency={null}
 					variant="compact"
 				/>,
@@ -62,7 +66,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceCents={79900}
-					previousPriceCents={79900}
+					todayAverageCents={79900}
+					yesterdayAverageCents={79900}
 					currency="USD"
 					variant="compact"
 				/>,
@@ -75,11 +80,12 @@ describe("PriceChangeIndicator", () => {
 	});
 
 	describe("detailed variant", () => {
-		it("should display price with no indicator when no previous price", () => {
+		it("should display price with no indicator when no yesterday average", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceCents={79900}
-					previousPriceCents={null}
+					todayAverageCents={79900}
+					yesterdayAverageCents={null}
 					currency="USD"
 					variant="detailed"
 				/>,
@@ -92,7 +98,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceCents={79900}
-					previousPriceCents={89900}
+					todayAverageCents={79900}
+					yesterdayAverageCents={89900}
 					currency="USD"
 					variant="detailed"
 				/>,
@@ -106,7 +113,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceCents={89900}
-					previousPriceCents={79900}
+					todayAverageCents={89900}
+					yesterdayAverageCents={79900}
 					currency="USD"
 					variant="detailed"
 				/>,
@@ -120,7 +128,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceCents={null}
-					previousPriceCents={null}
+					todayAverageCents={null}
+					yesterdayAverageCents={null}
 					currency={null}
 					variant="detailed"
 				/>,

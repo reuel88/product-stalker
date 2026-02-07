@@ -5,7 +5,7 @@ use tauri_plugin_notification::NotificationExt;
 use crate::db::DbState;
 use crate::entities::prelude::AvailabilityCheckModel;
 use crate::error::AppError;
-use crate::repositories::AvailabilityCheckRepository;
+use crate::repositories::{AvailabilityCheckRepository, DailyPriceComparison};
 use crate::services::{AvailabilityService, BulkCheckSummary, NotificationData};
 use crate::utils::parse_uuid;
 
@@ -21,18 +21,24 @@ pub struct AvailabilityCheckResponse {
     pub price_cents: Option<i64>,
     pub price_currency: Option<String>,
     pub raw_price: Option<String>,
-    pub previous_price_cents: Option<i64>,
+    /// Today's average price in cents for daily comparison
+    pub today_average_price_cents: Option<i64>,
+    /// Yesterday's average price in cents for daily comparison
+    pub yesterday_average_price_cents: Option<i64>,
+    /// True if today's average price is lower than yesterday's average
     pub is_price_drop: bool,
 }
 
 impl AvailabilityCheckResponse {
-    /// Create a response from a model with previous price information
-    pub fn from_model_with_previous_price(
+    /// Create a response from a model with daily price comparison data
+    pub fn from_model_with_daily_comparison(
         model: AvailabilityCheckModel,
-        previous_price_cents: Option<i64>,
+        daily_comparison: DailyPriceComparison,
     ) -> Self {
-        let is_price_drop =
-            AvailabilityService::is_price_drop(previous_price_cents, model.price_cents);
+        let is_price_drop = AvailabilityService::is_price_drop(
+            daily_comparison.yesterday_average_cents,
+            daily_comparison.today_average_cents,
+        );
         Self {
             id: model.id.to_string(),
             product_id: model.product_id.to_string(),
@@ -43,7 +49,8 @@ impl AvailabilityCheckResponse {
             price_cents: model.price_cents,
             price_currency: model.price_currency,
             raw_price: model.raw_price,
-            previous_price_cents,
+            today_average_price_cents: daily_comparison.today_average_cents,
+            yesterday_average_price_cents: daily_comparison.yesterday_average_cents,
             is_price_drop,
         }
     }
@@ -61,7 +68,8 @@ impl From<AvailabilityCheckModel> for AvailabilityCheckResponse {
             price_cents: model.price_cents,
             price_currency: model.price_currency,
             raw_price: model.raw_price,
-            previous_price_cents: None,
+            today_average_price_cents: None,
+            yesterday_average_price_cents: None,
             is_price_drop: false,
         }
     }
@@ -79,19 +87,19 @@ pub async fn check_availability(
 ) -> Result<AvailabilityCheckResponse, AppError> {
     let uuid = parse_uuid(&product_id)?;
 
-    // Fetch previous price before the check for price drop comparison
-    let previous_price_cents =
-        AvailabilityCheckRepository::find_previous_price(db.conn(), uuid).await?;
-
     let result = AvailabilityService::check_product_with_notification(db.conn(), uuid).await?;
 
     if let Some(notification) = result.notification {
         send_desktop_notification(&app, &notification);
     }
 
-    Ok(AvailabilityCheckResponse::from_model_with_previous_price(
+    // Get daily price comparison after the check (includes the new check in today's average)
+    let daily_comparison =
+        AvailabilityCheckRepository::get_daily_price_comparison(db.conn(), uuid).await?;
+
+    Ok(AvailabilityCheckResponse::from_model_with_daily_comparison(
         result.check,
-        previous_price_cents,
+        daily_comparison,
     ))
 }
 
@@ -107,13 +115,13 @@ pub async fn get_latest_availability(
 
     match check {
         Some(model) => {
-            // Get the second-most-recent price (the one before the latest check)
-            let previous_price_cents =
-                AvailabilityCheckRepository::find_second_previous_price(db.conn(), uuid).await?;
+            // Get daily price comparison for today vs yesterday
+            let daily_comparison =
+                AvailabilityCheckRepository::get_daily_price_comparison(db.conn(), uuid).await?;
             Ok(Some(
-                AvailabilityCheckResponse::from_model_with_previous_price(
+                AvailabilityCheckResponse::from_model_with_daily_comparison(
                     model,
-                    previous_price_cents,
+                    daily_comparison,
                 ),
             ))
         }
@@ -209,7 +217,8 @@ mod tests {
         assert_eq!(response.price_cents, Some(78900));
         assert_eq!(response.price_currency, Some("USD".to_string()));
         assert_eq!(response.raw_price, Some("789.00".to_string()));
-        assert!(response.previous_price_cents.is_none());
+        assert!(response.today_average_price_cents.is_none());
+        assert!(response.yesterday_average_price_cents.is_none());
         assert!(!response.is_price_drop);
     }
 
@@ -269,12 +278,13 @@ mod tests {
         assert!(json.contains(&product_id.to_string()));
         assert!(json.contains("9999"));
         assert!(json.contains("EUR"));
-        assert!(json.contains("\"previous_price_cents\":null"));
+        assert!(json.contains("\"today_average_price_cents\":null"));
+        assert!(json.contains("\"yesterday_average_price_cents\":null"));
         assert!(json.contains("\"is_price_drop\":false"));
     }
 
     #[test]
-    fn test_availability_check_response_with_previous_price() {
+    fn test_availability_check_response_with_daily_comparison_price_drop() {
         let id = Uuid::new_v4();
         let product_id = Uuid::new_v4();
         let now = Utc::now();
@@ -291,16 +301,22 @@ mod tests {
             raw_price: Some("789.00".to_string()),
         };
 
+        let daily_comparison = DailyPriceComparison {
+            today_average_cents: Some(78900),
+            yesterday_average_cents: Some(89900),
+        };
+
         let response =
-            AvailabilityCheckResponse::from_model_with_previous_price(model, Some(89900));
+            AvailabilityCheckResponse::from_model_with_daily_comparison(model, daily_comparison);
 
         assert_eq!(response.price_cents, Some(78900));
-        assert_eq!(response.previous_price_cents, Some(89900));
+        assert_eq!(response.today_average_price_cents, Some(78900));
+        assert_eq!(response.yesterday_average_price_cents, Some(89900));
         assert!(response.is_price_drop);
     }
 
     #[test]
-    fn test_availability_check_response_price_increase() {
+    fn test_availability_check_response_with_daily_comparison_price_increase() {
         let id = Uuid::new_v4();
         let product_id = Uuid::new_v4();
         let now = Utc::now();
@@ -317,16 +333,22 @@ mod tests {
             raw_price: None,
         };
 
+        let daily_comparison = DailyPriceComparison {
+            today_average_cents: Some(99900),
+            yesterday_average_cents: Some(78900),
+        };
+
         let response =
-            AvailabilityCheckResponse::from_model_with_previous_price(model, Some(78900));
+            AvailabilityCheckResponse::from_model_with_daily_comparison(model, daily_comparison);
 
         assert_eq!(response.price_cents, Some(99900));
-        assert_eq!(response.previous_price_cents, Some(78900));
+        assert_eq!(response.today_average_price_cents, Some(99900));
+        assert_eq!(response.yesterday_average_price_cents, Some(78900));
         assert!(!response.is_price_drop);
     }
 
     #[test]
-    fn test_availability_check_response_no_previous_price() {
+    fn test_availability_check_response_with_no_yesterday_data() {
         let id = Uuid::new_v4();
         let product_id = Uuid::new_v4();
         let now = Utc::now();
@@ -343,10 +365,17 @@ mod tests {
             raw_price: None,
         };
 
-        let response = AvailabilityCheckResponse::from_model_with_previous_price(model, None);
+        let daily_comparison = DailyPriceComparison {
+            today_average_cents: Some(78900),
+            yesterday_average_cents: None,
+        };
+
+        let response =
+            AvailabilityCheckResponse::from_model_with_daily_comparison(model, daily_comparison);
 
         assert_eq!(response.price_cents, Some(78900));
-        assert!(response.previous_price_cents.is_none());
+        assert_eq!(response.today_average_price_cents, Some(78900));
+        assert!(response.yesterday_average_price_cents.is_none());
         assert!(!response.is_price_drop);
     }
 }
