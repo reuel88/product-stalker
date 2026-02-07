@@ -22,27 +22,63 @@ SQLite (Database)
 
 ```
 src/
-├── commands/           # Tauri command handlers (IPC layer)
+├── commands/              # Tauri command handlers (IPC layer)
 │   ├── mod.rs
-│   └── products.rs     # Product CRUD commands
-├── services/           # Business logic layer
+│   ├── products.rs        # Product CRUD commands
+│   ├── availability.rs    # Availability check commands
+│   ├── settings.rs        # Settings management commands
+│   ├── notifications.rs   # Notification commands
+│   ├── window.rs          # Window management commands
+│   └── updater.rs         # App update commands
+├── services/              # Business logic layer
 │   ├── mod.rs
-│   └── product_service.rs
-├── repositories/       # Data access layer
+│   ├── product_service.rs
+│   ├── availability_service.rs    # Bulk checking, price tracking
+│   ├── notification_service.rs    # Desktop notifications
+│   ├── setting_service.rs         # App settings management
+│   ├── headless_service.rs        # Headless browser support
+│   └── scraper/                   # Web scraping module
+│       ├── mod.rs                 # ScraperService orchestrator
+│       ├── bot_detection.rs       # Cloudflare detection
+│       ├── http_client.rs         # HTTP with headless fallback
+│       ├── schema_org.rs          # Schema.org JSON-LD parsing
+│       ├── nextjs_data.rs         # Next.js __NEXT_DATA__ extraction
+│       ├── price_parser.rs        # Price normalization
+│       └── chemist_warehouse.rs   # Site-specific adapter
+├── repositories/          # Data access layer
 │   ├── mod.rs
-│   └── product_repository.rs
-├── entities/           # SeaORM entity definitions
+│   ├── product_repository.rs
+│   ├── availability_check_repository.rs
+│   ├── app_settings_repository.rs
+│   └── settings_helpers.rs
+├── entities/              # SeaORM entity definitions
 │   ├── mod.rs
 │   ├── prelude.rs
-│   └── product.rs      # Product entity
-├── migrations/         # Database migrations
+│   ├── product.rs         # Product entity
+│   ├── availability_check.rs   # Availability check with price tracking
+│   └── app_setting.rs     # EAV-style app settings
+├── migrations/            # Database migrations (9 total)
 │   ├── mod.rs
 │   ├── migrator.rs
-│   └── m20240101_000001_create_products_table.rs
-├── db/                 # Database connection & configuration
+│   ├── m20240101_000001_create_products_table.rs
+│   ├── m20240102_000001_create_settings_table.rs
+│   ├── m20240103_000001_create_availability_checks_table.rs
+│   ├── m20240104_000001_add_background_check_settings.rs
+│   ├── m20240105_000001_add_headless_browser_setting.rs
+│   ├── m20250205_000001_add_price_tracking.rs
+│   ├── m20250206_000001_create_app_settings_table.rs
+│   ├── m20250207_000001_backfill_app_settings.rs
+│   └── m20250208_000001_drop_old_settings_table.rs
+├── background/            # Background task runners
+│   ├── mod.rs
+│   └── availability_checker.rs   # Periodic availability checks
+├── plugins/               # Tauri plugins
+│   ├── mod.rs
+│   └── system_tray.rs     # System tray integration
+├── db/                    # Database connection & configuration
 │   ├── mod.rs
 │   └── connection.rs
-└── error.rs           # Error types
+└── error.rs               # Error types (8 variants)
 ```
 
 ## Key Features
@@ -63,10 +99,24 @@ The database file is stored in the app's data directory:
 
 ### 3. Entity Design
 
-The `Product` entity uses:
+#### Product Entity
 - **UUID for Primary Key**: Stored as TEXT in SQLite
 - **Timestamps**: Stored as TEXT in ISO 8601 format
 - **Indexes**: Created on `name` and `created_at` for query performance
+
+#### AvailabilityCheck Entity
+Tracks product availability and price over time:
+- **UUID Primary Key**: Links to Product via foreign key
+- **AvailabilityStatus Enum**: `in_stock`, `out_of_stock`, `back_order`, `unknown`
+- **Price Tracking**: `price_cents` (i64), `price_currency` (ISO 4217), `raw_price` (original)
+- **Schema.org Support**: `raw_availability` stores original availability value
+- **Error Tracking**: `error_message` captures scraping failures
+
+#### AppSetting Entity (EAV Model)
+Flexible key-value settings with scope support:
+- **SettingScope Enum**: `Global`, `User(id)`, `Workspace(id)`, `Org(id)`
+- **JSON Values**: Values stored as JSON strings for type flexibility
+- **Indexed Lookups**: Composite index on (scope_type, scope_id, key)
 
 ### 4. Clean Architecture Benefits
 
@@ -195,13 +245,18 @@ The application uses a custom `AppError` type that maps to Tauri's error system:
 
 ```rust
 pub enum AppError {
-    Database(DbErr),       // Database errors
-    NotFound(String),      // Entity not found
-    Validation(String),    // Input validation errors
+    Database(DbErr),       // Database errors (DATABASE_ERROR)
+    NotFound(String),      // Entity not found (NOT_FOUND)
+    Validation(String),    // Input validation errors (VALIDATION_ERROR)
+    Internal(String),      // Internal errors (INTERNAL_ERROR)
+    Http(reqwest::Error),  // HTTP request errors (HTTP_ERROR)
+    Scraping(String),      // Web scraping errors (SCRAPING_ERROR)
+    BotProtection(String), // Bot protection detected (BOT_PROTECTION)
+    HttpStatus { status: u16, url: String },  // HTTP status errors (HTTP_STATUS_ERROR)
 }
 ```
 
-These errors are automatically converted to JSON error responses for the frontend.
+These errors are automatically converted to JSON error responses for the frontend with appropriate error codes.
 
 ## Testing
 
@@ -333,8 +388,8 @@ async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
 
 ## Next Steps
 
-1. Add price history tracking
-2. Add web scraping for price updates
-3. Add notification system for price changes
-4. Add user preferences
-5. Add export functionality
+- [x] ~~Add price history tracking~~ - Implemented via AvailabilityCheck entity with price_cents, price_currency
+- [x] ~~Add web scraping for price updates~~ - ScraperService with Schema.org and site-specific adapters
+- [x] ~~Add notification system for price changes~~ - NotificationService with desktop notifications
+- [x] ~~Add user preferences~~ - AppSetting entity with EAV model and SettingService
+- [ ] Add export functionality
