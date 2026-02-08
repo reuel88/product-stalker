@@ -139,12 +139,12 @@ export function useCheckAllAvailability() {
 			EVENTS.AVAILABILITY_CHECK_PROGRESS,
 			(event) => {
 				setProgress({
-					currentIndex: event.payload.current_index,
-					totalCount: event.payload.total_count,
+					currentIndex: event.payload.current,
+					totalCount: event.payload.total,
 				});
 
 				// Optimistically update the individual product's availability cache
-				const productId = event.payload.result.product_id;
+				const productId = event.payload.product_id;
 				queryClient.invalidateQueries({
 					queryKey: QUERY_KEYS.availability(productId),
 				});

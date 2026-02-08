@@ -25,6 +25,12 @@ use product_stalker_core::AppError;
 // Re-export types that are part of the public API
 pub use price_parser::PriceInfo;
 
+/// User-Agent header mimicking Chrome browser.
+///
+/// Using a realistic browser User-Agent helps avoid basic bot detection
+/// that blocks requests with obvious automation signatures like "curl" or "python-requests".
+pub(crate) const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
 /// Result of a scraping operation
 #[derive(Debug, Clone)]
 pub struct ScrapingResult {

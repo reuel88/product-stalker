@@ -72,7 +72,7 @@ impl Default for Settings {
 }
 
 /// Parameters for updating settings (all fields optional for partial updates)
-#[derive(Default)]
+#[derive(Default, Deserialize)]
 pub struct UpdateSettingsParams {
     pub theme: Option<String>,
     pub show_in_tray: Option<bool>,
@@ -136,65 +136,109 @@ impl SettingService {
     }
 
     /// Update settings with validation
+    ///
+    /// Each provided field is persisted independently. Validation runs upfront
+    /// so no writes occur if any value is invalid.
     pub async fn update(
         conn: &DatabaseConnection,
         params: UpdateSettingsParams,
     ) -> Result<Settings, AppError> {
-        // Validate theme if provided
+        // Validate before touching the database
         if let Some(ref theme) = params.theme {
             Self::validate_theme(theme)?;
         }
-
-        // Validate log level if provided
         if let Some(ref level) = params.log_level {
             Self::validate_log_level(level)?;
         }
-
-        // Validate background check interval if provided
         if let Some(interval) = params.background_check_interval_minutes {
             Self::validate_background_check_interval(interval)?;
         }
 
         let scope = SettingScope::Global;
 
-        // Update each setting independently if a value was provided.
-        // This pattern enables partial updates where clients only send changed fields.
-        // String settings (theme, log_level) are handled first, followed by boolean
-        // settings, then integer settings.
-        if let Some(theme) = params.theme {
-            SettingsHelpers::set_string(conn, &scope, keys::THEME, &theme).await?;
-        }
-        if let Some(log_level) = params.log_level {
-            SettingsHelpers::set_string(conn, &scope, keys::LOG_LEVEL, &log_level).await?;
-        }
-        if let Some(v) = params.show_in_tray {
-            SettingsHelpers::set_bool(conn, &scope, keys::SHOW_IN_TRAY, v).await?;
-        }
-        if let Some(v) = params.launch_at_login {
-            SettingsHelpers::set_bool(conn, &scope, keys::LAUNCH_AT_LOGIN, v).await?;
-        }
-        if let Some(v) = params.enable_logging {
-            SettingsHelpers::set_bool(conn, &scope, keys::ENABLE_LOGGING, v).await?;
-        }
-        if let Some(v) = params.enable_notifications {
-            SettingsHelpers::set_bool(conn, &scope, keys::ENABLE_NOTIFICATIONS, v).await?;
-        }
-        if let Some(v) = params.sidebar_expanded {
-            SettingsHelpers::set_bool(conn, &scope, keys::SIDEBAR_EXPANDED, v).await?;
-        }
-        if let Some(v) = params.background_check_enabled {
-            SettingsHelpers::set_bool(conn, &scope, keys::BACKGROUND_CHECK_ENABLED, v).await?;
-        }
-        if let Some(v) = params.enable_headless_browser {
-            SettingsHelpers::set_bool(conn, &scope, keys::ENABLE_HEADLESS_BROWSER, v).await?;
-        }
-        if let Some(v) = params.background_check_interval_minutes {
-            SettingsHelpers::set_i32(conn, &scope, keys::BACKGROUND_CHECK_INTERVAL_MINUTES, v)
-                .await?;
-        }
+        Self::persist_optional_string(conn, &scope, keys::THEME, params.theme).await?;
+        Self::persist_optional_string(conn, &scope, keys::LOG_LEVEL, params.log_level).await?;
+        Self::persist_optional_bool(conn, &scope, keys::SHOW_IN_TRAY, params.show_in_tray).await?;
+        Self::persist_optional_bool(conn, &scope, keys::LAUNCH_AT_LOGIN, params.launch_at_login)
+            .await?;
+        Self::persist_optional_bool(conn, &scope, keys::ENABLE_LOGGING, params.enable_logging)
+            .await?;
+        Self::persist_optional_bool(
+            conn,
+            &scope,
+            keys::ENABLE_NOTIFICATIONS,
+            params.enable_notifications,
+        )
+        .await?;
+        Self::persist_optional_bool(
+            conn,
+            &scope,
+            keys::SIDEBAR_EXPANDED,
+            params.sidebar_expanded,
+        )
+        .await?;
+        Self::persist_optional_bool(
+            conn,
+            &scope,
+            keys::BACKGROUND_CHECK_ENABLED,
+            params.background_check_enabled,
+        )
+        .await?;
+        Self::persist_optional_bool(
+            conn,
+            &scope,
+            keys::ENABLE_HEADLESS_BROWSER,
+            params.enable_headless_browser,
+        )
+        .await?;
+        Self::persist_optional_i32(
+            conn,
+            &scope,
+            keys::BACKGROUND_CHECK_INTERVAL_MINUTES,
+            params.background_check_interval_minutes,
+        )
+        .await?;
 
-        // Return current settings
         Self::get(conn).await
+    }
+
+    /// Persist an optional string setting (no-op if `None`)
+    async fn persist_optional_string(
+        conn: &DatabaseConnection,
+        scope: &SettingScope,
+        key: &str,
+        value: Option<String>,
+    ) -> Result<(), AppError> {
+        if let Some(v) = value {
+            SettingsHelpers::set_string(conn, scope, key, &v).await?;
+        }
+        Ok(())
+    }
+
+    /// Persist an optional bool setting (no-op if `None`)
+    async fn persist_optional_bool(
+        conn: &DatabaseConnection,
+        scope: &SettingScope,
+        key: &str,
+        value: Option<bool>,
+    ) -> Result<(), AppError> {
+        if let Some(v) = value {
+            SettingsHelpers::set_bool(conn, scope, key, v).await?;
+        }
+        Ok(())
+    }
+
+    /// Persist an optional i32 setting (no-op if `None`)
+    async fn persist_optional_i32(
+        conn: &DatabaseConnection,
+        scope: &SettingScope,
+        key: &str,
+        value: Option<i32>,
+    ) -> Result<(), AppError> {
+        if let Some(v) = value {
+            SettingsHelpers::set_i32(conn, scope, key, v).await?;
+        }
+        Ok(())
     }
 
     fn validate_theme(theme: &str) -> Result<(), AppError> {

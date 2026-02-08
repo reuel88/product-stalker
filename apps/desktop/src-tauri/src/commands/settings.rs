@@ -1,25 +1,10 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
 use crate::core::services::{SettingService, Settings, UpdateSettingsParams};
 use crate::db::DbState;
 use crate::tauri_error::CommandError;
 use crate::TrayState;
-
-/// Input for updating settings (all fields optional for partial updates)
-#[derive(Debug, Deserialize)]
-pub struct UpdateSettingsInput {
-    pub theme: Option<String>,
-    pub show_in_tray: Option<bool>,
-    pub launch_at_login: Option<bool>,
-    pub enable_logging: Option<bool>,
-    pub log_level: Option<String>,
-    pub enable_notifications: Option<bool>,
-    pub sidebar_expanded: Option<bool>,
-    pub background_check_enabled: Option<bool>,
-    pub background_check_interval_minutes: Option<i32>,
-    pub enable_headless_browser: Option<bool>,
-}
 
 /// Response DTO for settings
 #[derive(Debug, Serialize)]
@@ -85,25 +70,12 @@ fn update_tray_visibility(app: &AppHandle, visible: bool) {
 #[tauri::command]
 pub async fn update_settings(
     app: AppHandle,
-    input: UpdateSettingsInput,
+    input: UpdateSettingsParams,
     db: State<'_, DbState>,
 ) -> Result<SettingsResponse, CommandError> {
     let show_in_tray_value = input.show_in_tray;
 
-    let params = UpdateSettingsParams {
-        theme: input.theme,
-        show_in_tray: input.show_in_tray,
-        launch_at_login: input.launch_at_login,
-        enable_logging: input.enable_logging,
-        log_level: input.log_level,
-        enable_notifications: input.enable_notifications,
-        sidebar_expanded: input.sidebar_expanded,
-        background_check_enabled: input.background_check_enabled,
-        background_check_interval_minutes: input.background_check_interval_minutes,
-        enable_headless_browser: input.enable_headless_browser,
-    };
-
-    let settings = SettingService::update(db.conn(), params).await?;
+    let settings = SettingService::update(db.conn(), input).await?;
 
     if let Some(show_in_tray) = show_in_tray_value {
         update_tray_visibility(&app, show_in_tray);
@@ -256,7 +228,7 @@ mod tests {
     #[test]
     fn test_update_settings_input_deserializes_partial() {
         let json = r#"{"theme":"light"}"#;
-        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.theme, Some("light".to_string()));
         assert!(input.show_in_tray.is_none());
@@ -284,7 +256,7 @@ mod tests {
             "background_check_interval_minutes": 30,
             "enable_headless_browser": false
         }"#;
-        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.theme, Some("dark".to_string()));
         assert_eq!(input.show_in_tray, Some(true));
@@ -301,7 +273,7 @@ mod tests {
     #[test]
     fn test_update_settings_input_deserializes_empty() {
         let json = r#"{}"#;
-        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
 
         assert!(input.theme.is_none());
         assert!(input.show_in_tray.is_none());
@@ -318,7 +290,7 @@ mod tests {
     #[test]
     fn test_update_settings_input_deserializes_booleans_only() {
         let json = r#"{"show_in_tray":false,"launch_at_login":true}"#;
-        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
 
         assert!(input.theme.is_none());
         assert_eq!(input.show_in_tray, Some(false));
@@ -328,7 +300,7 @@ mod tests {
     #[test]
     fn test_update_settings_input_deserializes_log_level_only() {
         let json = r#"{"log_level":"trace"}"#;
-        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.log_level, Some("trace".to_string()));
         assert!(input.theme.is_none());
@@ -337,7 +309,7 @@ mod tests {
     #[test]
     fn test_update_settings_input_deserializes_background_check_only() {
         let json = r#"{"background_check_enabled":true,"background_check_interval_minutes":15}"#;
-        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.background_check_enabled, Some(true));
         assert_eq!(input.background_check_interval_minutes, Some(15));
@@ -347,7 +319,7 @@ mod tests {
     #[test]
     fn test_update_settings_input_deserializes_headless_browser_only() {
         let json = r#"{"enable_headless_browser":false}"#;
-        let input: UpdateSettingsInput = serde_json::from_str(json).unwrap();
+        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.enable_headless_browser, Some(false));
         assert!(input.theme.is_none());

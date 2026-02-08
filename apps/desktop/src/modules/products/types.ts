@@ -109,14 +109,17 @@ export interface BulkCheckSummary {
 
 /**
  * Event emitted during bulk check for progress updates.
+ * Field names match the Rust `BulkCheckProgressEvent` struct.
  */
 export interface CheckProgressEvent {
-	/** Zero-based index of the current product being checked */
-	current_index: number;
+	/** Product ID that was just checked */
+	product_id: string;
+	/** Availability status result */
+	status: string;
+	/** 1-based index of the current product being checked */
+	current: number;
 	/** Total number of products to check */
-	total_count: number;
-	/** Result of the current product check */
-	result: BulkCheckResult;
+	total: number;
 }
 
 /**

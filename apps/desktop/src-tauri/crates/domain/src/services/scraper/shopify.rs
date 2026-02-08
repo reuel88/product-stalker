@@ -23,8 +23,7 @@ use super::ScrapingResult;
 /// HTTP request timeout for Shopify API calls
 const TIMEOUT_SECS: u64 = 15;
 
-/// User-Agent header for API requests
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+use super::USER_AGENT;
 
 /// Error phrases from the Shopify cart API that indicate a product is out of stock
 const CART_ERROR_OUT_OF_STOCK_PHRASES: &[&str] = &[

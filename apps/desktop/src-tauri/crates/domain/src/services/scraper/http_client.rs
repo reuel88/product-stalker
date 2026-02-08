@@ -10,11 +10,7 @@ use crate::services::HeadlessService;
 /// HTTP request timeout
 const TIMEOUT_SECS: u64 = 30;
 
-/// User-Agent header mimicking Chrome browser.
-///
-/// Using a realistic browser User-Agent helps avoid basic bot detection
-/// that blocks requests with obvious automation signatures like "curl" or "python-requests".
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+use super::USER_AGENT;
 
 /// HTTP Accept header for HTML content
 const ACCEPT_HEADER: &str =
@@ -35,42 +31,28 @@ pub async fn fetch_html_with_fallback(
     url: &str,
     enable_headless: bool,
 ) -> Result<String, AppError> {
-    match fetch_page(url).await {
-        Ok(html) => {
-            log::debug!("HTTP fetch succeeded for {}, checking for challenge", url);
-            if is_cloudflare_challenge(200, &html) {
-                log::info!("Detected bot protection challenge for {}", url);
-                if enable_headless {
-                    log::info!("Attempting headless fallback for {}", url);
-                    fetch_with_headless(url).await
-                } else {
-                    Err(AppError::BotProtection(BOT_PROTECTION_MESSAGE.to_string()))
-                }
-            } else {
-                Ok(html)
-            }
+    let needs_headless = match fetch_page(url).await {
+        Ok(html) if !is_cloudflare_challenge(200, &html) => return Ok(html),
+        Ok(_) => {
+            log::info!("Detected bot protection challenge for {}", url);
+            true
         }
-        Err(AppError::HttpStatus {
-            status,
-            url: failed_url,
-        }) if status == 403 || status == 503 => {
-            log::info!(
-                "HTTP request blocked ({}) for {}, trying headless",
-                status,
-                failed_url
-            );
-            if enable_headless {
-                log::info!("Attempting headless fallback for {}", failed_url);
-                fetch_with_headless(&failed_url).await
-            } else {
-                Err(AppError::BotProtection(BOT_PROTECTION_MESSAGE.to_string()))
-            }
+        Err(AppError::HttpStatus { status, .. }) if status == 403 || status == 503 => {
+            log::info!("HTTP request blocked ({}) for {}", status, url);
+            true
         }
         Err(e) => {
             log::error!("HTTP fetch failed for {}: {}", url, e);
-            Err(e)
+            return Err(e);
         }
+    };
+
+    if needs_headless && enable_headless {
+        log::info!("Attempting headless fallback for {}", url);
+        return fetch_with_headless(url).await;
     }
+
+    Err(AppError::BotProtection(BOT_PROTECTION_MESSAGE.to_string()))
 }
 
 /// Fetch page HTML using headless browser

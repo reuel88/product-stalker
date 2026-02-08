@@ -19,16 +19,11 @@ const ERROR_RETRY_DELAY_SECS: u64 = 60;
 /// so it can start checking when the user enables the feature.
 const DISABLED_POLL_INTERVAL_SECS: u64 = 60;
 
-/// State for managing the background checker task
-#[derive(Default)]
+/// State for managing the background checker task.
+///
+/// Stores the `JoinHandle` so the task can be cancelled if needed (e.g., on app shutdown).
 pub struct BackgroundCheckerState {
-    _private: (),
-}
-
-impl BackgroundCheckerState {
-    pub fn new() -> Self {
-        Self { _private: () }
-    }
+    _handle: tauri::async_runtime::JoinHandle<()>,
 }
 
 /// Spawns the background availability checker task.
@@ -39,12 +34,9 @@ pub fn spawn_background_checker(
     app: AppHandle,
     conn: Arc<DatabaseConnection>,
 ) -> BackgroundCheckerState {
-    let state = BackgroundCheckerState::new();
+    let handle = tauri::async_runtime::spawn(background_checker_loop(app, conn));
 
-    // Use tauri::async_runtime::spawn which works within Tauri's runtime context
-    tauri::async_runtime::spawn(background_checker_loop(app, conn));
-
-    state
+    BackgroundCheckerState { _handle: handle }
 }
 
 async fn background_checker_loop(app: AppHandle, conn: Arc<DatabaseConnection>) {
@@ -104,20 +96,15 @@ async fn background_checker_loop(app: AppHandle, conn: Arc<DatabaseConnection>) 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
-    fn test_background_checker_state_new() {
-        let state = BackgroundCheckerState::new();
-        // Just verify it can be created
-        assert!(true, "BackgroundCheckerState created successfully");
-        drop(state);
+    fn test_error_retry_delay_is_reasonable() {
+        assert!(super::ERROR_RETRY_DELAY_SECS > 0);
+        assert!(super::ERROR_RETRY_DELAY_SECS <= 300);
     }
 
     #[test]
-    fn test_background_checker_state_default() {
-        let state = BackgroundCheckerState::default();
-        assert!(true, "BackgroundCheckerState default created successfully");
-        drop(state);
+    fn test_disabled_poll_interval_is_reasonable() {
+        assert!(super::DISABLED_POLL_INTERVAL_SECS > 0);
+        assert!(super::DISABLED_POLL_INTERVAL_SECS <= 300);
     }
 }

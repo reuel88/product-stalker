@@ -63,7 +63,11 @@ impl ErrorResponse {
         }
     }
 
-    /// Create an error response from an AppError
+    /// Create an error response from an AppError.
+    ///
+    /// Extracts the inner message without the variant prefix (e.g., "Database error: ").
+    /// The frontend uses the `code` field for error categorization, so the `error`
+    /// field contains only the human-readable message.
     pub fn from_app_error(err: &AppError) -> Self {
         let message = match err {
             AppError::Database(db_err) => db_err.to_string(),

@@ -14,10 +14,8 @@ use uuid::Uuid;
 
 use crate::core::services::SettingService;
 use crate::core::AppError;
-use crate::domain::entities::prelude::{AvailabilityCheckModel, ProductModel};
 use crate::domain::services::{
-    AvailabilityService, BulkCheckResult, BulkCheckSummary, DailyPriceComparison, NotificationData,
-    NotificationService, ProductService,
+    AvailabilityService, BulkCheckSummary, NotificationData, ProductService,
 };
 
 /// Delay in milliseconds between consecutive product checks during bulk operations.
@@ -32,12 +30,8 @@ pub struct BulkCheckProgressEvent {
     pub total: usize,
 }
 
-/// Result of checking a single product with notification
-pub struct CheckResultWithNotification {
-    pub check: AvailabilityCheckModel,
-    pub daily_comparison: DailyPriceComparison,
-    pub notification: Option<NotificationData>,
-}
+/// Re-export domain's CheckResultWithNotification for use by commands
+pub use crate::domain::services::CheckResultWithNotification;
 
 /// Result of checking all products with notification
 pub struct TauriBulkCheckResult {
@@ -51,47 +45,20 @@ pub struct TauriAvailabilityService;
 impl TauriAvailabilityService {
     /// Check availability for a single product and send notification if back in stock.
     ///
-    /// This is the main entry point for checking a single product from commands.
+    /// Delegates to domain's `AvailabilityService::check_product_with_notification`
+    /// after fetching Tauri-specific settings.
     pub async fn check_product_with_notification(
         conn: &DatabaseConnection,
         product_id: Uuid,
     ) -> Result<CheckResultWithNotification, AppError> {
-        // Get settings to check headless browser preference
         let settings = SettingService::get(conn).await?;
-        let enable_headless = settings.enable_headless_browser;
-
-        // Get previous check context first (before the new check)
-        let context = AvailabilityService::get_product_check_context(conn, product_id).await?;
-
-        // Perform the check
-        let check = AvailabilityService::check_product(conn, product_id, enable_headless).await?;
-
-        // Get daily price comparison
-        let daily_comparison =
-            AvailabilityService::get_daily_price_comparison(conn, product_id).await?;
-
-        // Determine if back in stock
-        let is_back_in_stock =
-            AvailabilityService::is_back_in_stock(&context.previous_status, &check.status);
-
-        // Build notification if applicable
-        let notification = if settings.enable_notifications && is_back_in_stock {
-            NotificationService::build_single_notification(conn, product_id, &settings, true)
-                .await?
-        } else {
-            None
-        };
-
-        Ok(CheckResultWithNotification {
-            check,
-            daily_comparison,
-            notification,
-        })
+        AvailabilityService::check_product_with_notification(conn, product_id, &settings).await
     }
 
     /// Check all products with progress events and bulk notification.
     ///
-    /// Emits "bulk-check-progress" events for each product checked.
+    /// Emits "availability:check-progress" events for each product checked.
+    /// Delegates per-product checking to domain's `AvailabilityService::check_single_product`.
     pub async fn check_all_products_with_notification(
         conn: &DatabaseConnection,
         app: &AppHandle,
@@ -99,7 +66,6 @@ impl TauriAvailabilityService {
         let settings = SettingService::get(conn).await?;
         let enable_headless = settings.enable_headless_browser;
 
-        // Get all products
         let products = ProductService::get_all(conn).await?;
         let total = products.len();
 
@@ -117,97 +83,38 @@ impl TauriAvailabilityService {
             });
         }
 
-        let mut results = Vec::with_capacity(total);
+        let mut paired_results = Vec::with_capacity(total);
 
         for (index, product) in products.iter().enumerate() {
             if index > 0 {
                 tokio::time::sleep(Duration::from_millis(RATE_LIMIT_BETWEEN_CHECKS_MS)).await;
             }
 
-            let result = check_single_product(conn, product, enable_headless).await;
+            let (bulk_result, processing_result) =
+                AvailabilityService::check_single_product(conn, product, enable_headless).await;
 
             let _ = app.emit(
-                "bulk-check-progress",
+                "availability:check-progress",
                 &BulkCheckProgressEvent {
                     product_id: product.id.to_string(),
-                    status: result.status.clone(),
+                    status: bulk_result.status.clone(),
                     current: index + 1,
                     total,
                 },
             );
 
-            results.push(result);
+            paired_results.push((bulk_result, processing_result));
         }
 
-        let successful = results.iter().filter(|r| r.error.is_none()).count();
-        let failed = results.iter().filter(|r| r.error.is_some()).count();
-        let back_in_stock_count = results.iter().filter(|r| r.is_back_in_stock).count();
-        let price_drop_count = results.iter().filter(|r| r.is_price_drop).count();
+        let summary = AvailabilityService::build_summary_from_results(total, paired_results);
 
-        let summary = BulkCheckSummary {
-            total,
-            successful,
-            failed,
-            back_in_stock_count,
-            price_drop_count,
-            results: results.clone(),
-        };
-
-        // Build notification if enabled
-        let notification = NotificationService::build_bulk_notification(
-            &settings,
-            back_in_stock_count,
-            price_drop_count,
-            &results,
-        );
+        let notification =
+            AvailabilityService::build_bulk_notification_with_settings(&settings, &summary);
 
         Ok(TauriBulkCheckResult {
             summary,
             notification,
         })
-    }
-}
-
-/// Check a single product, returning a BulkCheckResult.
-/// Errors are captured in the result rather than propagated.
-async fn check_single_product(
-    conn: &DatabaseConnection,
-    product: &ProductModel,
-    enable_headless: bool,
-) -> BulkCheckResult {
-    let context = match AvailabilityService::get_product_check_context(conn, product.id).await {
-        Ok(ctx) => ctx,
-        Err(e) => return BulkCheckResult::error_for_product(product, e.to_string()),
-    };
-
-    let check = match AvailabilityService::check_product(conn, product.id, enable_headless).await {
-        Ok(c) => c,
-        Err(e) => return BulkCheckResult::error_for_product(product, e.to_string()),
-    };
-
-    let daily_comparison = AvailabilityService::get_daily_price_comparison(conn, product.id)
-        .await
-        .unwrap_or_default();
-
-    let is_back_in_stock =
-        AvailabilityService::is_back_in_stock(&context.previous_status, &check.status);
-    let is_price_drop = AvailabilityService::is_price_drop(
-        daily_comparison.yesterday_average_cents,
-        daily_comparison.today_average_cents,
-    );
-
-    BulkCheckResult {
-        product_id: product.id.to_string(),
-        product_name: product.name.clone(),
-        status: check.status.clone(),
-        previous_status: context.previous_status,
-        is_back_in_stock,
-        price_cents: check.price_cents,
-        price_currency: check.price_currency,
-        today_average_price_cents: daily_comparison.today_average_cents,
-        yesterday_average_price_cents: daily_comparison.yesterday_average_cents,
-        is_price_drop,
-        error: None,
     }
 }
 
