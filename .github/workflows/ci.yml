@@ -65,33 +65,6 @@ jobs:
       - name: Run type check
         run: pnpm run check-types
 
-  test-js:
-    name: JavaScript Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Cache Turbo
-        uses: actions/cache@v4
-        with:
-          path: .turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-
-
-      - name: Run tests
-        run: pnpm run test
-
   rust-checks:
     name: Rust Checks
     runs-on: ubuntu-latest
@@ -149,8 +122,8 @@ jobs:
           RUSTC_WRAPPER: sccache
           RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=mold"
 
-  js-coverage:
-    name: JavaScript Coverage
+  test-js:
+    name: JavaScript Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
