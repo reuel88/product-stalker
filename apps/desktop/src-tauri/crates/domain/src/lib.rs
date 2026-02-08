@@ -4,6 +4,7 @@
 //! Contains product entities, services, and scraping functionality.
 
 pub mod entities;
+pub mod migrations;
 pub mod repositories;
 pub mod services;
 

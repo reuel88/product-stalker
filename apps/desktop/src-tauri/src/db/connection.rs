@@ -3,9 +3,20 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
-use product_stalker_core::migrations::Migrator;
 use product_stalker_core::AppError;
-use sea_orm_migration::MigratorTrait;
+use sea_orm_migration::prelude::*;
+
+/// Combined migrator that runs both core and domain migrations in timestamp order.
+struct AppMigrator;
+
+#[async_trait::async_trait]
+impl MigratorTrait for AppMigrator {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        let mut all = product_stalker_core::migrations::migrations();
+        all.append(&mut product_stalker_domain::migrations::migrations());
+        all
+    }
+}
 
 pub fn get_db_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     let app_data_dir = app
@@ -42,7 +53,7 @@ pub(crate) async fn init_db_from_url(db_url: String) -> Result<DatabaseConnectio
     enable_wal_mode(&conn).await?;
 
     log::info!("Running migrations...");
-    Migrator::up(&conn, None).await?;
+    AppMigrator::up(&conn, None).await?;
     log::info!("Database initialized and migrations complete");
 
     Ok(conn)
