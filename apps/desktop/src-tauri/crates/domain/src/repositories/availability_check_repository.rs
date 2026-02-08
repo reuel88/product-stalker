@@ -90,6 +90,9 @@ impl AvailabilityCheckRepository {
     ///
     /// Uses SUBSTR to extract date from ISO8601 timestamp and AVG() to calculate average.
     /// Returns None if no price data exists for that date.
+    ///
+    /// Relies on `checked_at` being stored as ISO 8601 text where the first 10
+    /// characters are "YYYY-MM-DD" (e.g., "2024-01-15T10:30:00+00:00").
     pub async fn get_average_price_for_date(
         conn: &DatabaseConnection,
         product_id: Uuid,

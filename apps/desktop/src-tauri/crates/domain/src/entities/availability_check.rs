@@ -129,6 +129,18 @@ impl Related<super::product::Entity> for Entity {
 
 impl ActiveModelBehavior for ActiveModel {}
 
+impl Model {
+    /// Parse the stored status string into a typed `AvailabilityStatus` enum.
+    pub fn status_enum(&self) -> AvailabilityStatus {
+        match self.status.as_str() {
+            "in_stock" => AvailabilityStatus::InStock,
+            "out_of_stock" => AvailabilityStatus::OutOfStock,
+            "back_order" => AvailabilityStatus::BackOrder,
+            _ => AvailabilityStatus::Unknown,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,6 +307,46 @@ mod tests {
             AvailabilityStatus::from_schema_org("http://schema.org/InStock#fragment"),
             AvailabilityStatus::InStock
         );
+    }
+
+    #[test]
+    fn test_status_enum_helper() {
+        let model = Model {
+            id: Uuid::new_v4(),
+            product_id: Uuid::new_v4(),
+            status: "in_stock".to_string(),
+            raw_availability: None,
+            error_message: None,
+            checked_at: chrono::Utc::now(),
+            price_cents: None,
+            price_currency: None,
+            raw_price: None,
+        };
+        assert_eq!(model.status_enum(), AvailabilityStatus::InStock);
+
+        let model = Model {
+            status: "out_of_stock".to_string(),
+            ..model
+        };
+        assert_eq!(model.status_enum(), AvailabilityStatus::OutOfStock);
+
+        let model = Model {
+            status: "back_order".to_string(),
+            ..model
+        };
+        assert_eq!(model.status_enum(), AvailabilityStatus::BackOrder);
+
+        let model = Model {
+            status: "unknown".to_string(),
+            ..model
+        };
+        assert_eq!(model.status_enum(), AvailabilityStatus::Unknown);
+
+        let model = Model {
+            status: "garbage".to_string(),
+            ..model
+        };
+        assert_eq!(model.status_enum(), AvailabilityStatus::Unknown);
     }
 
     #[test]

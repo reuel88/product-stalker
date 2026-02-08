@@ -11,12 +11,12 @@ import {
 import { formatPrice } from "@/lib/utils";
 import type { PriceDataPoint } from "@/modules/products/types";
 
-/** Chart color palette using OKLCH color space */
+/** Chart color palette using CSS custom properties for theme support */
 const CHART_COLORS = {
-	/** Primary line and dot color - vibrant blue */
-	line: "oklch(0.546 0.245 262.881)",
-	/** Active/hover dot color - slightly darker blue for emphasis */
-	activeDot: "oklch(0.488 0.243 264.376)",
+	/** Primary line and dot color - uses primary theme color with fallback */
+	line: "hsl(var(--primary))",
+	/** Active/hover dot color - uses ring theme color with fallback */
+	activeDot: "hsl(var(--ring))",
 } as const;
 
 interface PriceHistoryChartProps {

@@ -7,11 +7,11 @@ mod product_service;
 pub mod scraper;
 
 pub use availability_service::{
-    AvailabilityService, BulkCheckResult, BulkCheckSummary, DailyPriceComparison,
-    ProductCheckContext,
+    AvailabilityService, BulkCheckResult, BulkCheckSummary, CheckProcessingResult,
+    CheckResultWithNotification, DailyPriceComparison, ProductCheckContext,
 };
 pub use headless_service::HeadlessService;
 pub use notification_service::NotificationService;
-pub use product_service::ProductService;
+pub use product_service::{CreateProductParams, ProductService};
 pub use product_stalker_core::services::notification_helpers::NotificationData;
 pub use scraper::ScraperService;

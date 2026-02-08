@@ -3,7 +3,7 @@ use tauri::State;
 
 use crate::db::DbState;
 use crate::domain::entities::prelude::ProductModel;
-use crate::domain::services::ProductService;
+use crate::domain::services::{CreateProductParams, ProductService};
 use crate::tauri_error::CommandError;
 use crate::utils::parse_uuid;
 
@@ -78,10 +78,12 @@ pub async fn create_product(
 ) -> Result<ProductResponse, CommandError> {
     let product = ProductService::create(
         db.conn(),
-        input.name,
-        input.url,
-        input.description,
-        input.notes,
+        CreateProductParams {
+            name: input.name,
+            url: input.url,
+            description: input.description,
+            notes: input.notes,
+        },
     )
     .await?;
 
