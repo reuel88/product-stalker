@@ -40,11 +40,14 @@ pub async fn create_product(
 
     let product = ProductService::create(
         db.conn(),
-        input.name,
-        input.url,
-        input.description,
-        input.notes,
-    ).await?;
+        CreateProductParams {
+            name: input.name,
+            url: input.url,
+            description: input.description,
+            notes: input.notes,
+        },
+    )
+    .await?;
 
     Ok(ProductResponse::from(product))
 }
@@ -56,20 +59,17 @@ pub async fn create_product(
 impl ProductService {
     pub async fn create(
         conn: &DatabaseConnection,
-        name: String,
-        url: String,
-        description: Option<String>,
-        notes: Option<String>,
+        params: CreateProductParams,
     ) -> Result<ProductModel, AppError> {
         // Validate inputs (business rules)
-        Self::validate_name(&name)?;
-        Self::validate_url(&url)?;
+        Self::validate_name(&params.name)?;
+        Self::validate_url(&params.url)?;
 
         // Generate business identifiers
         let id = Uuid::new_v4();
 
         // Call repository
-        ProductRepository::create(conn, id, name, url, description, notes).await
+        ProductRepository::create(conn, id, params.name, params.url, params.description, params.notes).await
     }
 
     fn validate_name(name: &str) -> Result<(), AppError> {
@@ -378,27 +378,32 @@ pub async fn find_paginated(
 ### Update Pattern
 
 ```rust
+/// Parameters for updating an existing product (all fields optional for partial updates)
+pub struct UpdateProductParams {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub description: Option<String>,
+    pub notes: Option<String>,
+}
+
 pub async fn update(
     conn: &DatabaseConnection,
-    model: ProductModel,
-    name: Option<String>,
-    url: Option<String>,
+    id: Uuid,
+    params: UpdateProductParams,
 ) -> Result<ProductModel, AppError> {
-    let mut active_model: ProductActiveModel = model.into();
-
-    // Only update fields that are provided
-    if let Some(name) = name {
-        active_model.name = Set(name);
+    // Validate inputs if provided
+    if let Some(ref name) = params.name {
+        Self::validate_name(name)?;
     }
-    if let Some(url) = url {
-        active_model.url = Set(url);
+    if let Some(ref url) = params.url {
+        Self::validate_url(url)?;
     }
 
-    // Always update timestamp
-    active_model.updated_at = Set(chrono::Utc::now());
+    // Fetch existing product
+    let product = Self::get_by_id(conn, id).await?;
 
-    let updated = active_model.update(conn).await?;
-    Ok(updated)
+    // Update via repository
+    ProductRepository::update(conn, product, params).await
 }
 ```
 
@@ -443,10 +448,12 @@ mod tests {
 
         let product = ProductService::create(
             &db,
-            "Test Product".to_string(),
-            "https://example.com".to_string(),
-            None,
-            None,
+            CreateProductParams {
+                name: "Test Product".to_string(),
+                url: "https://example.com".to_string(),
+                description: None,
+                notes: None,
+            },
         )
         .await
         .expect("Failed to create product");
