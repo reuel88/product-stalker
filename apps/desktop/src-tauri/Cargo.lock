@@ -3933,6 +3933,7 @@ dependencies = [
  "reqwest",
  "scraper",
  "sea-orm",
+ "sea-orm-migration",
  "serde",
  "serde_json",
  "tokio",

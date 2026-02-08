@@ -2,8 +2,17 @@ use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::time::Duration;
 
 use crate::error::AppError;
-use crate::migrations::Migrator;
-use sea_orm_migration::MigratorTrait;
+use sea_orm_migration::prelude::*;
+
+/// Migrator that runs core infrastructure migrations only.
+struct CoreMigrator;
+
+#[async_trait::async_trait]
+impl MigratorTrait for CoreMigrator {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        crate::migrations::migrations()
+    }
+}
 
 /// Build connection options for SQLite with recommended settings
 pub fn build_connection_options(db_url: String) -> ConnectOptions {
@@ -27,9 +36,9 @@ pub async fn init_db_from_url(db_url: String) -> Result<DatabaseConnection, AppE
     // Enable WAL mode for better concurrency
     enable_wal_mode(&conn).await?;
 
-    log::info!("Running migrations...");
-    Migrator::up(&conn, None).await?;
-    log::info!("Database initialized and migrations complete");
+    log::info!("Running core migrations...");
+    CoreMigrator::up(&conn, None).await?;
+    log::info!("Core migrations complete");
 
     Ok(conn)
 }
@@ -160,27 +169,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_init_db_from_url_runs_migrations() {
-        let conn = init_db_from_url("sqlite::memory:".to_string())
-            .await
-            .unwrap();
-
-        // Verify migrations ran by checking if tables exist
-        let result = conn
-            .query_one(Statement::from_string(
-                conn.get_database_backend(),
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='products';".to_owned(),
-            ))
-            .await
-            .unwrap();
-
-        assert!(
-            result.is_some(),
-            "products table should exist after migrations"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_init_db_from_url_creates_app_settings_table() {
         let conn = init_db_from_url("sqlite::memory:".to_string())
             .await
             .unwrap();
