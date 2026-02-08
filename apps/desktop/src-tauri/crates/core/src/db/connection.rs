@@ -1,4 +1,4 @@
-use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr};
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::time::Duration;
 
 use crate::error::AppError;
@@ -35,7 +35,7 @@ pub async fn init_db_from_url(db_url: String) -> Result<DatabaseConnection, AppE
 }
 
 /// Configure SQLite with WAL mode and recommended pragmas
-pub async fn enable_wal_mode(conn: &DatabaseConnection) -> Result<(), DbErr> {
+pub async fn enable_wal_mode(conn: &DatabaseConnection) -> Result<(), AppError> {
     use sea_orm::{ConnectionTrait, Statement};
 
     // Enable WAL mode

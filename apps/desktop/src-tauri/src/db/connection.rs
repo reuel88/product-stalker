@@ -1,4 +1,4 @@
-use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr};
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::path::PathBuf;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
@@ -58,7 +58,7 @@ pub async fn init_db(app: &AppHandle) -> Result<DatabaseConnection, AppError> {
 }
 
 /// Configure SQLite with WAL mode and recommended pragmas
-pub(crate) async fn enable_wal_mode(conn: &DatabaseConnection) -> Result<(), DbErr> {
+pub(crate) async fn enable_wal_mode(conn: &DatabaseConnection) -> Result<(), AppError> {
     use sea_orm::{ConnectionTrait, Statement};
 
     // Enable WAL mode
