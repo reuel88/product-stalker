@@ -132,31 +132,33 @@ fn extract_availability(product: &Value) -> Option<String> {
     None
 }
 
+const IN_STOCK_VALUES: &[&str] = &["in-stock", "instock", "in stock", "available"];
+const OUT_OF_STOCK_VALUES: &[&str] = &[
+    "out-of-stock",
+    "outofstock",
+    "out of stock",
+    "unavailable",
+    "sold out",
+    "soldout",
+];
+const BACK_ORDER_VALUES: &[&str] = &[
+    "backorder",
+    "back-order",
+    "back order",
+    "preorder",
+    "pre-order",
+    "pre order",
+];
+
 /// Map Chemist Warehouse availability strings to AvailabilityStatus
 fn map_availability_status(availability: &str) -> AvailabilityStatus {
     let normalized = availability.to_lowercase();
 
-    if normalized == "in-stock"
-        || normalized == "instock"
-        || normalized == "in stock"
-        || normalized == "available"
-    {
+    if IN_STOCK_VALUES.contains(&normalized.as_str()) {
         AvailabilityStatus::InStock
-    } else if normalized == "out-of-stock"
-        || normalized == "outofstock"
-        || normalized == "out of stock"
-        || normalized == "unavailable"
-        || normalized == "sold out"
-        || normalized == "soldout"
-    {
+    } else if OUT_OF_STOCK_VALUES.contains(&normalized.as_str()) {
         AvailabilityStatus::OutOfStock
-    } else if normalized == "backorder"
-        || normalized == "back-order"
-        || normalized == "back order"
-        || normalized == "preorder"
-        || normalized == "pre-order"
-        || normalized == "pre order"
-    {
+    } else if BACK_ORDER_VALUES.contains(&normalized.as_str()) {
         AvailabilityStatus::BackOrder
     } else {
         AvailabilityStatus::Unknown

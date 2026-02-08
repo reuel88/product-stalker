@@ -12,33 +12,42 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { CreateProductInput } from "@/modules/products/hooks/useProducts";
 
+const MODE_CONFIG = {
+	create: {
+		title: "Add Product",
+		description: "Add a new product to track",
+		submitLabel: "Create",
+		submittingLabel: "Creating...",
+	},
+	edit: {
+		title: "Edit Product",
+		description: "Update product details",
+		submitLabel: "Save",
+		submittingLabel: "Saving...",
+	},
+} as const;
+
 interface ProductFormDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	title: string;
-	description: string;
+	mode: "create" | "edit";
 	formData: CreateProductInput;
 	onFormChange: (data: CreateProductInput) => void;
 	onSubmit: () => void;
 	isSubmitting: boolean;
-	submitLabel: string;
-	submittingLabel: string;
-	idPrefix: string;
 }
 
 export function ProductFormDialog({
 	open,
 	onOpenChange,
-	title,
-	description,
+	mode,
 	formData,
 	onFormChange,
 	onSubmit,
 	isSubmitting,
-	submitLabel,
-	submittingLabel,
-	idPrefix,
 }: ProductFormDialogProps) {
+	const { title, description, submitLabel, submittingLabel } =
+		MODE_CONFIG[mode];
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent>
@@ -48,9 +57,9 @@ export function ProductFormDialog({
 				</DialogHeader>
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
-						<Label htmlFor={`${idPrefix}-name`}>Name</Label>
+						<Label htmlFor={`${mode}-name`}>Name</Label>
 						<Input
-							id={`${idPrefix}-name`}
+							id={`${mode}-name`}
 							value={formData.name}
 							onChange={(e) =>
 								onFormChange({ ...formData, name: e.target.value })
@@ -59,9 +68,9 @@ export function ProductFormDialog({
 						/>
 					</div>
 					<div className="grid gap-2">
-						<Label htmlFor={`${idPrefix}-url`}>URL</Label>
+						<Label htmlFor={`${mode}-url`}>URL</Label>
 						<Input
-							id={`${idPrefix}-url`}
+							id={`${mode}-url`}
 							value={formData.url}
 							onChange={(e) =>
 								onFormChange({ ...formData, url: e.target.value })
@@ -70,9 +79,9 @@ export function ProductFormDialog({
 						/>
 					</div>
 					<div className="grid gap-2">
-						<Label htmlFor={`${idPrefix}-description`}>Description</Label>
+						<Label htmlFor={`${mode}-description`}>Description</Label>
 						<Textarea
-							id={`${idPrefix}-description`}
+							id={`${mode}-description`}
 							value={formData.description || ""}
 							onChange={(e) =>
 								onFormChange({ ...formData, description: e.target.value })
@@ -81,9 +90,9 @@ export function ProductFormDialog({
 						/>
 					</div>
 					<div className="grid gap-2">
-						<Label htmlFor={`${idPrefix}-notes`}>Notes</Label>
+						<Label htmlFor={`${mode}-notes`}>Notes</Label>
 						<Textarea
-							id={`${idPrefix}-notes`}
+							id={`${mode}-notes`}
 							value={formData.notes || ""}
 							onChange={(e) =>
 								onFormChange({ ...formData, notes: e.target.value })

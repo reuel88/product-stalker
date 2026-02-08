@@ -57,20 +57,7 @@ impl AvailabilityCheckResponse {
 
 impl From<AvailabilityCheckModel> for AvailabilityCheckResponse {
     fn from(model: AvailabilityCheckModel) -> Self {
-        Self {
-            id: model.id.to_string(),
-            product_id: model.product_id.to_string(),
-            status: model.status,
-            raw_availability: model.raw_availability,
-            error_message: model.error_message,
-            checked_at: model.checked_at.to_rfc3339(),
-            price_cents: model.price_cents,
-            price_currency: model.price_currency,
-            raw_price: model.raw_price,
-            today_average_price_cents: None,
-            yesterday_average_price_cents: None,
-            is_price_drop: false,
-        }
+        Self::from_model_with_daily_comparison(model, DailyPriceComparison::default())
     }
 }
 

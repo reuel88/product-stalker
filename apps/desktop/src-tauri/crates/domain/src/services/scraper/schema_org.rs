@@ -43,50 +43,35 @@ pub fn extract_availability_and_price(
     json: &serde_json::Value,
     variant_id: Option<&str>,
 ) -> Option<(String, PriceInfo)> {
-    try_extract_from_product_with_price(json)
-        .or_else(|| try_extract_from_product_group_with_price(json, variant_id))
-        .or_else(|| try_extract_from_graph_with_price(json, variant_id))
-        .or_else(|| try_extract_from_array_with_price(json, variant_id))
-}
-
-/// Try to extract availability and price if the JSON is a Product type
-fn try_extract_from_product_with_price(json: &serde_json::Value) -> Option<(String, PriceInfo)> {
+    // 1. Direct Product with offers
     if is_product_type(json) {
-        get_availability_and_price_from_product(json)
-    } else {
-        None
+        if let Some(result) = get_availability_and_price_from_product(json) {
+            return Some(result);
+        }
     }
-}
 
-/// Try to extract availability and price if the JSON is a ProductGroup type
-fn try_extract_from_product_group_with_price(
-    json: &serde_json::Value,
-    variant_id: Option<&str>,
-) -> Option<(String, PriceInfo)> {
+    // 2. ProductGroup with hasVariant array
     if is_product_group_type(json) {
-        get_availability_and_price_from_product_group(json, variant_id)
-    } else {
-        None
+        if let Some(result) = get_availability_and_price_from_product_group(json, variant_id) {
+            return Some(result);
+        }
     }
-}
 
-/// Try to extract availability and price from a @graph array
-fn try_extract_from_graph_with_price(
-    json: &serde_json::Value,
-    variant_id: Option<&str>,
-) -> Option<(String, PriceInfo)> {
-    json.get("@graph")
-        .and_then(|g| g.as_array())
-        .and_then(|arr| find_availability_and_price_in_items(arr, variant_id))
-}
+    // 3. @graph array containing Product or ProductGroup items
+    if let Some(arr) = json.get("@graph").and_then(|g| g.as_array()) {
+        if let Some(result) = find_availability_and_price_in_items(arr, variant_id) {
+            return Some(result);
+        }
+    }
 
-/// Try to extract availability and price from a direct JSON array
-fn try_extract_from_array_with_price(
-    json: &serde_json::Value,
-    variant_id: Option<&str>,
-) -> Option<(String, PriceInfo)> {
-    json.as_array()
-        .and_then(|arr| find_availability_and_price_in_items(arr, variant_id))
+    // 4. Direct JSON array containing Product or ProductGroup items
+    if let Some(arr) = json.as_array() {
+        if let Some(result) = find_availability_and_price_in_items(arr, variant_id) {
+            return Some(result);
+        }
+    }
+
+    None
 }
 
 /// Iterate through items looking for availability and price data
@@ -95,8 +80,15 @@ fn find_availability_and_price_in_items(
     variant_id: Option<&str>,
 ) -> Option<(String, PriceInfo)> {
     items.iter().find_map(|item| {
-        try_extract_from_product_with_price(item)
-            .or_else(|| try_extract_from_product_group_with_price(item, variant_id))
+        if is_product_type(item) {
+            if let Some(result) = get_availability_and_price_from_product(item) {
+                return Some(result);
+            }
+        }
+        if is_product_group_type(item) {
+            return get_availability_and_price_from_product_group(item, variant_id);
+        }
+        None
     })
 }
 
@@ -151,8 +143,12 @@ fn find_variant_by_id(variants: &[serde_json::Value], vid: &str) -> Option<(Stri
     let base = Url::parse("http://localhost").unwrap();
 
     for variant in variants {
-        let id = variant.get("@id").and_then(|i| i.as_str())?;
-        let parsed_url = Url::parse(id).or_else(|_| base.join(id)).ok()?;
+        let Some(id) = variant.get("@id").and_then(|i| i.as_str()) else {
+            continue;
+        };
+        let Some(parsed_url) = Url::parse(id).or_else(|_| base.join(id)).ok() else {
+            continue;
+        };
 
         let matches_variant = parsed_url
             .query_pairs()

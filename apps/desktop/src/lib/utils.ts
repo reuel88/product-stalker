@@ -16,7 +16,7 @@ export function formatPrice(
 	currency: string | null,
 ): string {
 	if (cents === null || currency === null) return "-";
-	return new Intl.NumberFormat("en-US", {
+	return new Intl.NumberFormat(undefined, {
 		style: "currency",
 		currency,
 	}).format(cents / 100);

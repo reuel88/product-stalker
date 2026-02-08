@@ -156,13 +156,27 @@ impl SettingService {
 
         let scope = SettingScope::Global;
 
+        // Appearance
         Self::persist_optional_string(conn, &scope, keys::THEME, params.theme).await?;
-        Self::persist_optional_string(conn, &scope, keys::LOG_LEVEL, params.log_level).await?;
+        Self::persist_optional_bool(
+            conn,
+            &scope,
+            keys::SIDEBAR_EXPANDED,
+            params.sidebar_expanded,
+        )
+        .await?;
+
+        // Startup
         Self::persist_optional_bool(conn, &scope, keys::SHOW_IN_TRAY, params.show_in_tray).await?;
         Self::persist_optional_bool(conn, &scope, keys::LAUNCH_AT_LOGIN, params.launch_at_login)
             .await?;
+
+        // Logging
         Self::persist_optional_bool(conn, &scope, keys::ENABLE_LOGGING, params.enable_logging)
             .await?;
+        Self::persist_optional_string(conn, &scope, keys::LOG_LEVEL, params.log_level).await?;
+
+        // Features
         Self::persist_optional_bool(
             conn,
             &scope,
@@ -173,8 +187,8 @@ impl SettingService {
         Self::persist_optional_bool(
             conn,
             &scope,
-            keys::SIDEBAR_EXPANDED,
-            params.sidebar_expanded,
+            keys::ENABLE_HEADLESS_BROWSER,
+            params.enable_headless_browser,
         )
         .await?;
         Self::persist_optional_bool(
@@ -182,13 +196,6 @@ impl SettingService {
             &scope,
             keys::BACKGROUND_CHECK_ENABLED,
             params.background_check_enabled,
-        )
-        .await?;
-        Self::persist_optional_bool(
-            conn,
-            &scope,
-            keys::ENABLE_HEADLESS_BROWSER,
-            params.enable_headless_browser,
         )
         .await?;
         Self::persist_optional_i32(
@@ -261,11 +268,20 @@ impl SettingService {
         }
     }
 
+    /// Maximum background check interval: 1 week (10080 minutes)
+    const MAX_BACKGROUND_CHECK_INTERVAL_MINUTES: i32 = 10080;
+
     fn validate_background_check_interval(interval: i32) -> Result<(), AppError> {
         if interval <= 0 {
             return Err(AppError::Validation(
                 "Background check interval must be a positive number of minutes".to_string(),
             ));
+        }
+        if interval > Self::MAX_BACKGROUND_CHECK_INTERVAL_MINUTES {
+            return Err(AppError::Validation(format!(
+                "Background check interval cannot exceed {} minutes (1 week)",
+                Self::MAX_BACKGROUND_CHECK_INTERVAL_MINUTES
+            )));
         }
         Ok(())
     }
@@ -331,6 +347,17 @@ mod tests {
         assert!(result.is_err());
         let result = SettingService::validate_background_check_interval(-100);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_background_check_interval_rejects_exceeding_max() {
+        let result = SettingService::validate_background_check_interval(10081);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_background_check_interval_accepts_max_value() {
+        assert!(SettingService::validate_background_check_interval(10080).is_ok());
     }
 
     #[test]

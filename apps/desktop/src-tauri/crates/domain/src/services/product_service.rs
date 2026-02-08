@@ -15,6 +15,14 @@ pub struct CreateProductParams {
     pub notes: Option<String>,
 }
 
+/// Parameters for updating an existing product (all fields optional for partial updates)
+pub struct UpdateProductParams {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub description: Option<String>,
+    pub notes: Option<String>,
+}
+
 /// Service layer for product business logic
 ///
 /// This layer validates input and orchestrates repository calls.
@@ -58,16 +66,13 @@ impl ProductService {
     pub async fn update(
         conn: &DatabaseConnection,
         id: Uuid,
-        name: Option<String>,
-        url: Option<String>,
-        description: Option<String>,
-        notes: Option<String>,
+        params: UpdateProductParams,
     ) -> Result<ProductModel, AppError> {
         // Validate inputs if provided
-        if let Some(ref name) = name {
+        if let Some(ref name) = params.name {
             Self::validate_name(name)?;
         }
-        if let Some(ref url) = url {
+        if let Some(ref url) = params.url {
             Self::validate_url(url)?;
         }
 
@@ -79,10 +84,10 @@ impl ProductService {
             conn,
             product,
             ProductUpdateInput {
-                name,
-                url,
-                description: description.map(Some),
-                notes: notes.map(Some),
+                name: params.name,
+                url: params.url,
+                description: params.description.map(Some),
+                notes: params.notes.map(Some),
             },
         )
         .await
@@ -309,10 +314,12 @@ mod integration_tests {
         let updated = ProductService::update(
             &conn,
             created.id,
-            Some("Updated Name".to_string()),
-            None,
-            None,
-            None,
+            UpdateProductParams {
+                name: Some("Updated Name".to_string()),
+                url: None,
+                description: None,
+                notes: None,
+            },
         )
         .await;
 
@@ -332,10 +339,12 @@ mod integration_tests {
         let updated = ProductService::update(
             &conn,
             created.id,
-            None,
-            Some("https://new.com".to_string()),
-            None,
-            None,
+            UpdateProductParams {
+                name: None,
+                url: Some("https://new.com".to_string()),
+                description: None,
+                notes: None,
+            },
         )
         .await;
 
@@ -355,10 +364,12 @@ mod integration_tests {
         let updated = ProductService::update(
             &conn,
             created.id,
-            None,
-            None,
-            Some("New description".to_string()),
-            None,
+            UpdateProductParams {
+                name: None,
+                url: None,
+                description: Some("New description".to_string()),
+                notes: None,
+            },
         )
         .await;
 
@@ -375,10 +386,12 @@ mod integration_tests {
         let result = ProductService::update(
             &conn,
             Uuid::new_v4(),
-            Some("Name".to_string()),
-            None,
-            None,
-            None,
+            UpdateProductParams {
+                name: Some("Name".to_string()),
+                url: None,
+                description: None,
+                notes: None,
+            },
         )
         .await;
 
@@ -392,8 +405,17 @@ mod integration_tests {
             .await
             .unwrap();
 
-        let result =
-            ProductService::update(&conn, created.id, Some("".to_string()), None, None, None).await;
+        let result = ProductService::update(
+            &conn,
+            created.id,
+            UpdateProductParams {
+                name: Some("".to_string()),
+                url: None,
+                description: None,
+                notes: None,
+            },
+        )
+        .await;
 
         assert!(matches!(result, Err(AppError::Validation(_))));
     }
@@ -405,8 +427,17 @@ mod integration_tests {
             .await
             .unwrap();
 
-        let result =
-            ProductService::update(&conn, created.id, None, Some("".to_string()), None, None).await;
+        let result = ProductService::update(
+            &conn,
+            created.id,
+            UpdateProductParams {
+                name: None,
+                url: Some("".to_string()),
+                description: None,
+                notes: None,
+            },
+        )
+        .await;
 
         assert!(matches!(result, Err(AppError::Validation(_))));
     }

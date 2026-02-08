@@ -18,6 +18,7 @@ pub enum AppError {
     #[error("Internal error: {0}")]
     Internal(String),
 
+    /// Client-level HTTP errors (connection refused, timeout, DNS failure, TLS errors)
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
 
@@ -27,6 +28,7 @@ pub enum AppError {
     #[error("Bot protection: {0}")]
     BotProtection(String),
 
+    /// HTTP response status code errors (e.g., 403 Forbidden, 404 Not Found, 503 Service Unavailable)
     #[error("HTTP {status} for URL: {url}")]
     HttpStatus { status: u16, url: String },
 }

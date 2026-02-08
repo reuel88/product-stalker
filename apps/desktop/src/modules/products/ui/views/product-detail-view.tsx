@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import {
 	Card,
@@ -10,6 +11,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MESSAGES } from "@/constants";
 import {
 	filterByTimeRange,
 	transformToPriceDataPoints,
@@ -66,6 +68,19 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 	const { history, isLoading: isLoadingHistory } =
 		useAvailabilityHistory(productId);
 
+	const handleCheck = useCallback(async () => {
+		try {
+			const result = await checkAvailability();
+			if (result.error_message) {
+				toast.error(result.error_message);
+			} else {
+				toast.success(MESSAGES.AVAILABILITY.CHECKED);
+			}
+		} catch {
+			toast.error(MESSAGES.AVAILABILITY.CHECK_FAILED);
+		}
+	}, [checkAvailability]);
+
 	if (isLoadingProduct) {
 		return <LoadingSkeleton />;
 	}
@@ -93,7 +108,7 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 				product={product}
 				latestCheck={latestCheck}
 				isChecking={isChecking}
-				onCheck={() => checkAvailability()}
+				onCheck={handleCheck}
 			/>
 
 			<Card>
