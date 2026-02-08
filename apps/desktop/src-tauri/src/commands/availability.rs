@@ -1,13 +1,11 @@
 use serde::Serialize;
 use tauri::State;
-use tauri_plugin_notification::NotificationExt;
 
 use crate::db::DbState;
-use crate::entities::prelude::AvailabilityCheckModel;
-use crate::error::AppError;
-use crate::services::{
-    AvailabilityService, BulkCheckSummary, DailyPriceComparison, NotificationData,
-};
+use crate::domain::entities::prelude::AvailabilityCheckModel;
+use crate::domain::services::{AvailabilityService, BulkCheckSummary, DailyPriceComparison};
+use crate::tauri_error::CommandError;
+use crate::tauri_services::{send_desktop_notification, TauriAvailabilityService};
 use crate::utils::parse_uuid;
 
 /// Response DTO for availability checks
@@ -85,10 +83,10 @@ pub async fn check_availability(
     app: tauri::AppHandle,
     product_id: String,
     db: State<'_, DbState>,
-) -> Result<AvailabilityCheckResponse, AppError> {
+) -> Result<AvailabilityCheckResponse, CommandError> {
     let uuid = parse_uuid(&product_id)?;
 
-    let result = AvailabilityService::check_product_with_notification(db.conn(), uuid).await?;
+    let result = TauriAvailabilityService::check_product_with_notification(db.conn(), uuid).await?;
 
     if let Some(notification) = result.notification {
         send_desktop_notification(&app, &notification);
@@ -105,7 +103,7 @@ pub async fn check_availability(
 pub async fn get_latest_availability(
     product_id: String,
     db: State<'_, DbState>,
-) -> Result<Option<AvailabilityCheckResponse>, AppError> {
+) -> Result<Option<AvailabilityCheckResponse>, CommandError> {
     let uuid = parse_uuid(&product_id)?;
 
     let check = AvailabilityService::get_latest(db.conn(), uuid).await?;
@@ -132,7 +130,7 @@ pub async fn get_availability_history(
     product_id: String,
     limit: Option<u64>,
     db: State<'_, DbState>,
-) -> Result<Vec<AvailabilityCheckResponse>, AppError> {
+) -> Result<Vec<AvailabilityCheckResponse>, CommandError> {
     let uuid = parse_uuid(&product_id)?;
 
     let checks = AvailabilityService::get_history(db.conn(), uuid, limit).await?;
@@ -151,29 +149,15 @@ pub async fn get_availability_history(
 pub async fn check_all_availability(
     app: tauri::AppHandle,
     db: State<'_, DbState>,
-) -> Result<BulkCheckSummary, AppError> {
-    let result = AvailabilityService::check_all_products_with_notification(db.conn(), &app).await?;
+) -> Result<BulkCheckSummary, CommandError> {
+    let result =
+        TauriAvailabilityService::check_all_products_with_notification(db.conn(), &app).await?;
 
     if let Some(notification) = result.notification {
         send_desktop_notification(&app, &notification);
     }
 
     Ok(result.summary)
-}
-
-/// Send a desktop notification (Tauri-specific, kept in command layer)
-fn send_desktop_notification(app: &tauri::AppHandle, notification: &NotificationData) {
-    if let Err(e) = app
-        .notification()
-        .builder()
-        .title(&notification.title)
-        .body(&notification.body)
-        .show()
-    {
-        log::warn!("Failed to send notification: {}", e);
-    } else {
-        log::info!("Sent notification: {}", notification.title);
-    }
 }
 
 #[cfg(test)]
