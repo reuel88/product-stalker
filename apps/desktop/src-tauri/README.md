@@ -29,69 +29,85 @@ cargo tauri build
 ## Project Structure
 
 ```
-src/
-├── lib.rs                          # App initialization & setup
-├── main.rs                         # Entry point
-├── error.rs                        # Error types (8 variants)
-├── utils.rs                        # Shared utilities
+apps/desktop/src-tauri/
+├── Cargo.toml                      # Workspace root
+├── crates/
+│   ├── core/                       # Reusable infrastructure
+│   │   └── src/
+│   │       ├── lib.rs              # Public exports
+│   │       ├── error.rs            # AppError (8 variants)
+│   │       ├── test_utils.rs       # Test database helpers
+│   │       ├── db/                 # Database setup (Tauri-agnostic)
+│   │       │   ├── mod.rs
+│   │       │   └── connection.rs   # Connection pool & WAL config
+│   │       ├── entities/           # Infrastructure entities
+│   │       │   ├── mod.rs
+│   │       │   ├── prelude.rs
+│   │       │   └── app_setting.rs  # EAV settings
+│   │       ├── migrations/         # Database migrations (9 total)
+│   │       │   ├── mod.rs
+│   │       │   ├── migrator.rs
+│   │       │   └── m20240101_*.rs ... m20250208_*.rs
+│   │       ├── repositories/       # Settings data access
+│   │       │   ├── mod.rs
+│   │       │   ├── app_settings_repository.rs
+│   │       │   └── settings_helpers.rs
+│   │       └── services/           # Settings business logic
+│   │           ├── mod.rs
+│   │           ├── setting_service.rs
+│   │           └── notification_service.rs
+│   │
+│   └── domain/                     # Product-specific (swappable)
+│       └── src/
+│           ├── lib.rs              # Public exports
+│           ├── test_utils.rs       # Domain test helpers
+│           ├── utils.rs            # Shared utilities
+│           ├── entities/           # Product entities
+│           │   ├── mod.rs
+│           │   ├── prelude.rs
+│           │   ├── product.rs      # Product entity
+│           │   └── availability_check.rs  # Availability with price
+│           ├── repositories/       # Product data access
+│           │   ├── mod.rs
+│           │   ├── product_repository.rs
+│           │   └── availability_check_repository.rs
+│           └── services/           # Product business logic
+│               ├── mod.rs
+│               ├── product_service.rs
+│               ├── availability_service.rs
+│               ├── headless_service.rs
+│               └── scraper/        # Web scraping module
+│                   ├── mod.rs      # ScraperService orchestrator
+│                   ├── bot_detection.rs
+│                   ├── http_client.rs
+│                   ├── schema_org.rs
+│                   ├── nextjs_data.rs
+│                   ├── price_parser.rs
+│                   └── chemist_warehouse.rs
 │
-├── commands/                       # Tauri IPC layer
-│   ├── mod.rs
-│   ├── products.rs                 # Product CRUD commands
-│   ├── availability.rs             # Availability check commands
-│   ├── settings.rs                 # Settings management
-│   ├── notifications.rs            # Notification commands
-│   ├── window.rs                   # Window management
-│   └── updater.rs                  # App update commands
-│
-├── services/                       # Business logic layer
-│   ├── mod.rs
-│   ├── product_service.rs          # Product business logic
-│   ├── availability_service.rs     # Bulk checking, price tracking
-│   ├── notification_service.rs     # Desktop notifications
-│   ├── setting_service.rs          # App settings
-│   ├── headless_service.rs         # Headless browser support
-│   └── scraper/                    # Web scraping module
-│       ├── mod.rs                  # ScraperService orchestrator
-│       ├── bot_detection.rs        # Cloudflare detection
-│       ├── http_client.rs          # HTTP with fallback
-│       ├── schema_org.rs           # JSON-LD parsing
-│       ├── nextjs_data.rs          # Next.js data extraction
-│       ├── price_parser.rs         # Price normalization
-│       └── chemist_warehouse.rs    # Site-specific adapter
-│
-├── repositories/                   # Data access layer
-│   ├── mod.rs
-│   ├── product_repository.rs       # Product data access
-│   ├── availability_check_repository.rs
-│   ├── app_settings_repository.rs
-│   └── settings_helpers.rs
-│
-├── entities/                       # SeaORM entities
-│   ├── mod.rs
-│   ├── prelude.rs
-│   ├── product.rs                  # Product entity
-│   ├── availability_check.rs       # Availability with price
-│   └── app_setting.rs              # EAV settings
-│
-├── migrations/                     # Database migrations (9 total)
-│   ├── mod.rs
-│   ├── migrator.rs
-│   └── m20240101_*.rs ... m20250208_*.rs
-│
-├── background/                     # Background tasks
-│   ├── mod.rs
-│   └── availability_checker.rs     # Periodic availability checks
-│
-├── plugins/                        # Tauri plugins
-│   ├── mod.rs
-│   └── system_tray.rs              # System tray integration
-│
-├── db/                             # Database setup
-│   ├── mod.rs
-│   └── connection.rs               # Connection & WAL config
-│
-└── test_utils.rs                   # Test helpers
+└── src/                            # Tauri wiring only
+    ├── lib.rs                      # App initialization & setup
+    ├── main.rs                     # Entry point
+    ├── tauri_error.rs              # AppError -> InvokeError conversion
+    ├── utils.rs                    # Tauri-specific utilities
+    ├── test_utils.rs               # Tauri test helpers
+    ├── commands/                   # Tauri IPC handlers
+    │   ├── mod.rs
+    │   ├── products.rs             # Product CRUD commands
+    │   ├── availability.rs         # Availability check commands
+    │   ├── settings.rs             # Settings management
+    │   ├── notifications.rs        # Notification commands
+    │   ├── window.rs               # Window management
+    │   └── updater.rs              # App update commands
+    ├── background/                 # Background tasks
+    │   ├── mod.rs
+    │   └── availability_checker.rs # Periodic availability checks
+    ├── plugins/                    # Tauri plugins
+    │   ├── mod.rs
+    │   └── system_tray.rs          # System tray integration
+    └── db/                         # Tauri-specific database init
+        ├── mod.rs
+        └── connection.rs
 ```
 
 ## Architecture
@@ -333,26 +349,28 @@ try {
 
 ### Adding New Entities
 
-1. **Create Migration**
+1. **Create Migration** (`crates/core/src/migrations/`)
    ```bash
    sea-orm-cli migrate generate create_new_table
    ```
 
-2. **Define Entity** (`src/entities/new_entity.rs`)
-   - Follow the pattern in `product.rs`
+2. **Define Entity**
+   - Infrastructure entities: `crates/core/src/entities/`
+   - Product entities: `crates/domain/src/entities/`
+   - Follow the pattern in existing entity files
    - Use TEXT for UUIDs and timestamps (SQLite)
 
-3. **Create Repository** (`src/repositories/new_repository.rs`)
+3. **Create Repository** (in corresponding crate's `repositories/`)
    - Pure data access, no business logic
 
-4. **Create Service** (`src/services/new_service.rs`)
+4. **Create Service** (in corresponding crate's `services/`)
    - Business logic, validation
 
 5. **Create Commands** (`src/commands/new_commands.rs`)
    - IPC handlers, DTOs
 
-6. **Register in `lib.rs`**
-   - Add module declarations
+6. **Register in `src/lib.rs`**
+   - Add imports from workspace crates
    - Register commands in `.invoke_handler()`
 
 ### Code Style

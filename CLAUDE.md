@@ -58,10 +58,16 @@ Note: `cargo llvm-cov` may have issues on Windows ARM64 due to profraw data prob
 Tauri Commands (IPC) → Services (business logic) → Repositories (data access) → SeaORM Entities → SQLite
 ```
 
+The backend uses a Cargo workspace with two library crates:
+- **`crates/core/`**: Reusable infrastructure (settings, migrations, error types)
+- **`crates/domain/`**: Product-specific business logic (swappable for new projects)
+- **`src/`**: Tauri wiring only (commands, background tasks, plugins)
+
+Layer locations:
 - **Commands** (`src/commands/`): IPC handlers only - no business logic
-- **Services** (`src/services/`): Validation, orchestration, business rules
-- **Repositories** (`src/repositories/`): Pure CRUD operations
-- **Entities** (`src/entities/`): SeaORM models (auto-generated from migrations)
+- **Services** (`crates/core/src/services/`, `crates/domain/src/services/`): Validation, orchestration, business rules
+- **Repositories** (`crates/core/src/repositories/`, `crates/domain/src/repositories/`): Pure CRUD operations
+- **Entities** (`crates/core/src/entities/`, `crates/domain/src/entities/`): SeaORM models
 
 ### Frontend Module Pattern
 Each feature module in `src/modules/` follows: `hooks/`, `types.ts`, `ui/components/`, `ui/views/`
@@ -79,7 +85,7 @@ Each feature module in `src/modules/` follows: `hooks/`, `types.ts`, `ui/compone
 
 ### Rust
 - Clippy treats all warnings as errors
-- Use `AppError` for all error returns (defined in `src/error.rs`)
+- Use `AppError` for all error returns (defined in `crates/core/src/error.rs`)
 - Connection pool via `db.conn()` - never use Mutex for DB connections
 
 ### Function Nesting
@@ -140,10 +146,10 @@ let conn = db.conn.lock().unwrap();  // Blocks async runtime!
 ```
 
 ### Adding New Database Entities
-1. Create migration in `src-tauri/src/migrations/`
-2. Entity files are in `src/entities/` - follow existing patterns
-3. Add repository in `src/repositories/`
-4. Add service in `src/services/`
+1. Create migration in `src-tauri/crates/core/src/migrations/`
+2. Entity files go in `crates/core/src/entities/` (infrastructure) or `crates/domain/src/entities/` (product-specific)
+3. Add repository in the corresponding crate's `repositories/`
+4. Add service in the corresponding crate's `services/`
 5. Expose via Tauri command in `src/commands/`
 
 ## Dependencies Note

@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
+use crate::core::services::{SettingService, Settings, UpdateSettingsParams};
 use crate::db::DbState;
-use crate::error::AppError;
-use crate::services::setting_service::{Settings, UpdateSettingsParams};
-use crate::services::SettingService;
+use crate::tauri_error::CommandError;
 use crate::TrayState;
 
 /// Input for updating settings (all fields optional for partial updates)
@@ -58,7 +57,7 @@ impl From<Settings> for SettingsResponse {
 
 /// Get current settings
 #[tauri::command]
-pub async fn get_settings(db: State<'_, DbState>) -> Result<SettingsResponse, AppError> {
+pub async fn get_settings(db: State<'_, DbState>) -> Result<SettingsResponse, CommandError> {
     let settings = SettingService::get(db.conn()).await?;
     Ok(SettingsResponse::from(settings))
 }
@@ -88,7 +87,7 @@ pub async fn update_settings(
     app: AppHandle,
     input: UpdateSettingsInput,
     db: State<'_, DbState>,
-) -> Result<SettingsResponse, AppError> {
+) -> Result<SettingsResponse, CommandError> {
     let show_in_tray_value = input.show_in_tray;
 
     let params = UpdateSettingsParams {

@@ -6,6 +6,7 @@ Reference documentation for development setup, maintenance procedures, and opera
 
 | Guide | Description |
 |-------|-------------|
+| [Using as Template](./using-as-template.md) | Fork this project as a base for new Tauri + React apps |
 | [Windows ARM64 Setup](./windows-arm64-setup.md) | Development environment setup for ARM64 Windows |
 | [Release Signing](./release-signing.md) | Maintainer guide for Tauri signing keys |
 

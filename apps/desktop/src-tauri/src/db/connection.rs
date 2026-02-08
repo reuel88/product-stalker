@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
-use crate::error::AppError;
-use crate::migrations::Migrator;
+use product_stalker_core::migrations::Migrator;
+use product_stalker_core::AppError;
 use sea_orm_migration::MigratorTrait;
 
 pub fn get_db_path(app: &AppHandle) -> Result<PathBuf, AppError> {
