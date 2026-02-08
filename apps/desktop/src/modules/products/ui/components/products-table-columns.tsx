@@ -63,7 +63,7 @@ export function createProductColumns(
 			accessorKey: "url",
 			header: "URL",
 			cell: ({ row }) => {
-				const url = row.getValue("url") as string;
+				const url = row.original.url;
 				return (
 					<button
 						type="button"
@@ -90,7 +90,7 @@ export function createProductColumns(
 			accessorKey: "description",
 			header: "Description",
 			cell: ({ row }) => {
-				const description = row.getValue("description") as string | null;
+				const description = row.original.description;
 				if (!description)
 					return (
 						<span
@@ -113,7 +113,7 @@ export function createProductColumns(
 			accessorKey: "created_at",
 			header: "Created",
 			cell: ({ row }) => {
-				const date = new Date(row.getValue("created_at") as string);
+				const date = new Date(row.original.created_at);
 				return <span>{date.toLocaleDateString()}</span>;
 			},
 		},

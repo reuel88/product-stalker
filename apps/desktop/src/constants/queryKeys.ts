@@ -1,5 +1,6 @@
 const AVAILABILITY_PREFIX = "availability";
 
+// UPPER_CASE = static query keys, camelCase = factory functions that accept parameters
 export const QUERY_KEYS = {
 	PRODUCTS: ["products"],
 	SETTINGS: ["settings"],

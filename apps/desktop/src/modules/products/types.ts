@@ -115,7 +115,7 @@ export interface CheckProgressEvent {
 	/** Product ID that was just checked */
 	product_id: string;
 	/** Availability status result */
-	status: string;
+	status: AvailabilityStatus;
 	/** 1-based index of the current product being checked */
 	current: number;
 	/** Total number of products to check */

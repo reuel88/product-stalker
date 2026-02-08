@@ -6,7 +6,10 @@ use crate::db::DbState;
 use crate::tauri_error::CommandError;
 use crate::TrayState;
 
-/// Response DTO for settings
+/// Response DTO for settings.
+///
+/// Mirrors `Settings` fields but converts `updated_at` from `DateTime<Utc>` to an
+/// RFC 3339 `String` for JSON serialization. Keep fields in sync with `Settings`.
 #[derive(Debug, Serialize)]
 pub struct SettingsResponse {
     pub theme: String,

@@ -5,8 +5,7 @@ import { render, screen } from "../../test-utils";
 const defaultProps = {
 	open: true,
 	onOpenChange: vi.fn(),
-	title: "Add Product",
-	description: "Enter product details below",
+	mode: "create" as const,
 	formData: {
 		name: "",
 		url: "",
@@ -16,25 +15,20 @@ const defaultProps = {
 	onFormChange: vi.fn(),
 	onSubmit: vi.fn(),
 	isSubmitting: false,
-	submitLabel: "Save",
-	submittingLabel: "Saving...",
-	idPrefix: "add-product",
 };
 
 describe("ProductFormDialog", () => {
 	describe("rendering", () => {
-		it("should render dialog with title", () => {
+		it("should render dialog with title for create mode", () => {
 			render(<ProductFormDialog {...defaultProps} />);
 
 			expect(screen.getByText("Add Product")).toBeInTheDocument();
 		});
 
-		it("should render dialog with description", () => {
-			render(<ProductFormDialog {...defaultProps} />);
+		it("should render dialog with title for edit mode", () => {
+			render(<ProductFormDialog {...defaultProps} mode="edit" />);
 
-			expect(
-				screen.getByText("Enter product details below"),
-			).toBeInTheDocument();
+			expect(screen.getByText("Edit Product")).toBeInTheDocument();
 		});
 
 		it("should render all form fields", () => {
@@ -61,8 +55,16 @@ describe("ProductFormDialog", () => {
 			expect(screen.getByLabelText("Notes")).toHaveValue("Some notes");
 		});
 
-		it("should render submit button with label", () => {
+		it("should render submit button with create label", () => {
 			render(<ProductFormDialog {...defaultProps} />);
+
+			expect(
+				screen.getByRole("button", { name: "Create" }),
+			).toBeInTheDocument();
+		});
+
+		it("should render submit button with save label for edit mode", () => {
+			render(<ProductFormDialog {...defaultProps} mode="edit" />);
 
 			expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
 		});
@@ -145,7 +147,7 @@ describe("ProductFormDialog", () => {
 				<ProductFormDialog {...defaultProps} onSubmit={onSubmit} />,
 			);
 
-			const submitButton = screen.getByRole("button", { name: "Save" });
+			const submitButton = screen.getByRole("button", { name: "Create" });
 			await user.click(submitButton);
 
 			expect(onSubmit).toHaveBeenCalledTimes(1);
@@ -169,17 +171,19 @@ describe("ProductFormDialog", () => {
 			render(<ProductFormDialog {...defaultProps} isSubmitting={true} />);
 
 			expect(
-				screen.getByRole("button", { name: "Saving..." }),
+				screen.getByRole("button", { name: "Creating..." }),
 			).toBeInTheDocument();
 			expect(
-				screen.queryByRole("button", { name: "Save" }),
+				screen.queryByRole("button", { name: "Create" }),
 			).not.toBeInTheDocument();
 		});
 
 		it("should disable submit button when isSubmitting is true", () => {
 			render(<ProductFormDialog {...defaultProps} isSubmitting={true} />);
 
-			const submitButton = screen.getByRole("button", { name: "Saving..." });
+			const submitButton = screen.getByRole("button", {
+				name: "Creating...",
+			});
 			expect(submitButton).toBeDisabled();
 		});
 	});
@@ -192,25 +196,19 @@ describe("ProductFormDialog", () => {
 		});
 	});
 
-	describe("custom id prefix", () => {
-		it("should use idPrefix for form field ids", () => {
-			render(<ProductFormDialog {...defaultProps} idPrefix="edit-product" />);
+	describe("mode-based id prefix", () => {
+		it("should use mode as id prefix for form fields in edit mode", () => {
+			render(<ProductFormDialog {...defaultProps} mode="edit" />);
 
-			expect(screen.getByLabelText("Name")).toHaveAttribute(
-				"id",
-				"edit-product-name",
-			);
-			expect(screen.getByLabelText("URL")).toHaveAttribute(
-				"id",
-				"edit-product-url",
-			);
+			expect(screen.getByLabelText("Name")).toHaveAttribute("id", "edit-name");
+			expect(screen.getByLabelText("URL")).toHaveAttribute("id", "edit-url");
 			expect(screen.getByLabelText("Description")).toHaveAttribute(
 				"id",
-				"edit-product-description",
+				"edit-description",
 			);
 			expect(screen.getByLabelText("Notes")).toHaveAttribute(
 				"id",
-				"edit-product-notes",
+				"edit-notes",
 			);
 		});
 	});

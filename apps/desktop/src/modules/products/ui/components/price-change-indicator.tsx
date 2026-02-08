@@ -37,6 +37,10 @@ export function PriceChangeIndicator({
 	currency,
 	variant,
 }: PriceChangeIndicatorProps) {
+	if (currentPriceCents === null) {
+		return <span className="text-muted-foreground">-</span>;
+	}
+
 	const currentPrice = formatPrice(currentPriceCents, currency);
 	const direction = getPriceChangeDirection(
 		todayAverageCents,
@@ -46,10 +50,6 @@ export function PriceChangeIndicator({
 		todayAverageCents,
 		yesterdayAverageCents,
 	);
-
-	if (currentPriceCents === null) {
-		return <span className="text-muted-foreground">-</span>;
-	}
 
 	if (direction === "unknown" || direction === "unchanged") {
 		if (variant === "compact") {
@@ -79,6 +79,11 @@ export function PriceChangeIndicator({
 	);
 }
 
+const PRICE_DIRECTION_COLORS = {
+	down: "text-green-600 dark:text-green-400",
+	up: "text-red-600 dark:text-red-400",
+} as const;
+
 interface CompactIndicatorProps {
 	currentPrice: string;
 	direction: "up" | "down";
@@ -100,9 +105,7 @@ function CompactIndicator({
 			<span
 				className={cn(
 					"inline-flex items-center gap-0.5 font-medium text-xs",
-					isDown
-						? "text-green-600 dark:text-green-400"
-						: "text-red-600 dark:text-red-400",
+					PRICE_DIRECTION_COLORS[direction],
 				)}
 			>
 				<Icon className="size-3" />
@@ -139,9 +142,7 @@ function DetailedIndicator({
 			<p
 				className={cn(
 					"mt-1 inline-flex items-center gap-1 text-xs",
-					isDown
-						? "text-green-600 dark:text-green-400"
-						: "text-red-600 dark:text-red-400",
+					PRICE_DIRECTION_COLORS[direction],
 				)}
 			>
 				<Icon className="size-3" />

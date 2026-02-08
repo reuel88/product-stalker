@@ -21,6 +21,26 @@ use tauri_plugin_notification::NotificationExt;
 /// State wrapper for the system tray icon, allowing runtime show/hide
 pub struct TrayState(pub Mutex<Option<TrayIcon<tauri::Wry>>>);
 
+/// Sync the OS autostart setting with the user's preference
+#[cfg(desktop)]
+fn configure_autostart(app: &tauri::App, launch_at_login: bool) {
+    use tauri_plugin_autostart::ManagerExt;
+    let autostart_manager = app.autolaunch();
+    let is_enabled = autostart_manager.is_enabled().unwrap_or(false);
+
+    match (launch_at_login, is_enabled) {
+        (true, false) => match autostart_manager.enable() {
+            Ok(()) => log::info!("Autostart enabled"),
+            Err(e) => log::error!("Failed to enable autostart: {}", e),
+        },
+        (false, true) => match autostart_manager.disable() {
+            Ok(()) => log::info!("Autostart disabled"),
+            Err(e) => log::error!("Failed to disable autostart: {}", e),
+        },
+        _ => {} // Already in sync
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -86,25 +106,8 @@ pub fn run() {
                 }
             }
 
-            // Configure autostart based on settings
             #[cfg(desktop)]
-            {
-                use tauri_plugin_autostart::ManagerExt;
-                let autostart_manager = app.autolaunch();
-                let is_enabled = autostart_manager.is_enabled().unwrap_or(false);
-
-                match (settings.launch_at_login, is_enabled) {
-                    (true, false) => match autostart_manager.enable() {
-                        Ok(()) => log::info!("Autostart enabled"),
-                        Err(e) => log::error!("Failed to enable autostart: {}", e),
-                    },
-                    (false, true) => match autostart_manager.disable() {
-                        Ok(()) => log::info!("Autostart disabled"),
-                        Err(e) => log::error!("Failed to disable autostart: {}", e),
-                    },
-                    _ => {} // Already in sync
-                }
-            }
+            configure_autostart(app, settings.launch_at_login);
 
             // Spawn background availability checker
             let conn_arc = Arc::new(conn);

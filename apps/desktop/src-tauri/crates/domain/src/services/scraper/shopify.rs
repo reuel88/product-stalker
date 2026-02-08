@@ -377,7 +377,7 @@ async fn check_cart_availability(
     if status_code.is_success() {
         // Successfully added to cart - product is in stock
         // Try to clear the cart item we just added
-        let _ = clear_cart(client, base_url).await;
+        clear_cart(client, base_url).await;
 
         return Ok(CartAvailabilityResult {
             status: AvailabilityStatus::InStock,
@@ -449,16 +449,17 @@ fn is_cart_error_out_of_stock(message: &str) -> bool {
 }
 
 /// Clear the cart after checking availability
-async fn clear_cart(client: &reqwest::Client, base_url: &str) -> Result<(), AppError> {
+async fn clear_cart(client: &reqwest::Client, base_url: &str) {
     let clear_url = format!("{}/cart/clear.js", base_url);
 
-    let _ = client
+    if let Err(e) = client
         .post(&clear_url)
         .header("User-Agent", USER_AGENT)
         .send()
-        .await;
-
-    Ok(())
+        .await
+    {
+        log::debug!("Failed to clear Shopify cart (non-critical): {}", e);
+    }
 }
 
 /// Extract price info from a Shopify variant
