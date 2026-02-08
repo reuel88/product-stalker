@@ -38,4 +38,4 @@ What are the trade-offs? What becomes easier or harder?
 
 <!-- Add new ADRs here -->
 
-*No decisions recorded yet.*
+- [0001. Availability Checker Stays in Tauri Layer](0001-availability-checker-stays-in-tauri-layer.md)

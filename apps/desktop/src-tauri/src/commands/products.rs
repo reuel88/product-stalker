@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::db::DbState;
-use crate::entities::prelude::ProductModel;
-use crate::error::AppError;
-use crate::services::ProductService;
+use crate::domain::entities::prelude::ProductModel;
+use crate::domain::services::ProductService;
+use crate::tauri_error::CommandError;
 use crate::utils::parse_uuid;
 
 /// Input for creating a product
@@ -53,14 +53,17 @@ impl From<ProductModel> for ProductResponse {
 
 /// Get all products
 #[tauri::command]
-pub async fn get_products(db: State<'_, DbState>) -> Result<Vec<ProductResponse>, AppError> {
+pub async fn get_products(db: State<'_, DbState>) -> Result<Vec<ProductResponse>, CommandError> {
     let products = ProductService::get_all(db.conn()).await?;
     Ok(products.into_iter().map(ProductResponse::from).collect())
 }
 
 /// Get a single product by ID
 #[tauri::command]
-pub async fn get_product(id: String, db: State<'_, DbState>) -> Result<ProductResponse, AppError> {
+pub async fn get_product(
+    id: String,
+    db: State<'_, DbState>,
+) -> Result<ProductResponse, CommandError> {
     let uuid = parse_uuid(&id)?;
 
     let product = ProductService::get_by_id(db.conn(), uuid).await?;
@@ -72,7 +75,7 @@ pub async fn get_product(id: String, db: State<'_, DbState>) -> Result<ProductRe
 pub async fn create_product(
     input: CreateProductInput,
     db: State<'_, DbState>,
-) -> Result<ProductResponse, AppError> {
+) -> Result<ProductResponse, CommandError> {
     let product = ProductService::create(
         db.conn(),
         input.name,
@@ -91,7 +94,7 @@ pub async fn update_product(
     id: String,
     input: UpdateProductInput,
     db: State<'_, DbState>,
-) -> Result<ProductResponse, AppError> {
+) -> Result<ProductResponse, CommandError> {
     let uuid = parse_uuid(&id)?;
 
     let product = ProductService::update(
@@ -109,7 +112,7 @@ pub async fn update_product(
 
 /// Delete a product
 #[tauri::command]
-pub async fn delete_product(id: String, db: State<'_, DbState>) -> Result<(), AppError> {
+pub async fn delete_product(id: String, db: State<'_, DbState>) -> Result<(), CommandError> {
     let uuid = parse_uuid(&id)?;
 
     ProductService::delete(db.conn(), uuid).await?;

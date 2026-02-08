@@ -144,6 +144,8 @@ dependencies = [
  "chrono",
  "headless_chrome",
  "log",
+ "product-stalker-core",
+ "product-stalker-domain",
  "reqwest",
  "scraper",
  "sea-orm",
@@ -3903,6 +3905,39 @@ dependencies = [
  "syn 2.0.114",
  "version_check",
  "yansi",
+]
+
+[[package]]
+name = "product-stalker-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "log",
+ "reqwest",
+ "sea-orm",
+ "sea-orm-migration",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
+name = "product-stalker-domain"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "headless_chrome",
+ "log",
+ "product-stalker-core",
+ "reqwest",
+ "scraper",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
+ "uuid",
 ]
 
 [[package]]

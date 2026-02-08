@@ -3,9 +3,10 @@ use serde::Deserialize;
 use tauri::State;
 use tauri_plugin_notification::NotificationExt;
 
+use crate::core::services::SettingService;
+use crate::core::AppError;
 use crate::db::DbState;
-use crate::error::AppError;
-use crate::services::SettingService;
+use crate::tauri_error::CommandError;
 
 /// Input for sending a notification
 #[derive(Debug, Clone, Deserialize)]
@@ -48,14 +49,8 @@ pub async fn check_notifications_enabled(conn: &DatabaseConnection) -> Result<bo
 
 /// Check if notifications are enabled
 #[tauri::command]
-pub async fn are_notifications_enabled(db: State<'_, DbState>) -> Result<bool, AppError> {
-    check_notifications_enabled(db.conn()).await
-}
-
-/// Determine if a notification should be sent based on settings
-pub async fn should_send_notification(conn: &DatabaseConnection) -> Result<bool, AppError> {
-    let settings = SettingService::get(conn).await?;
-    Ok(settings.enable_notifications)
+pub async fn are_notifications_enabled(db: State<'_, DbState>) -> Result<bool, CommandError> {
+    Ok(check_notifications_enabled(db.conn()).await?)
 }
 
 /// Send a desktop notification (respects enable_notifications setting)
@@ -64,11 +59,11 @@ pub async fn send_notification(
     app: tauri::AppHandle,
     input: SendNotificationInput,
     db: State<'_, DbState>,
-) -> Result<bool, AppError> {
+) -> Result<bool, CommandError> {
     // Validate input
     input.validate()?;
 
-    if !should_send_notification(db.conn()).await? {
+    if !check_notifications_enabled(db.conn()).await? {
         log::debug!(
             "Notification skipped (notifications disabled): {}",
             input.title
@@ -190,9 +185,8 @@ mod tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::services::setting_service::UpdateSettingsParams;
-    use crate::services::SettingService;
-    use crate::test_utils::setup_app_settings_db;
+    use crate::core::services::{SettingService, UpdateSettingsParams};
+    use crate::core::test_utils::setup_app_settings_db;
 
     #[tokio::test]
     async fn test_check_notifications_enabled_default() {
@@ -220,33 +214,6 @@ mod integration_tests {
 
         let enabled = check_notifications_enabled(&conn).await.unwrap();
         assert!(!enabled);
-    }
-
-    #[tokio::test]
-    async fn test_should_send_notification_default() {
-        let conn = setup_app_settings_db().await;
-
-        let should_send = should_send_notification(&conn).await.unwrap();
-        assert!(should_send);
-    }
-
-    #[tokio::test]
-    async fn test_should_send_notification_when_disabled() {
-        let conn = setup_app_settings_db().await;
-
-        // Disable notifications
-        SettingService::update(
-            &conn,
-            UpdateSettingsParams {
-                enable_notifications: Some(false),
-                ..Default::default()
-            },
-        )
-        .await
-        .unwrap();
-
-        let should_send = should_send_notification(&conn).await.unwrap();
-        assert!(!should_send);
     }
 
     #[tokio::test]

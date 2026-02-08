@@ -6,7 +6,7 @@ Complete SeaORM integration with SQLite for a Tauri app, following clean archite
 
 ## What Was Implemented
 
-### 1. Database Layer (`src/db/`)
+### 1. Database Layer (`crates/core/src/db/` and `src/db/`)
 
 #### `connection.rs`
 - **SQLite Configuration**: WAL mode, foreign keys, optimized synchronous mode
@@ -18,21 +18,21 @@ Complete SeaORM integration with SQLite for a Tauri app, following clean archite
 - **DbState**: Thread-safe connection pool wrapper
 - **No Mutex**: Uses SeaORM's built-in Arc-based connection pool
 
-### 2. Entities Layer (`src/entities/`)
+### 2. Entities Layer (`crates/core/src/entities/` and `crates/domain/src/entities/`)
 
-#### `product.rs`
+#### `product.rs` (domain crate)
 - **UUID Primary Key**: Stored as TEXT in SQLite
 - **Timestamps**: Created/updated timestamps with chrono
 - **Optional Fields**: Description and notes
 - **Documented**: Clear comments explaining SQLite storage
 
-#### `availability_check.rs`
+#### `availability_check.rs` (domain crate)
 - **AvailabilityStatus Enum**: InStock, OutOfStock, BackOrder, Unknown with Schema.org parsing
 - **Price Tracking**: price_cents (i64), price_currency (ISO 4217), raw_price
 - **Foreign Key Relation**: Belongs to Product entity with cascade delete
 - **Error Tracking**: error_message field for scraping failures
 
-#### `app_setting.rs`
+#### `app_setting.rs` (core crate)
 - **EAV Model**: Entity-Attribute-Value pattern for flexible settings
 - **SettingScope Enum**: Global, User, Workspace, Org with scope_id support
 - **JSON Values**: Settings stored as JSON strings for type flexibility
@@ -40,7 +40,7 @@ Complete SeaORM integration with SQLite for a Tauri app, following clean archite
 #### `prelude.rs`
 - Convenient re-exports for entity types and model aliases
 
-### 3. Migrations Layer (`src/migrations/`)
+### 3. Migrations Layer (`crates/core/src/migrations/`)
 
 9 migrations implementing the complete schema:
 1. `m20240101_000001_create_products_table.rs` - Products table with indexes
@@ -53,7 +53,7 @@ Complete SeaORM integration with SQLite for a Tauri app, following clean archite
 8. `m20250207_000001_backfill_app_settings.rs` - Data migration to new settings
 9. `m20250208_000001_drop_old_settings_table.rs` - Cleanup old settings table
 
-### 4. Repositories Layer (`src/repositories/`)
+### 4. Repositories Layer (`crates/core/src/repositories/` and `crates/domain/src/repositories/`)
 
 #### `product_repository.rs`
 - **Pure Data Access**: No business logic
@@ -70,7 +70,7 @@ Complete SeaORM integration with SQLite for a Tauri app, following clean archite
 - **Upsert Pattern**: set_setting with proper update-or-insert logic
 - **JSON Handling**: Value serialization/deserialization
 
-### 5. Services Layer (`src/services/`)
+### 5. Services Layer (`crates/core/src/services/` and `crates/domain/src/services/`)
 
 #### `product_service.rs`
 - **Business Logic**: Input validation, error handling
@@ -141,7 +141,7 @@ Complete SeaORM integration with SQLite for a Tauri app, following clean archite
 - **Context Menu**: Show, Check All, Quit actions
 - **Click Handling**: Shows main window on tray icon click
 
-### 9. Error Handling (`src/error.rs`)
+### 9. Error Handling (`crates/core/src/error.rs` and `src/tauri_error.rs`)
 
 - **AppError Enum**: 8 variants covering all error cases
   - `Database`, `NotFound`, `Validation`, `Internal`
@@ -229,65 +229,84 @@ Complete SeaORM integration with SQLite for a Tauri app, following clean archite
 
 ```
 apps/desktop/src-tauri/
-├── Cargo.toml                    # Dependencies configured
-├── src/
-│   ├── lib.rs                    # Main app setup
-│   ├── main.rs                   # Entry point
-│   ├── error.rs                  # Error types (8 variants)
-│   ├── utils.rs                  # Shared utilities
-│   ├── commands/
-│   │   ├── mod.rs
-│   │   ├── products.rs           # Product CRUD handlers
-│   │   ├── availability.rs       # Availability check handlers
-│   │   ├── settings.rs           # Settings handlers
-│   │   ├── notifications.rs      # Notification handlers
-│   │   ├── window.rs             # Window management
-│   │   └── updater.rs            # App update handlers
-│   ├── services/
-│   │   ├── mod.rs
-│   │   ├── product_service.rs    # Product business logic
-│   │   ├── availability_service.rs  # Availability checking
-│   │   ├── notification_service.rs  # Desktop notifications
-│   │   ├── setting_service.rs    # Settings management
-│   │   ├── headless_service.rs   # Headless browser
-│   │   └── scraper/              # Web scraping module
-│   │       ├── mod.rs            # ScraperService orchestrator
-│   │       ├── bot_detection.rs  # Cloudflare detection
-│   │       ├── http_client.rs    # HTTP with fallback
-│   │       ├── schema_org.rs     # JSON-LD parsing
-│   │       ├── nextjs_data.rs    # Next.js data extraction
-│   │       ├── price_parser.rs   # Price normalization
-│   │       └── chemist_warehouse.rs  # Site adapter
-│   ├── repositories/
-│   │   ├── mod.rs
-│   │   ├── product_repository.rs
-│   │   ├── availability_check_repository.rs
-│   │   ├── app_settings_repository.rs
-│   │   └── settings_helpers.rs
-│   ├── entities/
-│   │   ├── mod.rs
-│   │   ├── prelude.rs
-│   │   ├── product.rs            # Product entity
-│   │   ├── availability_check.rs # Availability with price
-│   │   └── app_setting.rs        # EAV settings
-│   ├── migrations/               # 9 migrations
-│   │   ├── mod.rs
-│   │   ├── migrator.rs
-│   │   └── m20240101_*.rs ... m20250208_*.rs
-│   ├── background/
-│   │   ├── mod.rs
-│   │   └── availability_checker.rs  # Periodic checks
-│   ├── plugins/
-│   │   ├── mod.rs
-│   │   └── system_tray.rs        # System tray
-│   ├── db/
-│   │   ├── mod.rs
-│   │   └── connection.rs         # Database setup
-│   └── test_utils.rs             # Test helpers
-├── SEAORM_SETUP.md               # Complete setup guide
-├── IMPLEMENTATION_SUMMARY.md     # This file
-├── CODE_PATTERNS.md              # Code patterns reference
-└── README.md                     # Backend documentation
+├── Cargo.toml                    # Workspace root
+├── crates/
+│   ├── core/                     # Reusable infrastructure
+│   │   └── src/
+│   │       ├── lib.rs            # Public exports
+│   │       ├── error.rs          # AppError (8 variants)
+│   │       ├── test_utils.rs     # Test database helpers
+│   │       ├── db/               # Database setup (Tauri-agnostic)
+│   │       │   ├── mod.rs
+│   │       │   └── connection.rs
+│   │       ├── entities/         # Infrastructure entities
+│   │       │   ├── mod.rs
+│   │       │   ├── prelude.rs
+│   │       │   └── app_setting.rs
+│   │       ├── migrations/       # 9 migrations
+│   │       │   ├── mod.rs
+│   │       │   ├── migrator.rs
+│   │       │   └── m20240101_*.rs ... m20250208_*.rs
+│   │       ├── repositories/     # Settings data access
+│   │       │   ├── mod.rs
+│   │       │   ├── app_settings_repository.rs
+│   │       │   └── settings_helpers.rs
+│   │       └── services/         # Settings business logic
+│   │           ├── mod.rs
+│   │           ├── setting_service.rs
+│   │           └── notification_service.rs
+│   │
+│   └── domain/                   # Product-specific (swappable)
+│       └── src/
+│           ├── lib.rs            # Public exports
+│           ├── test_utils.rs     # Domain test helpers
+│           ├── utils.rs          # Shared utilities
+│           ├── entities/         # Product entities
+│           │   ├── mod.rs
+│           │   ├── prelude.rs
+│           │   ├── product.rs
+│           │   └── availability_check.rs
+│           ├── repositories/     # Product data access
+│           │   ├── mod.rs
+│           │   ├── product_repository.rs
+│           │   └── availability_check_repository.rs
+│           └── services/         # Product business logic
+│               ├── mod.rs
+│               ├── product_service.rs
+│               ├── availability_service.rs
+│               ├── headless_service.rs
+│               └── scraper/      # Web scraping module
+│                   ├── mod.rs
+│                   ├── bot_detection.rs
+│                   ├── http_client.rs
+│                   ├── schema_org.rs
+│                   ├── nextjs_data.rs
+│                   ├── price_parser.rs
+│                   └── chemist_warehouse.rs
+│
+└── src/                          # Tauri wiring only
+    ├── lib.rs                    # App initialization
+    ├── main.rs                   # Entry point
+    ├── tauri_error.rs            # AppError -> InvokeError
+    ├── utils.rs                  # Tauri utilities
+    ├── test_utils.rs             # Tauri test helpers
+    ├── commands/                 # IPC handlers
+    │   ├── mod.rs
+    │   ├── products.rs
+    │   ├── availability.rs
+    │   ├── settings.rs
+    │   ├── notifications.rs
+    │   ├── window.rs
+    │   └── updater.rs
+    ├── background/               # Background tasks
+    │   ├── mod.rs
+    │   └── availability_checker.rs
+    ├── plugins/                  # Tauri plugins
+    │   ├── mod.rs
+    │   └── system_tray.rs
+    └── db/                       # Tauri-specific db init
+        ├── mod.rs
+        └── connection.rs
 ```
 
 ## Dependencies
@@ -485,12 +504,12 @@ cargo tauri dev
 
 ### Adding New Entities
 
-1. Create migration: `sea-orm-cli migrate generate <name>`
-2. Create entity in `entities/`
-3. Create repository in `repositories/`
-4. Create service in `services/`
-5. Create commands in `commands/`
-6. Register commands in `lib.rs`
+1. Create migration in `crates/core/src/migrations/`
+2. Create entity in `crates/core/src/entities/` (infrastructure) or `crates/domain/src/entities/` (product-specific)
+3. Create repository in corresponding crate's `repositories/`
+4. Create service in corresponding crate's `services/`
+5. Create commands in `src/commands/`
+6. Register commands in `src/lib.rs`
 
 ### Schema Changes
 

@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "crates/core", "crates/domain"]
+resolver = "2"
+
 [package]
 name = "app"
 version = "0.2.5"
@@ -38,6 +42,11 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip", "deflate
 scraper = "0.23"
 url = "2"
 headless_chrome = "1.0"
+product-stalker-core = { path = "crates/core" }
+product-stalker-domain = { path = "crates/domain" }
+
+[dev-dependencies]
+product-stalker-core = { path = "crates/core", features = ["test-utils"] }
 
 [profile.test]
 opt-level = 0

@@ -1,16 +1,14 @@
 mod background;
 mod commands;
 mod db;
-mod entities;
-mod error;
-mod migrations;
 mod plugins;
-mod repositories;
-mod services;
+mod tauri_error;
+mod tauri_services;
 mod utils;
 
-#[cfg(test)]
-mod test_utils;
+// Re-export workspace crates for internal use
+pub(crate) use product_stalker_core as core;
+pub(crate) use product_stalker_domain as domain;
 
 use std::sync::{Arc, Mutex};
 
@@ -66,7 +64,7 @@ pub fn run() {
 
             // Load settings and apply them
             let settings = tauri::async_runtime::block_on(async {
-                services::SettingService::get(&conn).await
+                core::services::SettingService::get(&conn).await
             })?;
 
             log::info!(

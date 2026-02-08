@@ -5,7 +5,7 @@ use tauri::{
     AppHandle, Manager, Runtime,
 };
 
-use crate::error::AppError;
+use crate::core::AppError;
 
 const TRAY_ICON: &[u8] = include_bytes!("../../icons/icon.png");
 

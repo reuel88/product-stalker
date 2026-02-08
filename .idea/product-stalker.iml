@@ -2,6 +2,8 @@
 <module type="WEB_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/apps/desktop/src-tauri/crates/core/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/apps/desktop/src-tauri/crates/domain/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/apps/desktop/src-tauri/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/.tmp" />
       <excludeFolder url="file://$MODULE_DIR$/temp" />

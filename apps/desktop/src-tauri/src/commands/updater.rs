@@ -2,7 +2,8 @@ use serde::Serialize;
 use tauri::AppHandle;
 use tauri_plugin_updater::UpdaterExt;
 
-use crate::error::AppError;
+use crate::core::AppError;
+use crate::tauri_error::CommandError;
 
 /// Information about an available update
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -60,7 +61,7 @@ impl Default for UpdateInfo {
 }
 
 #[tauri::command]
-pub async fn check_for_update(app: AppHandle) -> Result<UpdateInfo, AppError> {
+pub async fn check_for_update(app: AppHandle) -> Result<UpdateInfo, CommandError> {
     let updater = app.updater().map_err(|e| {
         log::error!("Failed to get updater: {}", e);
         AppError::Internal(format!("Failed to get updater: {}", e))
@@ -80,16 +81,13 @@ pub async fn check_for_update(app: AppHandle) -> Result<UpdateInfo, AppError> {
         }
         Err(e) => {
             log::error!("Failed to check for updates: {}", e);
-            Err(AppError::Internal(format!(
-                "Failed to check for updates: {}",
-                e
-            )))
+            Err(AppError::Internal(format!("Failed to check for updates: {}", e)).into())
         }
     }
 }
 
 #[tauri::command]
-pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError> {
+pub async fn download_and_install_update(app: AppHandle) -> Result<(), CommandError> {
     let updater = app.updater().map_err(|e| {
         log::error!("Failed to get updater: {}", e);
         AppError::Internal(format!("Failed to get updater: {}", e))
@@ -98,14 +96,11 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError>
     let update = match updater.check().await {
         Ok(Some(update)) => update,
         Ok(None) => {
-            return Err(AppError::Internal("No update available".to_string()));
+            return Err(AppError::Internal("No update available".to_string()).into());
         }
         Err(e) => {
             log::error!("Failed to check for updates: {}", e);
-            return Err(AppError::Internal(format!(
-                "Failed to check for updates: {}",
-                e
-            )));
+            return Err(AppError::Internal(format!("Failed to check for updates: {}", e)).into());
         }
     };
 
@@ -126,10 +121,9 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError>
         .await
     {
         log::error!("Failed to download and install update: {}", e);
-        return Err(AppError::Internal(format!(
-            "Failed to download and install update: {}",
-            e
-        )));
+        return Err(
+            AppError::Internal(format!("Failed to download and install update: {}", e)).into(),
+        );
     }
 
     log::info!("Update installed, restarting app...");
@@ -139,7 +133,7 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError>
 }
 
 #[tauri::command]
-pub fn get_current_version(app: AppHandle) -> Result<String, AppError> {
+pub fn get_current_version(app: AppHandle) -> Result<String, CommandError> {
     let version = app.package_info().version.to_string();
     Ok(version)
 }

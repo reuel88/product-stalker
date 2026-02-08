@@ -1,6 +1,5 @@
+use product_stalker_core::AppError;
 use uuid::Uuid;
-
-use crate::error::AppError;
 
 /// Parse a string into a UUID, returning a validation error if invalid
 pub fn parse_uuid(id: &str) -> Result<Uuid, AppError> {
