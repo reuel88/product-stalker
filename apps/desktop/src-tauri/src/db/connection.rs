@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager};
 use product_stalker_core::AppError;
 use sea_orm_migration::prelude::*;
 
-/// Combined migrator that runs both core and domain migrations in timestamp order.
+/// Combined migrator that runs core migrations followed by domain migrations.
 struct AppMigrator;
 
 #[async_trait::async_trait]
