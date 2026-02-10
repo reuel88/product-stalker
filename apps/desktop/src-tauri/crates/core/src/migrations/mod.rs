@@ -1,12 +1,9 @@
-mod m20240101_000001_create_products_table;
 mod m20240102_000001_create_settings_table;
-mod m20240103_000001_create_availability_checks_table;
 mod m20240104_000001_add_background_check_settings;
 mod m20240105_000001_add_headless_browser_setting;
-mod m20250205_000001_add_price_tracking;
 mod m20250206_000001_create_app_settings_table;
 mod m20250207_000001_backfill_app_settings;
 mod m20250208_000001_drop_old_settings_table;
 mod migrator;
 
-pub use migrator::Migrator;
+pub use migrator::migrations;
