@@ -1,6 +1,6 @@
 [package]
 name = "product-stalker-domain"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2021"
 description = "Product domain logic for Product Stalker - entities, services, and scraping"
 

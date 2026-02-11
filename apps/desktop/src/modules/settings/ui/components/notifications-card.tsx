@@ -5,12 +5,11 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import type {
 	Settings,
 	UpdateSettingsInput,
 } from "@/modules/settings/hooks/useSettings";
+import { SettingsSwitchRow } from "./settings-switch-row";
 
 interface NotificationsCardProps {
 	settings: Settings;
@@ -28,16 +27,14 @@ export function NotificationsCard({
 				<CardDescription>Configure notification preferences</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<div className="flex items-center justify-between">
-					<Label htmlFor="enable-notifications">Enable notifications</Label>
-					<Switch
-						id="enable-notifications"
-						checked={settings.enable_notifications}
-						onCheckedChange={(checked) =>
-							onUpdate({ enable_notifications: checked })
-						}
-					/>
-				</div>
+				<SettingsSwitchRow
+					id="enable-notifications"
+					label="Enable notifications"
+					checked={settings.enable_notifications}
+					onCheckedChange={(checked) =>
+						onUpdate({ enable_notifications: checked })
+					}
+				/>
 			</CardContent>
 		</Card>
 	);

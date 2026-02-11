@@ -114,6 +114,9 @@ impl HeadlessService {
             )
         })?;
 
+        // Build user-agent arg from the shared constant in the scraper module
+        let user_agent_arg = format!("--user-agent={}", super::scraper::USER_AGENT);
+
         // Use headless: false and manually add --headless=new for Chrome's new headless mode
         // The new headless mode is much harder for bot detection to fingerprint
         let options = LaunchOptions::default_builder()
@@ -139,8 +142,8 @@ impl HeadlessService {
                 std::ffi::OsStr::new("--no-first-run"),
                 // Disable popup blocking
                 std::ffi::OsStr::new("--disable-popup-blocking"),
-                // Set a realistic user agent
-                std::ffi::OsStr::new("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
+                // Set a realistic user agent (shared with HTTP scraper)
+                std::ffi::OsStr::new(&user_agent_arg),
             ])
             .build()
             .map_err(|e| AppError::Internal(format!("Failed to create browser options: {}", e)))?;

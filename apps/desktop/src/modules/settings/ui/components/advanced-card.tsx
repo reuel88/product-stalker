@@ -5,12 +5,11 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import type {
 	Settings,
 	UpdateSettingsInput,
 } from "@/modules/settings/hooks/useSettings";
+import { SettingsSwitchRow } from "./settings-switch-row";
 
 interface AdvancedCardProps {
 	settings: Settings;
@@ -27,21 +26,15 @@ export function AdvancedCard({ settings, onUpdate }: AdvancedCardProps) {
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				<div className="flex items-center justify-between">
-					<div className="space-y-0.5">
-						<Label htmlFor="headless-browser">Headless browser</Label>
-						<p className="text-muted-foreground text-xs">
-							Use Chrome to check sites with bot protection (Cloudflare)
-						</p>
-					</div>
-					<Switch
-						id="headless-browser"
-						checked={settings.enable_headless_browser}
-						onCheckedChange={(checked) =>
-							onUpdate({ enable_headless_browser: checked })
-						}
-					/>
-				</div>
+				<SettingsSwitchRow
+					id="headless-browser"
+					label="Headless browser"
+					description="Use Chrome to check sites with bot protection (Cloudflare)"
+					checked={settings.enable_headless_browser}
+					onCheckedChange={(checked) =>
+						onUpdate({ enable_headless_browser: checked })
+					}
+				/>
 			</CardContent>
 		</Card>
 	);

@@ -15,10 +15,6 @@ use crate::entities::availability_check::AvailabilityStatus;
 /// A single GA4 ecommerce item within a `dataLayer.push()` event.
 #[derive(Debug, Deserialize, Default)]
 struct Ga4Item {
-    #[serde(alias = "item_id")]
-    _item_id: Option<String>,
-    #[serde(alias = "item_name")]
-    _item_name: Option<String>,
     price: Option<serde_json::Value>,
 }
 

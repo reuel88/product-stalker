@@ -1,9 +1,9 @@
 import { ErrorState } from "./error-state";
 
-type FullPageErrorProps = {
+interface FullPageErrorProps {
 	title: string;
 	description: string;
-};
+}
 
 export function FullPageError({ title, description }: FullPageErrorProps) {
 	return (

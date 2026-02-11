@@ -1,6 +1,8 @@
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import type * as React from "react";
 
+// Thin wrapper around next-themes for future swappability.
+// All theme access should go through this module, not import next-themes directly.
 export function ThemeProvider({
 	children,
 	...props
