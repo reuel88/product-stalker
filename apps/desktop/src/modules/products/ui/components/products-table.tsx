@@ -10,8 +10,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 } from "lucide-react";
-import { createContext, useCallback, useContext, useMemo } from "react";
-import { toast } from "sonner";
+import { createContext, useContext, useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,7 +22,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { MESSAGES, UI } from "@/constants";
+import { UI } from "@/constants";
 import { cn } from "@/lib/utils";
 import { useAvailability } from "@/modules/products/hooks/useAvailability";
 import type {
@@ -72,25 +71,12 @@ function ProductAvailabilityProvider({
 	productId: string;
 	children: React.ReactNode;
 }) {
-	const { latestCheck, isChecking, checkAvailability } =
+	const { latestCheck, isChecking, checkWithToast } =
 		useAvailability(productId);
 
-	const handleCheck = useCallback(async () => {
-		try {
-			const result = await checkAvailability();
-			if (result.error_message) {
-				toast.error(result.error_message);
-			} else {
-				toast.success(MESSAGES.AVAILABILITY.CHECKED);
-			}
-		} catch {
-			toast.error(MESSAGES.AVAILABILITY.CHECK_FAILED);
-		}
-	}, [checkAvailability]);
-
 	const value = useMemo(
-		() => ({ latestCheck, isChecking, handleCheck }),
-		[latestCheck, isChecking, handleCheck],
+		() => ({ latestCheck, isChecking, handleCheck: checkWithToast }),
+		[latestCheck, isChecking, checkWithToast],
 	);
 
 	return (

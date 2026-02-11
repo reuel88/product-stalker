@@ -377,8 +377,21 @@ pub async fn find_paginated(
 
 ### Update Pattern
 
+The update path differs from create by design:
+
+- **Create** takes individual fields (including a service-generated `Uuid::new_v4()` id)
+  because every required value must be supplied up front.
+- **Update** accepts `UpdateProductParams` at the service level (simple `Option<String>` —
+  `None` means "skip this field"). The service then converts to `ProductUpdateInput` at
+  the repository level, where nullable fields use `Option<Option<String>>` for tri-state
+  semantics (`None` = skip, `Some(None)` = clear to NULL, `Some(Some(v))` = set value).
+  See `ProductUpdateInput` in `crates/domain/src/repositories/product_repository.rs` for
+  the full doc comment.
+- **Validation** (`validate_name`, `validate_url`) applies on both paths — unconditionally
+  on create, conditionally (when the field is `Some`) on update.
+
 ```rust
-/// Parameters for updating an existing product (all fields optional for partial updates)
+/// Service-level params: simple Option means "skip if None"
 pub struct UpdateProductParams {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -402,8 +415,19 @@ pub async fn update(
     // Fetch existing product
     let product = Self::get_by_id(conn, id).await?;
 
-    // Update via repository
-    ProductRepository::update(conn, product, params).await
+    // Convert to repository-level input with tri-state semantics for nullable fields.
+    // .map(Some) wraps Some("value") → Some(Some("value")), while None stays None (skip).
+    ProductRepository::update(
+        conn,
+        product,
+        ProductUpdateInput {
+            name: params.name,
+            url: params.url,
+            description: params.description.map(Some),
+            notes: params.notes.map(Some),
+        },
+    )
+    .await
 }
 ```
 

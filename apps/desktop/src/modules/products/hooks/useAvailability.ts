@@ -2,8 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
-import { COMMANDS, EVENTS, QUERY_KEYS } from "@/constants";
+import { COMMANDS, EVENTS, MESSAGES, QUERY_KEYS } from "@/constants";
 import type {
 	AvailabilityCheckResponse,
 	BulkCheckSummary,
@@ -58,11 +59,25 @@ export function useAvailability(productId: string) {
 		},
 	});
 
+	const checkWithToast = useCallback(async () => {
+		try {
+			const result = await checkMutation.mutateAsync();
+			if (result.error_message) {
+				toast.error(result.error_message);
+			} else {
+				toast.success(MESSAGES.AVAILABILITY.CHECKED);
+			}
+		} catch {
+			toast.error(MESSAGES.AVAILABILITY.CHECK_FAILED);
+		}
+	}, [checkMutation]);
+
 	return {
 		latestCheck,
 		isLoading,
 		error,
 		checkAvailability: checkMutation.mutateAsync,
+		checkWithToast,
 		isChecking: checkMutation.isPending,
 	};
 }
@@ -123,59 +138,68 @@ export interface CheckProgress {
  *   - `lastSummary`: Summary from the most recent bulk check
  *   - `progress`: Current progress (currentIndex/totalCount) or null if not checking
  */
-export function useCheckAllAvailability() {
-	const queryClient = useQueryClient();
-	const [progress, setProgress] = useState<CheckProgress | null>(null);
+/**
+ * Hook that manages a Tauri event listener lifecycle with ref-based cleanup.
+ *
+ * Encapsulates the subscribe/unsubscribe pattern for Tauri events,
+ * ensuring proper cleanup on unmount and between re-subscriptions.
+ */
+function useTauriEventSubscription<T>(
+	event: string,
+	handler: (payload: T) => void,
+) {
 	const unlistenRef = useRef<UnlistenFn | null>(null);
 
-	const setupListener = useCallback(async () => {
-		// Clean up any existing listener
-		if (unlistenRef.current) {
-			unlistenRef.current();
-			unlistenRef.current = null;
-		}
+	const subscribe = useCallback(async () => {
+		unlistenRef.current?.();
+		unlistenRef.current = await listen<T>(event, (e) => handler(e.payload));
+	}, [event, handler]);
 
-		unlistenRef.current = await listen<CheckProgressEvent>(
-			EVENTS.AVAILABILITY_CHECK_PROGRESS,
-			(event) => {
-				setProgress({
-					currentIndex: event.payload.current,
-					totalCount: event.payload.total,
-				});
-
-				// Optimistically update the individual product's availability cache
-				const productId = event.payload.product_id;
-				queryClient.invalidateQueries({
-					queryKey: QUERY_KEYS.availability(productId),
-				});
-			},
-		);
-	}, [queryClient]);
-
-	const cleanupListener = useCallback(() => {
-		if (unlistenRef.current) {
-			unlistenRef.current();
-			unlistenRef.current = null;
-		}
-		setProgress(null);
+	const unsubscribe = useCallback(() => {
+		unlistenRef.current?.();
+		unlistenRef.current = null;
 	}, []);
 
-	// Cleanup on unmount
 	useEffect(() => {
 		return () => {
-			if (unlistenRef.current) {
-				unlistenRef.current();
-			}
+			unlistenRef.current?.();
 		};
 	}, []);
 
+	return { subscribe, unsubscribe };
+}
+
+export function useCheckAllAvailability() {
+	const queryClient = useQueryClient();
+	const [progress, setProgress] = useState<CheckProgress | null>(null);
+
+	const handleProgress = useCallback(
+		(payload: CheckProgressEvent) => {
+			setProgress({
+				currentIndex: payload.current,
+				totalCount: payload.total,
+			});
+
+			queryClient.invalidateQueries({
+				queryKey: QUERY_KEYS.availability(payload.product_id),
+			});
+		},
+		[queryClient],
+	);
+
+	const { subscribe, unsubscribe } = useTauriEventSubscription(
+		EVENTS.AVAILABILITY_CHECK_PROGRESS,
+		handleProgress,
+	);
+
 	const checkAllMutation = useMutation({
 		mutationFn: async () => {
-			await setupListener();
+			await subscribe();
 			return invoke<BulkCheckSummary>(COMMANDS.CHECK_ALL_AVAILABILITY);
 		},
 		onSettled: () => {
-			cleanupListener();
+			unsubscribe();
+			setProgress(null);
 			// Invalidate all availability queries to ensure final consistency
 			queryClient.invalidateQueries({
 				predicate: (query) =>

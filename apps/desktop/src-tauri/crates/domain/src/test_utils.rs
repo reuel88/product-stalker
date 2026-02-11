@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::entities::availability_check::Entity as AvailabilityCheckEntity;
 use crate::entities::product::Entity as ProductEntity;
-use crate::repositories::ProductRepository;
+use crate::repositories::{CreateProductRepoParams, ProductRepository};
 
 /// Creates an in-memory SQLite test database with products table only
 pub async fn setup_products_db() -> DatabaseConnection {
@@ -46,10 +46,12 @@ pub async fn create_test_product(conn: &DatabaseConnection, url: &str) -> Uuid {
     ProductRepository::create(
         conn,
         id,
-        "Test Product".to_string(),
-        url.to_string(),
-        None,
-        None,
+        CreateProductRepoParams {
+            name: "Test Product".to_string(),
+            url: url.to_string(),
+            description: None,
+            notes: None,
+        },
     )
     .await
     .unwrap();

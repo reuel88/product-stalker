@@ -4,7 +4,7 @@ use sea_orm::DatabaseConnection;
 use uuid::Uuid;
 
 use crate::entities::prelude::ProductModel;
-use crate::repositories::{ProductRepository, ProductUpdateInput};
+use crate::repositories::{CreateProductRepoParams, ProductRepository, ProductUpdateInput};
 use product_stalker_core::AppError;
 
 /// Parameters for creating a new product
@@ -54,10 +54,12 @@ impl ProductService {
         ProductRepository::create(
             conn,
             id,
-            params.name,
-            params.url,
-            params.description,
-            params.notes,
+            CreateProductRepoParams {
+                name: params.name,
+                url: params.url,
+                description: params.description,
+                notes: params.notes,
+            },
         )
         .await
     }

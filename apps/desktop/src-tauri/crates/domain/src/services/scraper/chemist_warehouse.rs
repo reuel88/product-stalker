@@ -152,7 +152,7 @@ const BACK_ORDER_VALUES: &[&str] = &[
 
 /// Map Chemist Warehouse availability strings to AvailabilityStatus
 fn map_availability_status(availability: &str) -> AvailabilityStatus {
-    let normalized = availability.to_lowercase();
+    let normalized = availability.trim().to_lowercase();
 
     if IN_STOCK_VALUES.contains(&normalized.as_str()) {
         AvailabilityStatus::InStock

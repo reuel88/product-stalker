@@ -16,12 +16,13 @@ const OUT_OF_STOCK_INDICATORS: &[&str] = &["outofstock", "soldout", "discontinue
 const BACK_ORDER_INDICATORS: &[&str] = &["backorder", "preorder", "presale"];
 
 /// Availability status for a product
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AvailabilityStatus {
     InStock,
     OutOfStock,
     BackOrder,
+    #[default]
     Unknown,
 }
 
