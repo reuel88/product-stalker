@@ -3,6 +3,7 @@
 //! This module is organized into focused submodules:
 //! - `bot_detection`: Cloudflare and bot protection detection
 //! - `chemist_warehouse`: Site-specific adapter for Chemist Warehouse
+//! - `gtm_datalayer`: GTM dataLayer.push() ecommerce data extraction
 //! - `http_client`: HTTP fetching with browser-like headers and headless fallback
 //! - `nextjs_data`: Next.js __NEXT_DATA__ extraction
 //! - `price_parser`: Price extraction and normalization
@@ -11,6 +12,7 @@
 
 mod bot_detection;
 mod chemist_warehouse;
+mod gtm_datalayer;
 mod http_client;
 mod nextjs_data;
 mod price_parser;
@@ -58,8 +60,9 @@ impl ScraperService {
     /// 1. Validate URL scheme
     /// 2. Fetch HTML (with automatic headless fallback if bot protection detected)
     /// 3. Try Schema.org extraction first
-    /// 4. Try Shopify-specific extraction for Shopify stores
-    /// 5. Fall back to other site-specific parsers (e.g., Next.js data)
+    /// 4. Try GTM dataLayer extraction (GA4 ecommerce events)
+    /// 5. Try Shopify-specific extraction for Shopify stores
+    /// 6. Fall back to other site-specific parsers (e.g., Next.js data)
     pub async fn check_availability_with_headless(
         url: &str,
         enable_headless: bool,
@@ -75,7 +78,12 @@ impl ScraperService {
             return Ok(result);
         }
 
-        // Step 4: Try Shopify extraction (async - uses cart API)
+        // Step 4: Try GTM dataLayer extraction (GA4 ecommerce events)
+        if let Ok(result) = Self::try_gtm_datalayer_extraction(&html) {
+            return Ok(result);
+        }
+
+        // Step 5: Try Shopify extraction (async - uses cart API)
         if shopify::is_potential_shopify_product_url(url) {
             log::debug!(
                 "URL matches Shopify pattern, trying Shopify extraction for {}",
@@ -86,8 +94,13 @@ impl ScraperService {
             }
         }
 
-        // Step 5: Fall back to other site-specific parsers (sync)
+        // Step 6: Fall back to other site-specific parsers (sync)
         Self::try_site_specific_extraction(&html, url)
+    }
+
+    /// Try to extract product data from GTM dataLayer.push() calls
+    fn try_gtm_datalayer_extraction(html: &str) -> Result<ScrapingResult, AppError> {
+        gtm_datalayer::extract_from_datalayer(html)
     }
 
     /// Try to extract availability from Schema.org JSON-LD data
@@ -276,6 +289,27 @@ mod test_html {
         )
     }
 
+    /// Generate HTML with a GTM dataLayer.push() call
+    ///
+    /// # Arguments
+    /// * `datalayer_js` - The JavaScript for the dataLayer.push() call body
+    /// * `body_html` - Optional body HTML (e.g., add-to-cart button)
+    pub fn html_with_datalayer_push(datalayer_js: &str, body_html: Option<&str>) -> String {
+        format!(
+            r#"<!DOCTYPE html>
+<html>
+<head>
+    <script>
+    dataLayer.push({});
+    </script>
+</head>
+<body>{}</body>
+</html>"#,
+            datalayer_js,
+            body_html.unwrap_or("")
+        )
+    }
+
     /// Generate HTML with Next.js __NEXT_DATA__ for Chemist Warehouse-style pages
     ///
     /// # Arguments
@@ -305,7 +339,8 @@ mod test_html {
 #[cfg(test)]
 mod tests {
     use super::test_html::{
-        html_with_next_data, html_with_product_group, html_with_product_offer, VariantInfo,
+        html_with_datalayer_push, html_with_next_data, html_with_product_group,
+        html_with_product_offer, VariantInfo,
     };
     use super::*;
 
@@ -379,7 +414,7 @@ mod tests {
 
         let result =
             ScraperService::parse_schema_org_with_url(&html, "https://example.com").unwrap();
-        assert_eq!(result.price.price_cents, Some(78900));
+        assert_eq!(result.price.price_minor_units, Some(78900));
         assert_eq!(result.price.price_currency, Some("USD".to_string()));
         assert_eq!(result.price.raw_price, Some("789.00".to_string()));
     }
@@ -398,7 +433,7 @@ mod tests {
             "https://example.com/products/test?variant=123",
         )
         .unwrap();
-        assert_eq!(result.price.price_cents, Some(129900));
+        assert_eq!(result.price.price_minor_units, Some(129900));
         assert_eq!(result.price.price_currency, Some("AUD".to_string()));
     }
 
@@ -416,7 +451,7 @@ mod tests {
         let result = ScraperService::try_chemist_warehouse_extraction(&html).unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
         assert_eq!(result.raw_availability, Some("in-stock".to_string()));
-        assert_eq!(result.price.price_cents, Some(2399));
+        assert_eq!(result.price.price_minor_units, Some(2399));
         assert_eq!(result.price.price_currency, Some("AUD".to_string()));
     }
 
@@ -452,7 +487,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
-        assert_eq!(result.price.price_cents, Some(2999));
+        assert_eq!(result.price.price_minor_units, Some(2999));
     }
 
     #[tokio::test]
@@ -494,5 +529,42 @@ mod tests {
             }
             _ => panic!("Expected Validation error, got {:?}", err),
         }
+    }
+
+    // --- GTM dataLayer integration tests ---
+
+    #[test]
+    fn test_gtm_datalayer_extraction_ga4() {
+        let html = html_with_datalayer_push(
+            r#"{"event": "view_item", "currency": "JPY", "value": 69300, "items": [{"item_id": "105946", "price": 69300}]}"#,
+            Some(r#"<button>カートに入れる</button>"#),
+        );
+
+        let result = ScraperService::try_gtm_datalayer_extraction(&html).unwrap();
+        assert_eq!(result.price.price_minor_units, Some(69300));
+        assert_eq!(result.price.price_currency, Some("JPY".to_string()));
+        assert_eq!(result.status, AvailabilityStatus::InStock);
+    }
+
+    #[test]
+    fn test_gtm_datalayer_extraction_availability_from_button() {
+        let html = html_with_datalayer_push(
+            r#"{"event": "view_item", "currency": "USD", "items": [{"price": 25.00}]}"#,
+            Some(r#"<button class="add-to-cart">Add to Cart</button>"#),
+        );
+
+        let result = ScraperService::try_gtm_datalayer_extraction(&html).unwrap();
+        assert_eq!(result.status, AvailabilityStatus::InStock);
+    }
+
+    #[test]
+    fn test_gtm_datalayer_extraction_no_button_unknown() {
+        let html = html_with_datalayer_push(
+            r#"{"event": "view_item", "currency": "USD", "items": [{"price": 25.00}]}"#,
+            Some(r#"<div class="product-info">Product details</div>"#),
+        );
+
+        let result = ScraperService::try_gtm_datalayer_extraction(&html).unwrap();
+        assert_eq!(result.status, AvailabilityStatus::Unknown);
     }
 }

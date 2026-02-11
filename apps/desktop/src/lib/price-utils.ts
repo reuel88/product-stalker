@@ -10,10 +10,11 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 function hasValidPrice(
 	check: AvailabilityCheckResponse,
 ): check is AvailabilityCheckResponse & {
-	price_cents: number;
+	price_minor_units: number;
 	price_currency: string;
+	currency_exponent: number;
 } {
-	return check.price_cents !== null && check.price_currency !== null;
+	return check.price_minor_units !== null && check.price_currency !== null;
 }
 
 /**
@@ -52,8 +53,9 @@ export function transformToPriceDataPoints(
 		.filter(hasValidPrice)
 		.map((check) => ({
 			date: check.checked_at,
-			price: check.price_cents,
+			price: check.price_minor_units,
 			currency: check.price_currency,
+			currencyExponent: check.currency_exponent ?? 2,
 		}))
 		.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
@@ -85,23 +87,23 @@ export type PriceChangeDirection = "up" | "down" | "unchanged" | "unknown";
 
 /**
  * Determine the direction of price change.
- * @param currentPriceCents - Current price in cents
- * @param previousPriceCents - Previous price in cents
+ * @param currentMinorUnits - Current price in minor units
+ * @param previousMinorUnits - Previous price in minor units
  * @returns Direction of price change
  */
 export function getPriceChangeDirection(
-	currentPriceCents: number | null,
-	previousPriceCents: number | null,
+	currentMinorUnits: number | null,
+	previousMinorUnits: number | null,
 ): PriceChangeDirection {
-	if (currentPriceCents === null || previousPriceCents === null) {
+	if (currentMinorUnits === null || previousMinorUnits === null) {
 		return "unknown";
 	}
 
-	if (currentPriceCents < previousPriceCents) {
+	if (currentMinorUnits < previousMinorUnits) {
 		return "down";
 	}
 
-	if (currentPriceCents > previousPriceCents) {
+	if (currentMinorUnits > previousMinorUnits) {
 		return "up";
 	}
 
@@ -110,24 +112,24 @@ export function getPriceChangeDirection(
 
 /**
  * Calculate the percentage change between two prices.
- * @param currentPriceCents - Current price in cents
- * @param previousPriceCents - Previous price in cents
+ * @param currentMinorUnits - Current price in minor units
+ * @param previousMinorUnits - Previous price in minor units
  * @returns Percentage change (positive for increase, negative for decrease), or null if cannot be calculated
  */
 export function calculatePriceChangePercent(
-	currentPriceCents: number | null,
-	previousPriceCents: number | null,
+	currentMinorUnits: number | null,
+	previousMinorUnits: number | null,
 ): number | null {
 	if (
-		currentPriceCents === null ||
-		previousPriceCents === null ||
-		previousPriceCents === 0
+		currentMinorUnits === null ||
+		previousMinorUnits === null ||
+		previousMinorUnits === 0
 	) {
 		return null;
 	}
 
-	const change = currentPriceCents - previousPriceCents;
-	const percentChange = (change / previousPriceCents) * 100;
+	const change = currentMinorUnits - previousMinorUnits;
+	const percentChange = (change / previousMinorUnits) * 100;
 
 	return Math.round(percentChange);
 }

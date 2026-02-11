@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::entities::availability_check::AvailabilityStatus;
 use product_stalker_core::AppError;
 
-use super::price_parser::{parse_price_to_cents, PriceInfo};
+use super::price_parser::{parse_price_to_minor_units, PriceInfo};
 use super::ScrapingResult;
 
 /// Check if the URL is for Chemist Warehouse
@@ -169,7 +169,6 @@ fn map_availability_status(availability: &str) -> AvailabilityStatus {
 fn extract_price_info(product: &Value) -> PriceInfo {
     // Try different price field names
     let raw_price = extract_price_string(product);
-    let price_cents = raw_price.as_ref().and_then(|p| parse_price_to_cents(p));
 
     // Chemist Warehouse is Australian, so default to AUD if no currency specified
     let price_currency = product
@@ -191,8 +190,12 @@ fn extract_price_info(product: &Value) -> PriceInfo {
             }
         });
 
+    let price_minor_units = raw_price
+        .as_ref()
+        .and_then(|p| parse_price_to_minor_units(p, price_currency.as_deref()));
+
     PriceInfo {
-        price_cents,
+        price_minor_units,
         price_currency,
         raw_price,
     }
@@ -341,7 +344,7 @@ mod tests {
         let result = parse_chemist_warehouse_data(&page_props).unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
         assert_eq!(result.raw_availability, Some("in-stock".to_string()));
-        assert_eq!(result.price.price_cents, Some(2399));
+        assert_eq!(result.price.price_minor_units, Some(2399));
         assert_eq!(result.price.price_currency, Some("AUD".to_string()));
         assert_eq!(result.price.raw_price, Some("23.99".to_string()));
     }
@@ -374,7 +377,7 @@ mod tests {
 
         let result = parse_chemist_warehouse_data(&page_props).unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
-        assert_eq!(result.price.price_cents, Some(4999));
+        assert_eq!(result.price.price_minor_units, Some(4999));
     }
 
     #[test]
@@ -391,7 +394,7 @@ mod tests {
 
         let result = parse_chemist_warehouse_data(&page_props).unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
-        assert_eq!(result.price.price_cents, Some(1500));
+        assert_eq!(result.price.price_minor_units, Some(1500));
     }
 
     #[test]
@@ -405,7 +408,7 @@ mod tests {
         });
 
         let result = parse_chemist_warehouse_data(&page_props).unwrap();
-        assert_eq!(result.price.price_cents, Some(2999));
+        assert_eq!(result.price.price_minor_units, Some(2999));
         assert_eq!(result.price.raw_price, Some("29.99".to_string()));
     }
 
@@ -498,7 +501,7 @@ mod tests {
         });
 
         let price = extract_price_info(&product);
-        assert_eq!(price.price_cents, Some(3550));
+        assert_eq!(price.price_minor_units, Some(3550));
         assert_eq!(price.raw_price, Some("35.50".to_string()));
     }
 
@@ -513,7 +516,7 @@ mod tests {
         });
 
         let price = extract_price_info(&product);
-        assert_eq!(price.price_cents, Some(4200));
+        assert_eq!(price.price_minor_units, Some(4200));
     }
 
     #[test]

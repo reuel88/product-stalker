@@ -12,6 +12,8 @@ export interface ProductResponse {
 	description: string | null;
 	/** Optional private notes */
 	notes: string | null;
+	/** ISO 4217 currency code auto-set from first successful price scrape */
+	currency: string | null;
 	/** ISO 8601 timestamp when the product was added */
 	created_at: string;
 	/** ISO 8601 timestamp of the last update */
@@ -47,16 +49,18 @@ export interface AvailabilityCheckResponse {
 	error_message: string | null;
 	/** ISO 8601 timestamp when the check was performed */
 	checked_at: string;
-	/** Price in cents (smallest currency unit) */
-	price_cents: number | null;
+	/** Price in minor units (smallest currency unit) */
+	price_minor_units: number | null;
 	/** ISO 4217 currency code (e.g., "USD", "EUR") */
 	price_currency: string | null;
 	/** Raw price string from the page (e.g., "789.00") */
 	raw_price: string | null;
-	/** Today's average price in cents for daily comparison */
-	today_average_price_cents: number | null;
-	/** Yesterday's average price in cents for daily comparison */
-	yesterday_average_price_cents: number | null;
+	/** Currency exponent (number of decimal places: 0 for JPY, 2 for USD, 3 for KWD) */
+	currency_exponent: number | null;
+	/** Today's average price in minor units for daily comparison */
+	today_average_price_minor_units: number | null;
+	/** Yesterday's average price in minor units for daily comparison */
+	yesterday_average_price_minor_units: number | null;
 	/** True if today's average price is lower than yesterday's average */
 	is_price_drop: boolean;
 }
@@ -75,14 +79,16 @@ export interface BulkCheckResult {
 	previous_status: AvailabilityStatus | null;
 	/** True if product changed from out_of_stock/back_order to in_stock */
 	is_back_in_stock: boolean;
-	/** Current price in cents */
-	price_cents: number | null;
+	/** Current price in minor units */
+	price_minor_units: number | null;
 	/** Currency code for current price */
 	price_currency: string | null;
-	/** Today's average price in cents for daily comparison */
-	today_average_price_cents: number | null;
-	/** Yesterday's average price in cents for daily comparison */
-	yesterday_average_price_cents: number | null;
+	/** Currency exponent (number of decimal places: 0 for JPY, 2 for USD, 3 for KWD) */
+	currency_exponent: number | null;
+	/** Today's average price in minor units for daily comparison */
+	today_average_price_minor_units: number | null;
+	/** Yesterday's average price in minor units for daily comparison */
+	yesterday_average_price_minor_units: number | null;
 	/** True if today's average price is lower than yesterday's average */
 	is_price_drop: boolean;
 	/** Error message if this product's check failed */
@@ -141,8 +147,10 @@ export type TimeRange = "7d" | "30d" | "all";
 export interface PriceDataPoint {
 	/** ISO 8601 timestamp of the price check */
 	date: string;
-	/** Price in smallest currency unit (cents) */
+	/** Price in smallest currency unit (minor units) */
 	price: number;
 	/** ISO 4217 currency code */
 	currency: string;
+	/** Currency exponent for formatting (0 for JPY, 2 for USD, 3 for KWD) */
+	currencyExponent: number;
 }

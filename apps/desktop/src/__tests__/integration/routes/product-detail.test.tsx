@@ -105,7 +105,7 @@ describe("ProductDetailView", () => {
 			const check = createMockAvailabilityCheck({
 				product_id: "product-1",
 				status: "in_stock",
-				price_cents: 9999,
+				price_minor_units: 9999,
 				price_currency: "USD",
 			});
 			mockInvokeMultiple({
@@ -126,7 +126,7 @@ describe("ProductDetailView", () => {
 			const check = createMockAvailabilityCheck({
 				product_id: "product-1",
 				status: "in_stock",
-				price_cents: 12999,
+				price_minor_units: 12999,
 				price_currency: "USD",
 			});
 			mockInvokeMultiple({
@@ -211,13 +211,13 @@ describe("ProductDetailView", () => {
 			const recentCheck = createMockAvailabilityCheck({
 				id: "recent",
 				checked_at: fiveDaysAgo.toISOString(),
-				price_cents: 9999,
+				price_minor_units: 9999,
 				price_currency: "USD",
 			});
 			const olderCheck = createMockAvailabilityCheck({
 				id: "older",
 				checked_at: twentyDaysAgo.toISOString(),
-				price_cents: 8999,
+				price_minor_units: 8999,
 				price_currency: "USD",
 			});
 

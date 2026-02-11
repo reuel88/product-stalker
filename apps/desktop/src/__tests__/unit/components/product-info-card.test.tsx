@@ -15,6 +15,7 @@ function createMockProduct(
 		url: "https://example.com/product",
 		description: null,
 		notes: null,
+		currency: null,
 		created_at: "2024-01-01T00:00:00Z",
 		updated_at: "2024-01-15T00:00:00Z",
 		...overrides,
@@ -31,11 +32,12 @@ function createMockCheck(
 		raw_availability: null,
 		error_message: null,
 		checked_at: "2024-01-15T10:00:00Z",
-		price_cents: 9999,
+		price_minor_units: 9999,
 		price_currency: "USD",
 		raw_price: "99.99",
-		today_average_price_cents: null,
-		yesterday_average_price_cents: null,
+		currency_exponent: 2,
+		today_average_price_minor_units: null,
+		yesterday_average_price_minor_units: null,
 		is_price_drop: false,
 		...overrides,
 	};
@@ -160,7 +162,7 @@ describe("ProductInfoCard", () => {
 		it("should display current price when available", () => {
 			const product = createMockProduct();
 			const check = createMockCheck({
-				price_cents: 12999,
+				price_minor_units: 12999,
 				price_currency: "USD",
 			});
 			render(<ProductInfoCard product={product} latestCheck={check} />);
@@ -171,7 +173,7 @@ describe("ProductInfoCard", () => {
 		it("should not display price section when price_cents is null", () => {
 			const product = createMockProduct();
 			const check = createMockCheck({
-				price_cents: null,
+				price_minor_units: null,
 				price_currency: null,
 			});
 			render(<ProductInfoCard product={product} latestCheck={check} />);

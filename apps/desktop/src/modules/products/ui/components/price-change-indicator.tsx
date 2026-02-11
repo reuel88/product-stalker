@@ -7,12 +7,14 @@ import {
 import { cn, formatPrice } from "@/lib/utils";
 
 interface PriceChangeIndicatorProps {
-	currentPriceCents: number | null;
-	/** Today's average price in cents for comparison */
-	todayAverageCents: number | null;
-	/** Yesterday's average price in cents for comparison */
-	yesterdayAverageCents: number | null;
+	currentPriceMinorUnits: number | null;
+	/** Today's average price in minor units for comparison */
+	todayAverageMinorUnits: number | null;
+	/** Yesterday's average price in minor units for comparison */
+	yesterdayAverageMinorUnits: number | null;
 	currency: string | null;
+	/** Currency exponent for formatting (0 for JPY, 2 for USD, 3 for KWD) */
+	currencyExponent: number;
 	variant: "compact" | "detailed";
 }
 
@@ -31,24 +33,29 @@ interface PriceChangeIndicatorProps {
  * - `↓ Down 12% from $899.00`
  */
 export function PriceChangeIndicator({
-	currentPriceCents,
-	todayAverageCents,
-	yesterdayAverageCents,
+	currentPriceMinorUnits,
+	todayAverageMinorUnits,
+	yesterdayAverageMinorUnits,
 	currency,
+	currencyExponent,
 	variant,
 }: PriceChangeIndicatorProps) {
-	if (currentPriceCents === null) {
+	if (currentPriceMinorUnits === null) {
 		return <span className="text-muted-foreground">-</span>;
 	}
 
-	const currentPrice = formatPrice(currentPriceCents, currency);
+	const currentPrice = formatPrice(
+		currentPriceMinorUnits,
+		currency,
+		currencyExponent,
+	);
 	const direction = getPriceChangeDirection(
-		todayAverageCents,
-		yesterdayAverageCents,
+		todayAverageMinorUnits,
+		yesterdayAverageMinorUnits,
 	);
 	const percent = calculatePriceChangePercent(
-		todayAverageCents,
-		yesterdayAverageCents,
+		todayAverageMinorUnits,
+		yesterdayAverageMinorUnits,
 	);
 
 	if (direction === "unknown" || direction === "unchanged") {
@@ -71,8 +78,9 @@ export function PriceChangeIndicator({
 	return (
 		<DetailedIndicator
 			currentPrice={currentPrice}
-			yesterdayAverageCents={yesterdayAverageCents}
+			yesterdayAverageMinorUnits={yesterdayAverageMinorUnits}
 			currency={currency}
+			currencyExponent={currencyExponent}
 			direction={direction}
 			percent={percent}
 		/>
@@ -117,22 +125,28 @@ function CompactIndicator({
 
 interface DetailedIndicatorProps {
 	currentPrice: string;
-	yesterdayAverageCents: number | null;
+	yesterdayAverageMinorUnits: number | null;
 	currency: string | null;
+	currencyExponent: number;
 	direction: "up" | "down";
 	percent: number | null;
 }
 
 function DetailedIndicator({
 	currentPrice,
-	yesterdayAverageCents,
+	yesterdayAverageMinorUnits,
 	currency,
+	currencyExponent,
 	direction,
 	percent,
 }: DetailedIndicatorProps) {
 	const isDown = direction === "down";
 	const Icon = isDown ? TrendingDown : TrendingUp;
-	const yesterdayPrice = formatPrice(yesterdayAverageCents, currency);
+	const yesterdayPrice = formatPrice(
+		yesterdayAverageMinorUnits,
+		currency,
+		currencyExponent,
+	);
 	const percentValue = percent !== null ? Math.abs(percent) : 0;
 	const directionLabel = isDown ? "Down" : "Up";
 

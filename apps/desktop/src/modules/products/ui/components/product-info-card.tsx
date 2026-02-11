@@ -46,7 +46,7 @@ export function ProductInfoCard({
 	isChecking,
 	onCheck,
 }: ProductInfoCardProps) {
-	const hasPrice = latestCheck?.price_cents != null;
+	const hasPrice = latestCheck?.price_minor_units != null;
 
 	return (
 		<Card>
@@ -87,10 +87,15 @@ export function ProductInfoCard({
 					<div>
 						<p className="text-muted-foreground text-xs">Current Price</p>
 						<PriceChangeIndicator
-							currentPriceCents={latestCheck.price_cents}
-							todayAverageCents={latestCheck.today_average_price_cents}
-							yesterdayAverageCents={latestCheck.yesterday_average_price_cents}
+							currentPriceMinorUnits={latestCheck.price_minor_units}
+							todayAverageMinorUnits={
+								latestCheck.today_average_price_minor_units
+							}
+							yesterdayAverageMinorUnits={
+								latestCheck.yesterday_average_price_minor_units
+							}
 							currency={latestCheck.price_currency}
+							currencyExponent={latestCheck.currency_exponent ?? 2}
 							variant="detailed"
 						/>
 					</div>
