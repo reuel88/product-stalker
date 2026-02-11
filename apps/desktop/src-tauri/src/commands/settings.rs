@@ -22,6 +22,7 @@ pub struct SettingsResponse {
     pub background_check_enabled: bool,
     pub background_check_interval_minutes: i32,
     pub enable_headless_browser: bool,
+    pub color_palette: String,
     pub updated_at: String,
 }
 
@@ -38,6 +39,7 @@ impl From<Settings> for SettingsResponse {
             background_check_enabled: settings.background_check_enabled,
             background_check_interval_minutes: settings.background_check_interval_minutes,
             enable_headless_browser: settings.enable_headless_browser,
+            color_palette: settings.color_palette,
             updated_at: settings.updated_at.to_rfc3339(),
         }
     }
@@ -106,6 +108,7 @@ mod tests {
             background_check_enabled: false,
             background_check_interval_minutes: 60,
             enable_headless_browser: true,
+            color_palette: "default".to_string(),
             updated_at: now,
         };
 
@@ -121,6 +124,7 @@ mod tests {
         assert!(!response.background_check_enabled);
         assert_eq!(response.background_check_interval_minutes, 60);
         assert!(response.enable_headless_browser);
+        assert_eq!(response.color_palette, "default");
     }
 
     #[test]
@@ -137,6 +141,7 @@ mod tests {
             background_check_enabled: true,
             background_check_interval_minutes: 30,
             enable_headless_browser: false,
+            color_palette: "ocean".to_string(),
             updated_at: now,
         };
 
@@ -152,6 +157,7 @@ mod tests {
         assert!(response.background_check_enabled);
         assert_eq!(response.background_check_interval_minutes, 30);
         assert!(!response.enable_headless_browser);
+        assert_eq!(response.color_palette, "ocean");
     }
 
     #[test]
@@ -168,6 +174,7 @@ mod tests {
             background_check_enabled: false,
             background_check_interval_minutes: 60,
             enable_headless_browser: true,
+            color_palette: "rose".to_string(),
             updated_at: now,
         };
 
@@ -175,6 +182,7 @@ mod tests {
 
         assert_eq!(response.theme, "system");
         assert_eq!(response.log_level, "debug");
+        assert_eq!(response.color_palette, "rose");
     }
 
     #[test]
@@ -191,6 +199,7 @@ mod tests {
             background_check_enabled: false,
             background_check_interval_minutes: 60,
             enable_headless_browser: true,
+            color_palette: "default".to_string(),
             updated_at: now,
         };
 
@@ -203,6 +212,7 @@ mod tests {
         assert!(json.contains("\"background_check_enabled\":false"));
         assert!(json.contains("\"background_check_interval_minutes\":60"));
         assert!(json.contains("\"enable_headless_browser\":true"));
+        assert!(json.contains("\"color_palette\":\"default\""));
     }
 
     #[test]
@@ -219,6 +229,7 @@ mod tests {
             background_check_enabled: false,
             background_check_interval_minutes: 60,
             enable_headless_browser: true,
+            color_palette: "default".to_string(),
             updated_at: now,
         };
 
@@ -243,6 +254,7 @@ mod tests {
         assert!(input.background_check_enabled.is_none());
         assert!(input.background_check_interval_minutes.is_none());
         assert!(input.enable_headless_browser.is_none());
+        assert!(input.color_palette.is_none());
     }
 
     #[test]
@@ -257,7 +269,8 @@ mod tests {
             "sidebar_expanded": true,
             "background_check_enabled": true,
             "background_check_interval_minutes": 30,
-            "enable_headless_browser": false
+            "enable_headless_browser": false,
+            "color_palette": "ocean"
         }"#;
         let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
 
@@ -271,6 +284,7 @@ mod tests {
         assert_eq!(input.background_check_enabled, Some(true));
         assert_eq!(input.background_check_interval_minutes, Some(30));
         assert_eq!(input.enable_headless_browser, Some(false));
+        assert_eq!(input.color_palette, Some("ocean".to_string()));
     }
 
     #[test]
@@ -288,6 +302,7 @@ mod tests {
         assert!(input.background_check_enabled.is_none());
         assert!(input.background_check_interval_minutes.is_none());
         assert!(input.enable_headless_browser.is_none());
+        assert!(input.color_palette.is_none());
     }
 
     #[test]

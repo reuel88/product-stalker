@@ -32,6 +32,13 @@ vi.mock("next-themes", () => ({
 	}),
 }));
 
+// Mock the palette provider
+vi.mock("@/modules/shared/providers/palette-provider", () => ({
+	PaletteProvider: ({ children }: { children: React.ReactNode }) => (
+		<div data-testid="palette-provider">{children}</div>
+	),
+}));
+
 // Mock sonner
 vi.mock("@/components/ui/sonner", () => ({
 	Toaster: () => <div data-testid="toaster" />,
