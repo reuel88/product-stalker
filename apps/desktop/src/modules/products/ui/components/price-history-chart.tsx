@@ -58,7 +58,11 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 	}
 
 	const data = payload[0].payload;
-	const formattedPrice = formatPrice(data.price, data.currency);
+	const formattedPrice = formatPrice(
+		data.price,
+		data.currency,
+		data.currencyExponent,
+	);
 
 	return (
 		<div className="rounded-none border bg-background px-3 py-2 shadow-sm">
@@ -84,7 +88,7 @@ export function PriceHistoryChart({ data }: PriceHistoryChartProps) {
 		return (
 			<div className="flex h-[200px] flex-col items-center justify-center gap-2">
 				<p className="font-medium text-2xl">
-					{formatPrice(point.price, point.currency)}
+					{formatPrice(point.price, point.currency, point.currencyExponent)}
 				</p>
 				<p className="text-muted-foreground text-sm">
 					Recorded on {formatChartDate(point.date, "tooltip")}
@@ -97,6 +101,7 @@ export function PriceHistoryChart({ data }: PriceHistoryChartProps) {
 	}
 
 	const currency = data[0].currency;
+	const currencyExponent = data[0].currencyExponent;
 	const prices = data.map((d) => d.price);
 	const yAxisDomain = calculateYAxisDomain(prices);
 
@@ -118,7 +123,9 @@ export function PriceHistoryChart({ data }: PriceHistoryChartProps) {
 				/>
 				<YAxis
 					domain={yAxisDomain}
-					tickFormatter={(value) => formatPrice(value, currency)}
+					tickFormatter={(value) =>
+						formatPrice(value, currency, currencyExponent)
+					}
 					tick={{ fontSize: 10 }}
 					tickLine={false}
 					axisLine={false}

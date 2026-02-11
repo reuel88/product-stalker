@@ -17,6 +17,7 @@ scraper = "0.23"
 url = "2"
 headless_chrome = "1.0"
 log = "0.4"
+rust_decimal = "1"
 tokio = { version = "1", features = ["rt"] }
 
 [dev-dependencies]

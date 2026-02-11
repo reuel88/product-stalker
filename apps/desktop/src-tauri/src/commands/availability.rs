@@ -3,6 +3,7 @@ use tauri::State;
 
 use crate::db::DbState;
 use crate::domain::entities::prelude::AvailabilityCheckModel;
+use crate::domain::services::currency;
 use crate::domain::services::{AvailabilityService, BulkCheckSummary, DailyPriceComparison};
 use crate::tauri_error::CommandError;
 use crate::tauri_services::{send_desktop_notification, TauriAvailabilityService};
@@ -17,13 +18,15 @@ pub struct AvailabilityCheckResponse {
     pub raw_availability: Option<String>,
     pub error_message: Option<String>,
     pub checked_at: String,
-    pub price_cents: Option<i64>,
+    pub price_minor_units: Option<i64>,
     pub price_currency: Option<String>,
     pub raw_price: Option<String>,
-    /// Today's average price in cents for daily comparison
-    pub today_average_price_cents: Option<i64>,
-    /// Yesterday's average price in cents for daily comparison
-    pub yesterday_average_price_cents: Option<i64>,
+    /// Currency exponent (number of decimal places: 0 for JPY, 2 for USD, 3 for KWD)
+    pub currency_exponent: Option<u32>,
+    /// Today's average price in minor units for daily comparison
+    pub today_average_price_minor_units: Option<i64>,
+    /// Yesterday's average price in minor units for daily comparison
+    pub yesterday_average_price_minor_units: Option<i64>,
     /// True if today's average price is lower than yesterday's average
     pub is_price_drop: bool,
 }
@@ -35,9 +38,13 @@ impl AvailabilityCheckResponse {
         daily_comparison: DailyPriceComparison,
     ) -> Self {
         let is_price_drop = AvailabilityService::is_price_drop(
-            daily_comparison.yesterday_average_cents,
-            daily_comparison.today_average_cents,
+            daily_comparison.yesterday_average_minor_units,
+            daily_comparison.today_average_minor_units,
         );
+        let currency_exponent = model
+            .price_currency
+            .as_deref()
+            .map(currency::currency_exponent);
         Self {
             id: model.id.to_string(),
             product_id: model.product_id.to_string(),
@@ -45,11 +52,12 @@ impl AvailabilityCheckResponse {
             raw_availability: model.raw_availability,
             error_message: model.error_message,
             checked_at: model.checked_at.to_rfc3339(),
-            price_cents: model.price_cents,
+            price_minor_units: model.price_minor_units,
             price_currency: model.price_currency,
             raw_price: model.raw_price,
-            today_average_price_cents: daily_comparison.today_average_cents,
-            yesterday_average_price_cents: daily_comparison.yesterday_average_cents,
+            currency_exponent,
+            today_average_price_minor_units: daily_comparison.today_average_minor_units,
+            yesterday_average_price_minor_units: daily_comparison.yesterday_average_minor_units,
             is_price_drop,
         }
     }
@@ -166,7 +174,7 @@ mod tests {
             raw_availability: Some("http://schema.org/InStock".to_string()),
             error_message: None,
             checked_at: now,
-            price_cents: Some(78900),
+            price_minor_units: Some(78900),
             price_currency: Some("USD".to_string()),
             raw_price: Some("789.00".to_string()),
         };
@@ -182,11 +190,12 @@ mod tests {
         );
         assert!(response.error_message.is_none());
         assert!(!response.checked_at.is_empty());
-        assert_eq!(response.price_cents, Some(78900));
+        assert_eq!(response.price_minor_units, Some(78900));
         assert_eq!(response.price_currency, Some("USD".to_string()));
         assert_eq!(response.raw_price, Some("789.00".to_string()));
-        assert!(response.today_average_price_cents.is_none());
-        assert!(response.yesterday_average_price_cents.is_none());
+        assert_eq!(response.currency_exponent, Some(2));
+        assert!(response.today_average_price_minor_units.is_none());
+        assert!(response.yesterday_average_price_minor_units.is_none());
         assert!(!response.is_price_drop);
     }
 
@@ -203,7 +212,7 @@ mod tests {
             raw_availability: None,
             error_message: Some("Failed to fetch page".to_string()),
             checked_at: now,
-            price_cents: None,
+            price_minor_units: None,
             price_currency: None,
             raw_price: None,
         };
@@ -216,7 +225,8 @@ mod tests {
             response.error_message,
             Some("Failed to fetch page".to_string())
         );
-        assert!(response.price_cents.is_none());
+        assert!(response.price_minor_units.is_none());
+        assert!(response.currency_exponent.is_none());
         assert!(!response.is_price_drop);
     }
 
@@ -233,7 +243,7 @@ mod tests {
             raw_availability: Some("http://schema.org/OutOfStock".to_string()),
             error_message: None,
             checked_at: now,
-            price_cents: Some(9999),
+            price_minor_units: Some(9999),
             price_currency: Some("EUR".to_string()),
             raw_price: Some("99.99".to_string()),
         };
@@ -246,8 +256,9 @@ mod tests {
         assert!(json.contains(&product_id.to_string()));
         assert!(json.contains("9999"));
         assert!(json.contains("EUR"));
-        assert!(json.contains("\"today_average_price_cents\":null"));
-        assert!(json.contains("\"yesterday_average_price_cents\":null"));
+        assert!(json.contains("\"currency_exponent\":2"));
+        assert!(json.contains("\"today_average_price_minor_units\":null"));
+        assert!(json.contains("\"yesterday_average_price_minor_units\":null"));
         assert!(json.contains("\"is_price_drop\":false"));
     }
 
@@ -264,22 +275,23 @@ mod tests {
             raw_availability: Some("http://schema.org/InStock".to_string()),
             error_message: None,
             checked_at: now,
-            price_cents: Some(78900),
+            price_minor_units: Some(78900),
             price_currency: Some("USD".to_string()),
             raw_price: Some("789.00".to_string()),
         };
 
         let daily_comparison = DailyPriceComparison {
-            today_average_cents: Some(78900),
-            yesterday_average_cents: Some(89900),
+            today_average_minor_units: Some(78900),
+            yesterday_average_minor_units: Some(89900),
         };
 
         let response =
             AvailabilityCheckResponse::from_model_with_daily_comparison(model, daily_comparison);
 
-        assert_eq!(response.price_cents, Some(78900));
-        assert_eq!(response.today_average_price_cents, Some(78900));
-        assert_eq!(response.yesterday_average_price_cents, Some(89900));
+        assert_eq!(response.price_minor_units, Some(78900));
+        assert_eq!(response.currency_exponent, Some(2));
+        assert_eq!(response.today_average_price_minor_units, Some(78900));
+        assert_eq!(response.yesterday_average_price_minor_units, Some(89900));
         assert!(response.is_price_drop);
     }
 
@@ -296,22 +308,23 @@ mod tests {
             raw_availability: None,
             error_message: None,
             checked_at: now,
-            price_cents: Some(99900),
+            price_minor_units: Some(99900),
             price_currency: Some("USD".to_string()),
             raw_price: None,
         };
 
         let daily_comparison = DailyPriceComparison {
-            today_average_cents: Some(99900),
-            yesterday_average_cents: Some(78900),
+            today_average_minor_units: Some(99900),
+            yesterday_average_minor_units: Some(78900),
         };
 
         let response =
             AvailabilityCheckResponse::from_model_with_daily_comparison(model, daily_comparison);
 
-        assert_eq!(response.price_cents, Some(99900));
-        assert_eq!(response.today_average_price_cents, Some(99900));
-        assert_eq!(response.yesterday_average_price_cents, Some(78900));
+        assert_eq!(response.price_minor_units, Some(99900));
+        assert_eq!(response.currency_exponent, Some(2));
+        assert_eq!(response.today_average_price_minor_units, Some(99900));
+        assert_eq!(response.yesterday_average_price_minor_units, Some(78900));
         assert!(!response.is_price_drop);
     }
 
@@ -328,22 +341,23 @@ mod tests {
             raw_availability: None,
             error_message: None,
             checked_at: now,
-            price_cents: Some(78900),
+            price_minor_units: Some(78900),
             price_currency: Some("USD".to_string()),
             raw_price: None,
         };
 
         let daily_comparison = DailyPriceComparison {
-            today_average_cents: Some(78900),
-            yesterday_average_cents: None,
+            today_average_minor_units: Some(78900),
+            yesterday_average_minor_units: None,
         };
 
         let response =
             AvailabilityCheckResponse::from_model_with_daily_comparison(model, daily_comparison);
 
-        assert_eq!(response.price_cents, Some(78900));
-        assert_eq!(response.today_average_price_cents, Some(78900));
-        assert!(response.yesterday_average_price_cents.is_none());
+        assert_eq!(response.price_minor_units, Some(78900));
+        assert_eq!(response.currency_exponent, Some(2));
+        assert_eq!(response.today_average_price_minor_units, Some(78900));
+        assert!(response.yesterday_average_price_minor_units.is_none());
         assert!(!response.is_price_drop);
     }
 }

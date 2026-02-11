@@ -102,8 +102,9 @@ pub struct Model {
     /// When the check was performed
     pub checked_at: DateTimeUtc,
 
-    /// Price in cents (smallest currency unit)
-    pub price_cents: Option<i64>,
+    /// Price in minor units (smallest currency unit)
+    #[sea_orm(column_name = "price_cents")]
+    pub price_minor_units: Option<i64>,
 
     /// ISO 4217 currency code (e.g., USD, EUR, AUD)
     pub price_currency: Option<String>,
@@ -319,7 +320,7 @@ mod tests {
             raw_availability: None,
             error_message: None,
             checked_at: chrono::Utc::now(),
-            price_cents: None,
+            price_minor_units: None,
             price_currency: None,
             raw_price: None,
         };

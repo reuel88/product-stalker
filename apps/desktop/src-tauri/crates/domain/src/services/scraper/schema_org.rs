@@ -248,7 +248,7 @@ mod tests {
         assert!(result.is_some());
         let (avail, price) = result.unwrap();
         assert_eq!(avail, "http://schema.org/InStock");
-        assert_eq!(price.price_cents, Some(9999));
+        assert_eq!(price.price_minor_units, Some(9999));
     }
 
     #[test]
@@ -338,6 +338,6 @@ mod tests {
         let (avail, price) = result.unwrap();
         // Should use first offer's availability
         assert_eq!(avail, "http://schema.org/OutOfStock");
-        assert_eq!(price.price_cents, Some(4999));
+        assert_eq!(price.price_minor_units, Some(4999));
     }
 }

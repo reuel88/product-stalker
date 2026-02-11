@@ -7,10 +7,11 @@ describe("PriceChangeIndicator", () => {
 		it("should display price with no indicator when no yesterday average", () => {
 			render(
 				<PriceChangeIndicator
-					currentPriceCents={79900}
-					todayAverageCents={79900}
-					yesterdayAverageCents={null}
+					currentPriceMinorUnits={79900}
+					todayAverageMinorUnits={79900}
+					yesterdayAverageMinorUnits={null}
 					currency="USD"
+					currencyExponent={2}
 					variant="compact"
 				/>,
 			);
@@ -21,10 +22,11 @@ describe("PriceChangeIndicator", () => {
 		it("should display price drop indicator", () => {
 			render(
 				<PriceChangeIndicator
-					currentPriceCents={79900}
-					todayAverageCents={79900}
-					yesterdayAverageCents={89900}
+					currentPriceMinorUnits={79900}
+					todayAverageMinorUnits={79900}
+					yesterdayAverageMinorUnits={89900}
 					currency="USD"
+					currencyExponent={2}
 					variant="compact"
 				/>,
 			);
@@ -36,10 +38,11 @@ describe("PriceChangeIndicator", () => {
 		it("should display price increase indicator", () => {
 			render(
 				<PriceChangeIndicator
-					currentPriceCents={89900}
-					todayAverageCents={89900}
-					yesterdayAverageCents={79900}
+					currentPriceMinorUnits={89900}
+					todayAverageMinorUnits={89900}
+					yesterdayAverageMinorUnits={79900}
 					currency="USD"
+					currencyExponent={2}
 					variant="compact"
 				/>,
 			);
@@ -51,10 +54,11 @@ describe("PriceChangeIndicator", () => {
 		it("should display dash when current price is null", () => {
 			render(
 				<PriceChangeIndicator
-					currentPriceCents={null}
-					todayAverageCents={null}
-					yesterdayAverageCents={null}
+					currentPriceMinorUnits={null}
+					todayAverageMinorUnits={null}
+					yesterdayAverageMinorUnits={null}
 					currency={null}
+					currencyExponent={2}
 					variant="compact"
 				/>,
 			);
@@ -65,10 +69,11 @@ describe("PriceChangeIndicator", () => {
 		it("should not show indicator when price is unchanged", () => {
 			render(
 				<PriceChangeIndicator
-					currentPriceCents={79900}
-					todayAverageCents={79900}
-					yesterdayAverageCents={79900}
+					currentPriceMinorUnits={79900}
+					todayAverageMinorUnits={79900}
+					yesterdayAverageMinorUnits={79900}
 					currency="USD"
+					currencyExponent={2}
 					variant="compact"
 				/>,
 			);
@@ -83,10 +88,11 @@ describe("PriceChangeIndicator", () => {
 		it("should display price with no indicator when no yesterday average", () => {
 			render(
 				<PriceChangeIndicator
-					currentPriceCents={79900}
-					todayAverageCents={79900}
-					yesterdayAverageCents={null}
+					currentPriceMinorUnits={79900}
+					todayAverageMinorUnits={79900}
+					yesterdayAverageMinorUnits={null}
 					currency="USD"
+					currencyExponent={2}
 					variant="detailed"
 				/>,
 			);
@@ -97,10 +103,11 @@ describe("PriceChangeIndicator", () => {
 		it("should display price drop with details", () => {
 			render(
 				<PriceChangeIndicator
-					currentPriceCents={79900}
-					todayAverageCents={79900}
-					yesterdayAverageCents={89900}
+					currentPriceMinorUnits={79900}
+					todayAverageMinorUnits={79900}
+					yesterdayAverageMinorUnits={89900}
 					currency="USD"
+					currencyExponent={2}
 					variant="detailed"
 				/>,
 			);
@@ -112,10 +119,11 @@ describe("PriceChangeIndicator", () => {
 		it("should display price increase with details", () => {
 			render(
 				<PriceChangeIndicator
-					currentPriceCents={89900}
-					todayAverageCents={89900}
-					yesterdayAverageCents={79900}
+					currentPriceMinorUnits={89900}
+					todayAverageMinorUnits={89900}
+					yesterdayAverageMinorUnits={79900}
 					currency="USD"
+					currencyExponent={2}
 					variant="detailed"
 				/>,
 			);
@@ -127,10 +135,11 @@ describe("PriceChangeIndicator", () => {
 		it("should display dash when current price is null", () => {
 			render(
 				<PriceChangeIndicator
-					currentPriceCents={null}
-					todayAverageCents={null}
-					yesterdayAverageCents={null}
+					currentPriceMinorUnits={null}
+					todayAverageMinorUnits={null}
+					yesterdayAverageMinorUnits={null}
 					currency={null}
+					currencyExponent={2}
 					variant="detailed"
 				/>,
 			);

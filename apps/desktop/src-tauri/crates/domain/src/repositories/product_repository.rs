@@ -20,6 +20,7 @@ pub struct ProductUpdateInput {
     pub url: Option<String>,
     pub description: Option<Option<String>>,
     pub notes: Option<Option<String>>,
+    pub currency: Option<Option<String>>,
 }
 
 /// Parameters for creating a new product at the repository level
@@ -66,6 +67,7 @@ impl ProductRepository {
             url: Set(params.url),
             description: Set(params.description),
             notes: Set(params.notes),
+            currency: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -98,6 +100,9 @@ impl ProductRepository {
         }
         if let Some(notes) = input.notes {
             active_model.notes = Set(notes);
+        }
+        if let Some(currency) = input.currency {
+            active_model.currency = Set(currency);
         }
         active_model.updated_at = Set(chrono::Utc::now());
 
@@ -271,6 +276,7 @@ mod tests {
                 url: Some("https://new.com".to_string()),
                 description: Some(Some("New description".to_string())),
                 notes: Some(Some("New notes".to_string())),
+                currency: None,
             },
         )
         .await
