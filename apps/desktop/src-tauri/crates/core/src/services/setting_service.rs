@@ -18,6 +18,7 @@ pub mod keys {
     pub const BACKGROUND_CHECK_ENABLED: &str = "background_check_enabled";
     pub const BACKGROUND_CHECK_INTERVAL_MINUTES: &str = "background_check_interval_minutes";
     pub const ENABLE_HEADLESS_BROWSER: &str = "enable_headless_browser";
+    pub const COLOR_PALETTE: &str = "color_palette";
 }
 
 /// Default values for settings
@@ -32,6 +33,7 @@ pub mod defaults {
     pub const BACKGROUND_CHECK_ENABLED: bool = false;
     pub const BACKGROUND_CHECK_INTERVAL_MINUTES: i32 = 60;
     pub const ENABLE_HEADLESS_BROWSER: bool = true;
+    pub const COLOR_PALETTE: &str = "default";
 }
 
 /// Settings model returned by the service
@@ -50,6 +52,7 @@ pub struct Settings {
     pub background_check_enabled: bool,
     pub background_check_interval_minutes: i32,
     pub enable_headless_browser: bool,
+    pub color_palette: String,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -66,6 +69,7 @@ impl Default for Settings {
             background_check_enabled: defaults::BACKGROUND_CHECK_ENABLED,
             background_check_interval_minutes: defaults::BACKGROUND_CHECK_INTERVAL_MINUTES,
             enable_headless_browser: defaults::ENABLE_HEADLESS_BROWSER,
+            color_palette: defaults::COLOR_PALETTE.to_string(),
             updated_at: Utc::now(),
         }
     }
@@ -84,6 +88,7 @@ pub struct UpdateSettingsParams {
     pub background_check_enabled: Option<bool>,
     pub background_check_interval_minutes: Option<i32>,
     pub enable_headless_browser: Option<bool>,
+    pub color_palette: Option<String>,
 }
 
 /// Service layer for settings business logic
@@ -131,6 +136,9 @@ impl SettingService {
                     defaults::ENABLE_HEADLESS_BROWSER,
                 )
                 .await?,
+            color_palette: r
+                .string(keys::COLOR_PALETTE, defaults::COLOR_PALETTE)
+                .await?,
             updated_at: Utc::now(),
         })
     }
@@ -153,11 +161,16 @@ impl SettingService {
         if let Some(interval) = params.background_check_interval_minutes {
             Self::validate_background_check_interval(interval)?;
         }
+        if let Some(ref palette) = params.color_palette {
+            Self::validate_color_palette(palette)?;
+        }
 
         let scope = SettingScope::Global;
 
         // Appearance
         Self::persist_optional_string(conn, &scope, keys::THEME, params.theme).await?;
+        Self::persist_optional_string(conn, &scope, keys::COLOR_PALETTE, params.color_palette)
+            .await?;
         Self::persist_optional_bool(
             conn,
             &scope,
@@ -271,6 +284,16 @@ impl SettingService {
     /// Maximum background check interval: 1 week (10080 minutes)
     const MAX_BACKGROUND_CHECK_INTERVAL_MINUTES: i32 = 10080;
 
+    fn validate_color_palette(palette: &str) -> Result<(), AppError> {
+        match palette {
+            "default" | "ocean" | "rose" => Ok(()),
+            _ => Err(AppError::Validation(format!(
+                "Invalid color palette: {}. Must be 'default', 'ocean', or 'rose'",
+                palette
+            ))),
+        }
+    }
+
     fn validate_background_check_interval(interval: i32) -> Result<(), AppError> {
         if interval <= 0 {
             return Err(AppError::Validation(
@@ -373,6 +396,7 @@ mod tests {
         assert!(!settings.background_check_enabled);
         assert_eq!(settings.background_check_interval_minutes, 60);
         assert!(settings.enable_headless_browser);
+        assert_eq!(settings.color_palette, "default");
     }
 
     #[test]
@@ -389,6 +413,28 @@ mod tests {
         assert!(json.contains("\"background_check_enabled\":false"));
         assert!(json.contains("\"background_check_interval_minutes\":60"));
         assert!(json.contains("\"enable_headless_browser\":true"));
+        assert!(json.contains("\"color_palette\":\"default\""));
+    }
+
+    #[test]
+    fn test_validate_color_palette_accepts_default() {
+        assert!(SettingService::validate_color_palette("default").is_ok());
+    }
+
+    #[test]
+    fn test_validate_color_palette_accepts_ocean() {
+        assert!(SettingService::validate_color_palette("ocean").is_ok());
+    }
+
+    #[test]
+    fn test_validate_color_palette_accepts_rose() {
+        assert!(SettingService::validate_color_palette("rose").is_ok());
+    }
+
+    #[test]
+    fn test_validate_color_palette_rejects_invalid_value() {
+        let result = SettingService::validate_color_palette("neon");
+        assert!(result.is_err());
     }
 }
 
@@ -414,6 +460,7 @@ mod integration_tests {
         assert!(!settings.background_check_enabled);
         assert_eq!(settings.background_check_interval_minutes, 60);
         assert!(settings.enable_headless_browser);
+        assert_eq!(settings.color_palette, "default");
     }
 
     #[tokio::test]
@@ -504,6 +551,7 @@ mod integration_tests {
             background_check_enabled: Some(true),
             background_check_interval_minutes: Some(30),
             enable_headless_browser: Some(false),
+            color_palette: Some("ocean".to_string()),
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -519,6 +567,7 @@ mod integration_tests {
         assert!(settings.background_check_enabled);
         assert_eq!(settings.background_check_interval_minutes, 30);
         assert!(!settings.enable_headless_browser);
+        assert_eq!(settings.color_palette, "ocean");
     }
 
     #[tokio::test]
@@ -542,5 +591,44 @@ mod integration_tests {
         // Get settings and verify theme persisted
         let settings = SettingService::get(&conn).await.unwrap();
         assert_eq!(settings.theme, "dark");
+    }
+
+    #[tokio::test]
+    async fn test_update_validates_color_palette() {
+        let conn = setup_app_settings_db().await;
+        let params = UpdateSettingsParams {
+            color_palette: Some("neon".to_string()),
+            ..Default::default()
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_update_color_palette_success() {
+        let conn = setup_app_settings_db().await;
+        let params = UpdateSettingsParams {
+            color_palette: Some("rose".to_string()),
+            ..Default::default()
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().color_palette, "rose");
+    }
+
+    #[tokio::test]
+    async fn test_color_palette_persists_across_calls() {
+        let conn = setup_app_settings_db().await;
+
+        let params = UpdateSettingsParams {
+            color_palette: Some("ocean".to_string()),
+            ..Default::default()
+        };
+        SettingService::update(&conn, params).await.unwrap();
+
+        let settings = SettingService::get(&conn).await.unwrap();
+        assert_eq!(settings.color_palette, "ocean");
     }
 }

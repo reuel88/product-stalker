@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Toaster } from "@/components/ui/sonner";
+import { PaletteProvider } from "@/modules/shared/providers/palette-provider";
 import { ThemeProvider } from "@/modules/shared/providers/theme-provider";
 import Header from "@/modules/shared/ui/components/header";
 
@@ -43,11 +44,13 @@ export function RootComponent() {
 				disableTransitionOnChange
 				storageKey="vite-ui-theme"
 			>
-				<div className="grid h-svh grid-rows-[auto_1fr]">
-					<Header />
-					<Outlet />
-				</div>
-				<Toaster richColors />
+				<PaletteProvider>
+					<div className="grid h-svh grid-rows-[auto_1fr]">
+						<Header />
+						<Outlet />
+					</div>
+					<Toaster richColors />
+				</PaletteProvider>
 			</ThemeProvider>
 			{import.meta.env.DEV && <TanStackRouterDevtools position="bottom-left" />}
 		</>

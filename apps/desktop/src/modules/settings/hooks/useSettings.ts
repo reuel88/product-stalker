@@ -21,6 +21,7 @@ export interface Settings {
 	background_check_enabled: boolean;
 	background_check_interval_minutes: number;
 	enable_headless_browser: boolean;
+	color_palette: string;
 	updated_at: string;
 }
 

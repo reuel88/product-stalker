@@ -17,6 +17,35 @@ vi.mock("@/modules/shared/providers/theme-provider", () => ({
 	}),
 }));
 
+// Mock the palette provider
+const mockSetPalette = vi.fn();
+vi.mock("@/modules/shared/providers/palette-provider", () => ({
+	usePalette: () => ({
+		paletteId: "default",
+		setPalette: mockSetPalette,
+		palettes: [
+			{
+				id: "default",
+				name: "Default",
+				description: "Clean neutral theme",
+				preview: { primary: "#000", accent: "#eee", background: "#fff" },
+			},
+			{
+				id: "ocean",
+				name: "Ocean",
+				description: "Cool blue tones",
+				preview: { primary: "#005", accent: "#aad", background: "#eef" },
+			},
+			{
+				id: "rose",
+				name: "Rose",
+				description: "Warm pink tones",
+				preview: { primary: "#500", accent: "#daa", background: "#fee" },
+			},
+		],
+	}),
+}));
+
 describe("SettingsView", () => {
 	beforeEach(() => {
 		getMockedInvoke().mockReset();
