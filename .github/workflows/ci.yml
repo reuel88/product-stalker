@@ -87,18 +87,10 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
-      - name: Cache Cargo
-        uses: actions/cache@v4
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            apps/desktop/src-tauri/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          workspaces: apps/desktop/src-tauri -> target
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@v2
