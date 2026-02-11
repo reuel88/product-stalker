@@ -56,7 +56,12 @@ impl HeadlessService {
 
         // Inject script to hide webdriver property before navigation
         log::debug!("Headless: injecting anti-detection script");
-        let _ = tab.evaluate(WEBDRIVER_OVERRIDE_SCRIPT, false);
+        if let Err(e) = tab.evaluate(WEBDRIVER_OVERRIDE_SCRIPT, false) {
+            log::debug!(
+                "Headless: pre-navigation webdriver override failed (expected on about:blank): {}",
+                e
+            );
+        }
 
         // Navigate to the URL
         log::debug!("Headless: navigating to {}", url);
@@ -69,7 +74,13 @@ impl HeadlessService {
             .map_err(|e| AppError::Scraping(format!("Page load timeout: {}", e)))?;
 
         // Re-inject script after navigation in case page reset it
-        let _ = tab.evaluate(WEBDRIVER_OVERRIDE_SCRIPT, false);
+        if let Err(e) = tab.evaluate(WEBDRIVER_OVERRIDE_SCRIPT, false) {
+            log::warn!(
+                "Headless: post-navigation webdriver override failed for {}: {}",
+                url,
+                e
+            );
+        }
 
         // Get the page HTML
         log::debug!("Headless: getting page content");
