@@ -15,7 +15,12 @@ describe("PriceHistoryChart", () => {
 	describe("single data point state", () => {
 		it("should show single price when there is only one data point", () => {
 			const data: PriceDataPoint[] = [
-				{ date: "2024-01-15T10:00:00Z", price: 9999, currency: "USD" },
+				{
+					date: "2024-01-15T10:00:00Z",
+					price: 9999,
+					currency: "USD",
+					currencyExponent: 2,
+				},
 			];
 
 			render(<PriceHistoryChart data={data} />);
@@ -28,7 +33,12 @@ describe("PriceHistoryChart", () => {
 
 		it("should show recorded date for single data point", () => {
 			const data: PriceDataPoint[] = [
-				{ date: "2024-01-15T10:00:00Z", price: 12500, currency: "USD" },
+				{
+					date: "2024-01-15T10:00:00Z",
+					price: 12500,
+					currency: "USD",
+					currencyExponent: 2,
+				},
 			];
 
 			render(<PriceHistoryChart data={data} />);
@@ -40,8 +50,18 @@ describe("PriceHistoryChart", () => {
 	describe("chart rendering", () => {
 		it("should render chart container for multiple data points", () => {
 			const data: PriceDataPoint[] = [
-				{ date: "2024-01-01T10:00:00Z", price: 9999, currency: "USD" },
-				{ date: "2024-01-02T10:00:00Z", price: 8999, currency: "USD" },
+				{
+					date: "2024-01-01T10:00:00Z",
+					price: 9999,
+					currency: "USD",
+					currencyExponent: 2,
+				},
+				{
+					date: "2024-01-02T10:00:00Z",
+					price: 8999,
+					currency: "USD",
+					currencyExponent: 2,
+				},
 			];
 
 			const { container } = render(<PriceHistoryChart data={data} />);
@@ -55,8 +75,18 @@ describe("PriceHistoryChart", () => {
 
 		it("should not show empty message for multiple data points", () => {
 			const data: PriceDataPoint[] = [
-				{ date: "2024-01-01T10:00:00Z", price: 9999, currency: "USD" },
-				{ date: "2024-01-02T10:00:00Z", price: 8999, currency: "USD" },
+				{
+					date: "2024-01-01T10:00:00Z",
+					price: 9999,
+					currency: "USD",
+					currencyExponent: 2,
+				},
+				{
+					date: "2024-01-02T10:00:00Z",
+					price: 8999,
+					currency: "USD",
+					currencyExponent: 2,
+				},
 			];
 
 			render(<PriceHistoryChart data={data} />);
@@ -68,8 +98,18 @@ describe("PriceHistoryChart", () => {
 
 		it("should not show single data point message for multiple data points", () => {
 			const data: PriceDataPoint[] = [
-				{ date: "2024-01-01T10:00:00Z", price: 9999, currency: "USD" },
-				{ date: "2024-01-02T10:00:00Z", price: 8999, currency: "USD" },
+				{
+					date: "2024-01-01T10:00:00Z",
+					price: 9999,
+					currency: "USD",
+					currencyExponent: 2,
+				},
+				{
+					date: "2024-01-02T10:00:00Z",
+					price: 8999,
+					currency: "USD",
+					currencyExponent: 2,
+				},
 			];
 
 			render(<PriceHistoryChart data={data} />);
@@ -83,7 +123,12 @@ describe("PriceHistoryChart", () => {
 	describe("price formatting", () => {
 		it("should format prices correctly in different currencies", () => {
 			const data: PriceDataPoint[] = [
-				{ date: "2024-01-15T10:00:00Z", price: 15000, currency: "EUR" },
+				{
+					date: "2024-01-15T10:00:00Z",
+					price: 15000,
+					currency: "EUR",
+					currencyExponent: 2,
+				},
 			];
 
 			render(<PriceHistoryChart data={data} />);

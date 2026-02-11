@@ -33,6 +33,7 @@ pub struct ProductResponse {
     pub url: String,
     pub description: Option<String>,
     pub notes: Option<String>,
+    pub currency: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -45,6 +46,7 @@ impl From<ProductModel> for ProductResponse {
             url: model.url,
             description: model.description,
             notes: model.notes,
+            currency: model.currency,
             created_at: model.created_at.to_rfc3339(),
             updated_at: model.updated_at.to_rfc3339(),
         }
@@ -139,6 +141,7 @@ mod tests {
             url: "https://example.com".to_string(),
             description: Some("A description".to_string()),
             notes: None,
+            currency: None,
             created_at: now,
             updated_at: now,
         };
@@ -162,6 +165,7 @@ mod tests {
             url: "https://full.example.com".to_string(),
             description: Some("Full description".to_string()),
             notes: Some("Some notes".to_string()),
+            currency: None,
             created_at: now,
             updated_at: now,
         };
@@ -187,6 +191,7 @@ mod tests {
             url: "https://minimal.example.com".to_string(),
             description: None,
             notes: None,
+            currency: None,
             created_at: now,
             updated_at: now,
         };
@@ -208,6 +213,7 @@ mod tests {
             url: "https://json.test".to_string(),
             description: Some("Test desc".to_string()),
             notes: None,
+            currency: None,
             created_at: now,
             updated_at: now,
         };
@@ -287,6 +293,7 @@ mod tests {
             url: "https://time.test".to_string(),
             description: None,
             notes: None,
+            currency: None,
             created_at: now,
             updated_at: now,
         };

@@ -24,6 +24,9 @@ pub struct Model {
     /// Optional notes
     pub notes: Option<String>,
 
+    /// ISO 4217 currency code (e.g., USD, AUD), auto-set on first scrape
+    pub currency: Option<String>,
+
     /// Creation timestamp
     pub created_at: DateTimeUtc,
 
@@ -59,6 +62,7 @@ mod tests {
             url: "https://example.com".to_string(),
             description: Some("A description".to_string()),
             notes: None,
+            currency: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -76,6 +80,7 @@ mod tests {
             url: "https://debug.test".to_string(),
             description: None,
             notes: None,
+            currency: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -94,6 +99,7 @@ mod tests {
             url: "https://product.com".to_string(),
             description: None,
             notes: None,
+            currency: None,
             created_at: now,
             updated_at: now,
         };
@@ -103,6 +109,7 @@ mod tests {
             url: "https://product.com".to_string(),
             description: None,
             notes: None,
+            currency: None,
             created_at: now,
             updated_at: now,
         };
@@ -118,6 +125,7 @@ mod tests {
             url: "https://product.com".to_string(),
             description: None,
             notes: None,
+            currency: None,
             created_at: now,
             updated_at: now,
         };
@@ -127,6 +135,7 @@ mod tests {
             url: "https://product.com".to_string(),
             description: None,
             notes: None,
+            currency: None,
             created_at: now,
             updated_at: now,
         };
@@ -142,6 +151,7 @@ mod tests {
             url: "https://serial.test".to_string(),
             description: Some("desc".to_string()),
             notes: Some("notes".to_string()),
+            currency: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -161,6 +171,7 @@ mod tests {
             url: "https://full.com".to_string(),
             description: Some("Full description with details".to_string()),
             notes: Some("Important notes about this product".to_string()),
+            currency: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -176,6 +187,7 @@ mod tests {
             url: "https://minimal.com".to_string(),
             description: None,
             notes: None,
+            currency: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -193,6 +205,7 @@ mod tests {
             url: "https://time.test".to_string(),
             description: None,
             notes: None,
+            currency: None,
             created_at: created,
             updated_at: updated,
         };

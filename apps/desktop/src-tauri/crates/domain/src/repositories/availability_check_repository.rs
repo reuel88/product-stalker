@@ -24,7 +24,7 @@ pub struct CreateCheckParams {
     pub status: AvailabilityStatus,
     pub raw_availability: Option<String>,
     pub error_message: Option<String>,
-    pub price_cents: Option<i64>,
+    pub price_minor_units: Option<i64>,
     pub price_currency: Option<String>,
     pub raw_price: Option<String>,
 }
@@ -46,7 +46,7 @@ impl AvailabilityCheckRepository {
             raw_availability: Set(params.raw_availability),
             error_message: Set(params.error_message),
             checked_at: Set(now),
-            price_cents: Set(params.price_cents),
+            price_minor_units: Set(params.price_minor_units),
             price_currency: Set(params.price_currency),
             raw_price: Set(params.raw_price),
         };
@@ -195,7 +195,7 @@ mod tests {
             CreateCheckParams {
                 status: AvailabilityStatus::InStock,
                 raw_availability: Some("http://schema.org/InStock".to_string()),
-                price_cents: Some(78900),
+                price_minor_units: Some(78900),
                 price_currency: Some("USD".to_string()),
                 raw_price: Some("789.00".to_string()),
                 ..Default::default()
@@ -204,7 +204,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(check.price_cents, Some(78900));
+        assert_eq!(check.price_minor_units, Some(78900));
         assert_eq!(check.price_currency, Some("USD".to_string()));
         assert_eq!(check.raw_price, Some("789.00".to_string()));
     }

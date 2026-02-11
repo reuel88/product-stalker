@@ -17,7 +17,7 @@ use url::Url;
 use crate::entities::availability_check::AvailabilityStatus;
 use product_stalker_core::AppError;
 
-use super::price_parser::{parse_price_to_cents, PriceInfo};
+use super::price_parser::{parse_price_to_minor_units, PriceInfo};
 use super::ScrapingResult;
 
 /// HTTP request timeout for Shopify API calls
@@ -475,8 +475,6 @@ fn extract_price_from_variant(variant: &ShopifyVariant, url: &str) -> PriceInfo 
         Some(variant.price.clone())
     };
 
-    let price_cents = raw_price.as_ref().and_then(|p| parse_price_to_cents(p));
-
     let price_currency = variant.price_currency.clone().or_else(|| {
         if raw_price.is_some() {
             infer_currency_from_domain(url)
@@ -485,8 +483,12 @@ fn extract_price_from_variant(variant: &ShopifyVariant, url: &str) -> PriceInfo 
         }
     });
 
+    let price_minor_units = raw_price
+        .as_ref()
+        .and_then(|p| parse_price_to_minor_units(p, price_currency.as_deref()));
+
     PriceInfo {
-        price_cents,
+        price_minor_units,
         price_currency,
         raw_price,
     }
@@ -664,7 +666,7 @@ mod tests {
         };
 
         let price = extract_price_from_variant(&variant, "https://store.com.au/products/test");
-        assert_eq!(price.price_cents, Some(33000));
+        assert_eq!(price.price_minor_units, Some(33000));
         assert_eq!(price.price_currency, Some("AUD".to_string()));
         assert_eq!(price.raw_price, Some("330.00".to_string()));
     }
@@ -679,7 +681,7 @@ mod tests {
         };
 
         let price = extract_price_from_variant(&variant, "https://store.com/products/test");
-        assert_eq!(price.price_cents, None);
+        assert_eq!(price.price_minor_units, None);
         assert_eq!(price.price_currency, None);
         assert_eq!(price.raw_price, None);
     }

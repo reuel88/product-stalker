@@ -379,7 +379,7 @@ mod tests {
 
         let result =
             ScraperService::parse_schema_org_with_url(&html, "https://example.com").unwrap();
-        assert_eq!(result.price.price_cents, Some(78900));
+        assert_eq!(result.price.price_minor_units, Some(78900));
         assert_eq!(result.price.price_currency, Some("USD".to_string()));
         assert_eq!(result.price.raw_price, Some("789.00".to_string()));
     }
@@ -398,7 +398,7 @@ mod tests {
             "https://example.com/products/test?variant=123",
         )
         .unwrap();
-        assert_eq!(result.price.price_cents, Some(129900));
+        assert_eq!(result.price.price_minor_units, Some(129900));
         assert_eq!(result.price.price_currency, Some("AUD".to_string()));
     }
 
@@ -416,7 +416,7 @@ mod tests {
         let result = ScraperService::try_chemist_warehouse_extraction(&html).unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
         assert_eq!(result.raw_availability, Some("in-stock".to_string()));
-        assert_eq!(result.price.price_cents, Some(2399));
+        assert_eq!(result.price.price_minor_units, Some(2399));
         assert_eq!(result.price.price_currency, Some("AUD".to_string()));
     }
 
@@ -452,7 +452,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
-        assert_eq!(result.price.price_cents, Some(2999));
+        assert_eq!(result.price.price_minor_units, Some(2999));
     }
 
     #[tokio::test]

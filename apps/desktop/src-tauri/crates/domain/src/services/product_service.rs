@@ -90,6 +90,7 @@ impl ProductService {
                 url: params.url,
                 description: params.description.map(Some),
                 notes: params.notes.map(Some),
+                currency: None,
             },
         )
         .await

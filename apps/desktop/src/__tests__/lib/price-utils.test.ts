@@ -19,11 +19,12 @@ function createCheck(
 		raw_availability: null,
 		error_message: null,
 		checked_at: new Date().toISOString(),
-		price_cents: 9999,
+		price_minor_units: 9999,
 		price_currency: "USD",
 		raw_price: "99.99",
-		today_average_price_cents: null,
-		yesterday_average_price_cents: null,
+		currency_exponent: 2,
+		today_average_price_minor_units: null,
+		yesterday_average_price_minor_units: null,
 		is_price_drop: false,
 		...overrides,
 	};
@@ -98,12 +99,12 @@ describe("transformToPriceDataPoints", () => {
 		const checks = [
 			createCheck({
 				checked_at: "2024-01-01T10:00:00Z",
-				price_cents: 9999,
+				price_minor_units: 9999,
 				price_currency: "USD",
 			}),
 			createCheck({
 				checked_at: "2024-01-02T10:00:00Z",
-				price_cents: 8999,
+				price_minor_units: 8999,
 				price_currency: "USD",
 			}),
 		];
@@ -115,11 +116,13 @@ describe("transformToPriceDataPoints", () => {
 			date: "2024-01-01T10:00:00Z",
 			price: 9999,
 			currency: "USD",
+			currencyExponent: 2,
 		});
 		expect(result[1]).toEqual({
 			date: "2024-01-02T10:00:00Z",
 			price: 8999,
 			currency: "USD",
+			currencyExponent: 2,
 		});
 	});
 
@@ -127,12 +130,12 @@ describe("transformToPriceDataPoints", () => {
 		const checks = [
 			createCheck({
 				checked_at: "2024-01-01T10:00:00Z",
-				price_cents: 9999,
+				price_minor_units: 9999,
 				price_currency: "USD",
 			}),
 			createCheck({
 				checked_at: "2024-01-02T10:00:00Z",
-				price_cents: null,
+				price_minor_units: null,
 				price_currency: null,
 			}),
 		];
@@ -147,7 +150,7 @@ describe("transformToPriceDataPoints", () => {
 		const checks = [
 			createCheck({
 				checked_at: "2024-01-01T10:00:00Z",
-				price_cents: 9999,
+				price_minor_units: 9999,
 				price_currency: null,
 			}),
 		];
@@ -161,17 +164,17 @@ describe("transformToPriceDataPoints", () => {
 		const checks = [
 			createCheck({
 				checked_at: "2024-01-03T10:00:00Z",
-				price_cents: 7999,
+				price_minor_units: 7999,
 				price_currency: "USD",
 			}),
 			createCheck({
 				checked_at: "2024-01-01T10:00:00Z",
-				price_cents: 9999,
+				price_minor_units: 9999,
 				price_currency: "USD",
 			}),
 			createCheck({
 				checked_at: "2024-01-02T10:00:00Z",
-				price_cents: 8999,
+				price_minor_units: 8999,
 				price_currency: "USD",
 			}),
 		];
@@ -199,7 +202,12 @@ describe("getDateRangeLabel", () => {
 
 	it("should return single date for one data point", () => {
 		const dataPoints = [
-			{ date: "2024-01-15T10:00:00Z", price: 9999, currency: "USD" },
+			{
+				date: "2024-01-15T10:00:00Z",
+				price: 9999,
+				currency: "USD",
+				currencyExponent: 2,
+			},
 		];
 
 		const result = getDateRangeLabel(dataPoints);
@@ -209,9 +217,24 @@ describe("getDateRangeLabel", () => {
 
 	it("should return date range for multiple data points", () => {
 		const dataPoints = [
-			{ date: "2024-01-01T10:00:00Z", price: 9999, currency: "USD" },
-			{ date: "2024-01-15T10:00:00Z", price: 8999, currency: "USD" },
-			{ date: "2024-01-30T10:00:00Z", price: 7999, currency: "USD" },
+			{
+				date: "2024-01-01T10:00:00Z",
+				price: 9999,
+				currency: "USD",
+				currencyExponent: 2,
+			},
+			{
+				date: "2024-01-15T10:00:00Z",
+				price: 8999,
+				currency: "USD",
+				currencyExponent: 2,
+			},
+			{
+				date: "2024-01-30T10:00:00Z",
+				price: 7999,
+				currency: "USD",
+				currencyExponent: 2,
+			},
 		];
 
 		const result = getDateRangeLabel(dataPoints);

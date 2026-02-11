@@ -1,6 +1,7 @@
 //! Domain services
 
 mod availability_service;
+pub mod currency;
 mod headless_service;
 mod notification_service;
 mod product_service;
