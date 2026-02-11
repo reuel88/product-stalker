@@ -5,12 +5,11 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import type {
 	Settings,
 	UpdateSettingsInput,
 } from "@/modules/settings/hooks/useSettings";
+import { SettingsSwitchRow } from "./settings-switch-row";
 
 interface InterfaceCardProps {
 	settings: Settings;
@@ -25,16 +24,12 @@ export function InterfaceCard({ settings, onUpdate }: InterfaceCardProps) {
 				<CardDescription>UI preferences</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<div className="flex items-center justify-between">
-					<Label htmlFor="sidebar-expanded">Sidebar expanded</Label>
-					<Switch
-						id="sidebar-expanded"
-						checked={settings.sidebar_expanded}
-						onCheckedChange={(checked) =>
-							onUpdate({ sidebar_expanded: checked })
-						}
-					/>
-				</div>
+				<SettingsSwitchRow
+					id="sidebar-expanded"
+					label="Sidebar expanded"
+					checked={settings.sidebar_expanded}
+					onCheckedChange={(checked) => onUpdate({ sidebar_expanded: checked })}
+				/>
 			</CardContent>
 		</Card>
 	);

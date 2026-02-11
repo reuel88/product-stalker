@@ -1,6 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { COMMANDS } from "@/constants";
 import {
@@ -13,20 +11,7 @@ import {
 	createMockBulkCheckSummary,
 } from "../../mocks/data";
 import { getMockedInvoke, mockInvokeMultiple } from "../../mocks/tauri";
-
-function createWrapper() {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: { retry: false, gcTime: 0 },
-			mutations: { retry: false },
-		},
-	});
-	return function Wrapper({ children }: { children: ReactNode }) {
-		return (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
-	};
-}
+import { createHookWrapper } from "../../test-utils";
 
 describe("useAvailability", () => {
 	beforeEach(() => {
@@ -44,7 +29,7 @@ describe("useAvailability", () => {
 			});
 
 			const { result } = renderHook(() => useAvailability("product-1"), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			expect(result.current.isLoading).toBe(true);
@@ -63,7 +48,7 @@ describe("useAvailability", () => {
 			});
 
 			const { result } = renderHook(() => useAvailability("product-1"), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			expect(result.current.isLoading).toBe(true);
@@ -80,7 +65,7 @@ describe("useAvailability", () => {
 			});
 
 			const { result } = renderHook(() => useAvailability(""), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			// Should not be loading since query is disabled
@@ -107,7 +92,7 @@ describe("useAvailability", () => {
 			});
 
 			const { result } = renderHook(() => useAvailability("product-1"), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			await waitFor(() => {
@@ -132,7 +117,7 @@ describe("useAvailability", () => {
 			});
 
 			const { result } = renderHook(() => useAvailability("product-1"), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			await waitFor(() => {
@@ -167,7 +152,7 @@ describe("useAvailabilityHistory", () => {
 		});
 
 		const { result } = renderHook(() => useAvailabilityHistory("product-1"), {
-			wrapper: createWrapper(),
+			wrapper: createHookWrapper(),
 		});
 
 		await waitFor(() => {
@@ -187,7 +172,7 @@ describe("useAvailabilityHistory", () => {
 		const { result } = renderHook(
 			() => useAvailabilityHistory("product-1", 5),
 			{
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			},
 		);
 
@@ -207,7 +192,7 @@ describe("useAvailabilityHistory", () => {
 		});
 
 		const { result } = renderHook(() => useAvailabilityHistory("product-1"), {
-			wrapper: createWrapper(),
+			wrapper: createHookWrapper(),
 		});
 
 		expect(result.current.isLoading).toBe(true);
@@ -223,7 +208,7 @@ describe("useAvailabilityHistory", () => {
 		});
 
 		const { result } = renderHook(() => useAvailabilityHistory(""), {
-			wrapper: createWrapper(),
+			wrapper: createHookWrapper(),
 		});
 
 		await waitFor(() => {
@@ -253,7 +238,7 @@ describe("useCheckAllAvailability", () => {
 		});
 
 		const { result } = renderHook(() => useCheckAllAvailability(), {
-			wrapper: createWrapper(),
+			wrapper: createHookWrapper(),
 		});
 
 		await act(async () => {
@@ -272,7 +257,7 @@ describe("useCheckAllAvailability", () => {
 		});
 
 		const { result } = renderHook(() => useCheckAllAvailability(), {
-			wrapper: createWrapper(),
+			wrapper: createHookWrapper(),
 		});
 
 		expect(result.current.isCheckingAll).toBe(false);
@@ -298,7 +283,7 @@ describe("useCheckAllAvailability", () => {
 		});
 
 		const { result } = renderHook(() => useCheckAllAvailability(), {
-			wrapper: createWrapper(),
+			wrapper: createHookWrapper(),
 		});
 
 		await act(async () => {

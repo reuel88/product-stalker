@@ -4,6 +4,7 @@ const AVAILABILITY_PREFIX = "availability";
 export const QUERY_KEYS = {
 	PRODUCTS: ["products"],
 	SETTINGS: ["settings"],
+	CURRENT_VERSION: ["currentVersion"],
 	AVAILABILITY_PREFIX,
 	product: (id: string) => ["product", id] as const,
 	availability: (productId: string) =>

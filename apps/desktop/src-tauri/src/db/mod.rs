@@ -10,7 +10,7 @@ use sea_orm::DatabaseConnection;
 /// so we don't need to wrap it in a Mutex. It's Arc-based and
 /// thread-safe by design.
 pub struct DbState {
-    pub conn: DatabaseConnection,
+    conn: DatabaseConnection,
 }
 
 impl DbState {
@@ -53,11 +53,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_db_state_public_conn_field_accessible() {
+    async fn test_db_state_conn_getter_returns_working_connection() {
         let conn = Database::connect("sqlite::memory:").await.unwrap();
         let state = DbState::new(conn);
 
-        // Verify public field is accessible
-        assert!(state.conn.ping().await.is_ok());
+        // Verify getter returns a working connection
+        assert!(state.conn().ping().await.is_ok());
     }
 }

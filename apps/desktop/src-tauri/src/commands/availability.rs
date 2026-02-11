@@ -161,23 +161,25 @@ mod tests {
     use chrono::Utc;
     use uuid::Uuid;
 
-    #[test]
-    fn test_availability_check_response_from_model() {
-        let id = Uuid::new_v4();
-        let product_id = Uuid::new_v4();
-        let now = Utc::now();
-
-        let model = AvailabilityCheckModel {
-            id,
-            product_id,
+    fn test_model() -> AvailabilityCheckModel {
+        AvailabilityCheckModel {
+            id: Uuid::new_v4(),
+            product_id: Uuid::new_v4(),
             status: "in_stock".to_string(),
             raw_availability: Some("http://schema.org/InStock".to_string()),
             error_message: None,
-            checked_at: now,
+            checked_at: Utc::now(),
             price_minor_units: Some(78900),
             price_currency: Some("USD".to_string()),
             raw_price: Some("789.00".to_string()),
-        };
+        }
+    }
+
+    #[test]
+    fn test_availability_check_response_from_model() {
+        let model = test_model();
+        let id = model.id;
+        let product_id = model.product_id;
 
         let response = AvailabilityCheckResponse::from(model);
 
@@ -201,20 +203,14 @@ mod tests {
 
     #[test]
     fn test_availability_check_response_with_error() {
-        let id = Uuid::new_v4();
-        let product_id = Uuid::new_v4();
-        let now = Utc::now();
-
         let model = AvailabilityCheckModel {
-            id,
-            product_id,
             status: "unknown".to_string(),
             raw_availability: None,
             error_message: Some("Failed to fetch page".to_string()),
-            checked_at: now,
             price_minor_units: None,
             price_currency: None,
             raw_price: None,
+            ..test_model()
         };
 
         let response = AvailabilityCheckResponse::from(model);
@@ -232,22 +228,17 @@ mod tests {
 
     #[test]
     fn test_availability_check_response_serializes_to_json() {
-        let id = Uuid::new_v4();
-        let product_id = Uuid::new_v4();
-        let now = Utc::now();
-
         let model = AvailabilityCheckModel {
-            id,
-            product_id,
             status: "out_of_stock".to_string(),
             raw_availability: Some("http://schema.org/OutOfStock".to_string()),
-            error_message: None,
-            checked_at: now,
             price_minor_units: Some(9999),
             price_currency: Some("EUR".to_string()),
             raw_price: Some("99.99".to_string()),
+            ..test_model()
         };
 
+        let id = model.id;
+        let product_id = model.product_id;
         let response = AvailabilityCheckResponse::from(model);
         let json = serde_json::to_string(&response).unwrap();
 
@@ -264,21 +255,7 @@ mod tests {
 
     #[test]
     fn test_availability_check_response_with_daily_comparison_price_drop() {
-        let id = Uuid::new_v4();
-        let product_id = Uuid::new_v4();
-        let now = Utc::now();
-
-        let model = AvailabilityCheckModel {
-            id,
-            product_id,
-            status: "in_stock".to_string(),
-            raw_availability: Some("http://schema.org/InStock".to_string()),
-            error_message: None,
-            checked_at: now,
-            price_minor_units: Some(78900),
-            price_currency: Some("USD".to_string()),
-            raw_price: Some("789.00".to_string()),
-        };
+        let model = test_model();
 
         let daily_comparison = DailyPriceComparison {
             today_average_minor_units: Some(78900),
@@ -297,20 +274,11 @@ mod tests {
 
     #[test]
     fn test_availability_check_response_with_daily_comparison_price_increase() {
-        let id = Uuid::new_v4();
-        let product_id = Uuid::new_v4();
-        let now = Utc::now();
-
         let model = AvailabilityCheckModel {
-            id,
-            product_id,
-            status: "in_stock".to_string(),
             raw_availability: None,
-            error_message: None,
-            checked_at: now,
             price_minor_units: Some(99900),
-            price_currency: Some("USD".to_string()),
             raw_price: None,
+            ..test_model()
         };
 
         let daily_comparison = DailyPriceComparison {
@@ -330,20 +298,10 @@ mod tests {
 
     #[test]
     fn test_availability_check_response_with_no_yesterday_data() {
-        let id = Uuid::new_v4();
-        let product_id = Uuid::new_v4();
-        let now = Utc::now();
-
         let model = AvailabilityCheckModel {
-            id,
-            product_id,
-            status: "in_stock".to_string(),
             raw_availability: None,
-            error_message: None,
-            checked_at: now,
-            price_minor_units: Some(78900),
-            price_currency: Some("USD".to_string()),
             raw_price: None,
+            ..test_model()
         };
 
         let daily_comparison = DailyPriceComparison {

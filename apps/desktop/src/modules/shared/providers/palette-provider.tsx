@@ -22,6 +22,14 @@ import type {
 } from "@/modules/shared/themes/types";
 import { useTheme } from "./theme-provider";
 
+function applyOrClearPalette(id: PaletteId, mode: "light" | "dark") {
+	if (id === DEFAULT_PALETTE_ID) {
+		clearPaletteStyles();
+	} else {
+		applyPalette(id, mode);
+	}
+}
+
 interface PaletteContextValue {
 	paletteId: PaletteId;
 	setPalette: (id: PaletteId) => void;
@@ -55,22 +63,13 @@ export function PaletteProvider({ children }: { children: React.ReactNode }) {
 	// Apply palette whenever paletteId or resolved theme changes
 	useEffect(() => {
 		const mode = resolvedTheme === "dark" ? "dark" : "light";
-		if (paletteId === DEFAULT_PALETTE_ID) {
-			clearPaletteStyles();
-		} else {
-			applyPalette(paletteId, mode);
-		}
+		applyOrClearPalette(paletteId, mode);
 	}, [paletteId, resolvedTheme]);
 
 	// Also listen for class changes on <html> to catch system theme transitions
 	useEffect(() => {
 		const observer = new MutationObserver(() => {
-			const mode = detectCurrentMode();
-			if (paletteId === DEFAULT_PALETTE_ID) {
-				clearPaletteStyles();
-			} else {
-				applyPalette(paletteId, mode);
-			}
+			applyOrClearPalette(paletteId, detectCurrentMode());
 		});
 
 		observer.observe(document.documentElement, {
@@ -85,14 +84,7 @@ export function PaletteProvider({ children }: { children: React.ReactNode }) {
 		(id: PaletteId) => {
 			setPaletteId(id);
 			storePaletteId(id);
-
-			const mode = detectCurrentMode();
-			if (id === DEFAULT_PALETTE_ID) {
-				clearPaletteStyles();
-			} else {
-				applyPalette(id, mode);
-			}
-
+			applyOrClearPalette(id, detectCurrentMode());
 			updateSettings({ color_palette: id });
 		},
 		[updateSettings],

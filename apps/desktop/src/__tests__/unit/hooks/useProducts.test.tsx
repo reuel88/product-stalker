@@ -1,6 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { COMMANDS } from "@/constants";
 import { useProducts } from "@/modules/products/hooks/useProducts";
@@ -10,20 +8,7 @@ import {
 	mockInvokeError,
 	mockInvokeMultiple,
 } from "../../mocks/tauri";
-
-function createWrapper() {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: { retry: false, gcTime: 0 },
-			mutations: { retry: false },
-		},
-	});
-	return function Wrapper({ children }: { children: ReactNode }) {
-		return (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
-	};
-}
+import { createHookWrapper } from "../../test-utils";
 
 describe("useProducts", () => {
 	beforeEach(() => {
@@ -38,7 +23,7 @@ describe("useProducts", () => {
 			});
 
 			const { result } = renderHook(() => useProducts(), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			expect(result.current.isLoading).toBe(true);
@@ -57,7 +42,7 @@ describe("useProducts", () => {
 			});
 
 			const { result } = renderHook(() => useProducts(), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			expect(result.current.isLoading).toBe(true);
@@ -72,7 +57,7 @@ describe("useProducts", () => {
 			mockInvokeError(COMMANDS.GET_PRODUCTS, "Failed to fetch products");
 
 			const { result } = renderHook(() => useProducts(), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			await waitFor(() => {
@@ -94,7 +79,7 @@ describe("useProducts", () => {
 			});
 
 			const { result } = renderHook(() => useProducts(), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			await waitFor(() => {
@@ -117,7 +102,7 @@ describe("useProducts", () => {
 			});
 
 			const { result } = renderHook(() => useProducts(), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			await waitFor(() => {
@@ -150,7 +135,7 @@ describe("useProducts", () => {
 			});
 
 			const { result } = renderHook(() => useProducts(), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			await waitFor(() => {
@@ -173,7 +158,7 @@ describe("useProducts", () => {
 			});
 
 			const { result } = renderHook(() => useProducts(), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			await waitFor(() => {
@@ -204,7 +189,7 @@ describe("useProducts", () => {
 			});
 
 			const { result } = renderHook(() => useProducts(), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			await waitFor(() => {
@@ -226,7 +211,7 @@ describe("useProducts", () => {
 			});
 
 			const { result } = renderHook(() => useProducts(), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			await waitFor(() => {
@@ -254,7 +239,7 @@ describe("useProducts", () => {
 			});
 
 			const { result } = renderHook(() => useProducts(), {
-				wrapper: createWrapper(),
+				wrapper: createHookWrapper(),
 			});
 
 			await waitFor(() => {

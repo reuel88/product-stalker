@@ -102,12 +102,12 @@ impl AvailabilityCheckRepository {
         let result = AveragePriceResult::find_by_statement(Statement::from_sql_and_values(
             DbBackend::Sqlite,
             r#"
-                SELECT AVG(price_cents) as avg_price
+                SELECT AVG(price_minor_units) as avg_price
                 FROM availability_checks
                 WHERE product_id = ?
                   AND checked_at >= ?
                   AND checked_at < ?
-                  AND price_cents IS NOT NULL
+                  AND price_minor_units IS NOT NULL
             "#,
             [
                 Value::Uuid(Some(Box::new(product_id))),

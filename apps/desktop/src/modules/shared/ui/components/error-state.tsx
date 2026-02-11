@@ -1,17 +1,13 @@
 import { AlertTriangle } from "lucide-react";
 import type { ReactNode } from "react";
 
-type ErrorStateProps = {
+interface ErrorStateProps {
 	children?: ReactNode;
 	title?: string;
 	description?: string;
-};
+}
 
-export const ErrorState = ({
-	children,
-	title,
-	description,
-}: ErrorStateProps) => {
+export function ErrorState({ children, title, description }: ErrorStateProps) {
 	return (
 		<div className="flex h-full flex-1 items-center justify-center px-8 py-4">
 			<div className="flex flex-col items-center justify-center gap-y-6 rounded-lg bg-background p-10 text-foreground shadow-sm">
@@ -24,4 +20,4 @@ export const ErrorState = ({
 			</div>
 		</div>
 	);
-};
+}

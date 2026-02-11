@@ -79,7 +79,7 @@ impl ScraperService {
         }
 
         // Step 4: Try GTM dataLayer extraction (GA4 ecommerce events)
-        if let Ok(result) = Self::try_gtm_datalayer_extraction(&html) {
+        if let Ok(result) = gtm_datalayer::extract_from_datalayer(&html) {
             return Ok(result);
         }
 
@@ -96,11 +96,6 @@ impl ScraperService {
 
         // Step 6: Fall back to other site-specific parsers (sync)
         Self::try_site_specific_extraction(&html, url)
-    }
-
-    /// Try to extract product data from GTM dataLayer.push() calls
-    fn try_gtm_datalayer_extraction(html: &str) -> Result<ScrapingResult, AppError> {
-        gtm_datalayer::extract_from_datalayer(html)
     }
 
     /// Try to extract availability from Schema.org JSON-LD data
@@ -540,7 +535,7 @@ mod tests {
             Some(r#"<button>カートに入れる</button>"#),
         );
 
-        let result = ScraperService::try_gtm_datalayer_extraction(&html).unwrap();
+        let result = gtm_datalayer::extract_from_datalayer(&html).unwrap();
         assert_eq!(result.price.price_minor_units, Some(69300));
         assert_eq!(result.price.price_currency, Some("JPY".to_string()));
         assert_eq!(result.status, AvailabilityStatus::InStock);
@@ -553,7 +548,7 @@ mod tests {
             Some(r#"<button class="add-to-cart">Add to Cart</button>"#),
         );
 
-        let result = ScraperService::try_gtm_datalayer_extraction(&html).unwrap();
+        let result = gtm_datalayer::extract_from_datalayer(&html).unwrap();
         assert_eq!(result.status, AvailabilityStatus::InStock);
     }
 
@@ -564,7 +559,7 @@ mod tests {
             Some(r#"<div class="product-info">Product details</div>"#),
         );
 
-        let result = ScraperService::try_gtm_datalayer_extraction(&html).unwrap();
+        let result = gtm_datalayer::extract_from_datalayer(&html).unwrap();
         assert_eq!(result.status, AvailabilityStatus::Unknown);
     }
 }

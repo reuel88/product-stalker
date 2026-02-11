@@ -41,5 +41,14 @@ function customRender(
 	};
 }
 
+function createHookWrapper() {
+	const queryClient = createTestQueryClient();
+	return function Wrapper({ children }: WrapperProps) {
+		return (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+	};
+}
+
 export * from "@testing-library/react";
-export { customRender as render, createTestQueryClient };
+export { customRender as render, createTestQueryClient, createHookWrapper };

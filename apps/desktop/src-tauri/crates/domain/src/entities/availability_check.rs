@@ -73,6 +73,19 @@ impl AvailabilityStatus {
     }
 }
 
+impl std::str::FromStr for AvailabilityStatus {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "in_stock" => Ok(Self::InStock),
+            "out_of_stock" => Ok(Self::OutOfStock),
+            "back_order" => Ok(Self::BackOrder),
+            _ => Ok(Self::Unknown),
+        }
+    }
+}
+
 impl std::fmt::Display for AvailabilityStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
@@ -103,7 +116,6 @@ pub struct Model {
     pub checked_at: DateTimeUtc,
 
     /// Price in minor units (smallest currency unit)
-    #[sea_orm(column_name = "price_cents")]
     pub price_minor_units: Option<i64>,
 
     /// ISO 4217 currency code (e.g., USD, EUR, AUD)
@@ -134,12 +146,7 @@ impl ActiveModelBehavior for ActiveModel {}
 impl Model {
     /// Parse the stored status string into a typed `AvailabilityStatus` enum.
     pub fn status_enum(&self) -> AvailabilityStatus {
-        match self.status.as_str() {
-            "in_stock" => AvailabilityStatus::InStock,
-            "out_of_stock" => AvailabilityStatus::OutOfStock,
-            "back_order" => AvailabilityStatus::BackOrder,
-            _ => AvailabilityStatus::Unknown,
-        }
+        self.status.parse().unwrap_or_default()
     }
 }
 

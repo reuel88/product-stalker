@@ -5,12 +5,11 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import type {
 	Settings,
 	UpdateSettingsInput,
 } from "@/modules/settings/hooks/useSettings";
+import { SettingsSwitchRow } from "./settings-switch-row";
 
 interface SystemCardProps {
 	settings: Settings;
@@ -25,24 +24,18 @@ export function SystemCard({ settings, onUpdate }: SystemCardProps) {
 				<CardDescription>System integration settings</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				<div className="flex items-center justify-between">
-					<Label htmlFor="show-in-tray">Show in tray</Label>
-					<Switch
-						id="show-in-tray"
-						checked={settings.show_in_tray}
-						onCheckedChange={(checked) => onUpdate({ show_in_tray: checked })}
-					/>
-				</div>
-				<div className="flex items-center justify-between">
-					<Label htmlFor="launch-at-login">Launch at login</Label>
-					<Switch
-						id="launch-at-login"
-						checked={settings.launch_at_login}
-						onCheckedChange={(checked) =>
-							onUpdate({ launch_at_login: checked })
-						}
-					/>
-				</div>
+				<SettingsSwitchRow
+					id="show-in-tray"
+					label="Show in tray"
+					checked={settings.show_in_tray}
+					onCheckedChange={(checked) => onUpdate({ show_in_tray: checked })}
+				/>
+				<SettingsSwitchRow
+					id="launch-at-login"
+					label="Launch at login"
+					checked={settings.launch_at_login}
+					onCheckedChange={(checked) => onUpdate({ launch_at_login: checked })}
+				/>
 			</CardContent>
 		</Card>
 	);

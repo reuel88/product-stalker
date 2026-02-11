@@ -19,5 +19,4 @@ export const COMMANDS = {
 
 export const EVENTS = {
 	AVAILABILITY_CHECK_PROGRESS: "availability:check-progress",
-	AVAILABILITY_CHECK_COMPLETE: "availability:check-complete",
 } as const;

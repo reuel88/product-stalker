@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 
-import { COMMANDS } from "@/constants";
+import { COMMANDS, QUERY_KEYS } from "@/constants";
 
 export type UpdateInfo =
 	| { available: true; version: string; body: string | null }
@@ -9,7 +9,7 @@ export type UpdateInfo =
 
 export function useUpdater() {
 	const { data: currentVersion, isLoading: isLoadingVersion } = useQuery({
-		queryKey: ["currentVersion"],
+		queryKey: QUERY_KEYS.CURRENT_VERSION,
 		queryFn: () => invoke<string>(COMMANDS.GET_CURRENT_VERSION),
 		staleTime: Number.POSITIVE_INFINITY,
 	});
