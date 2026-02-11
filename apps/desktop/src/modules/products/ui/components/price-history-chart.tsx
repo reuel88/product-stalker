@@ -11,12 +11,9 @@ import {
 import { formatPrice } from "@/lib/utils";
 import type { PriceDataPoint } from "@/modules/products/types";
 
-/** Chart color palette using CSS custom properties for theme support */
 const CHART_COLORS = {
-	/** Primary line and dot color - uses primary theme color with fallback */
-	line: "hsl(var(--primary))",
-	/** Active/hover dot color - uses ring theme color with fallback */
-	activeDot: "hsl(var(--ring))",
+	line: "var(--chart-3)",
+	activeDot: "var(--chart-4)",
 } as const;
 
 interface PriceHistoryChartProps {
