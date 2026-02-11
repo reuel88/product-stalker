@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{DateTime, Utc};
 use product_stalker_core::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbBackend, EntityTrait, FromQueryResult,
@@ -87,21 +87,17 @@ impl AvailabilityCheckRepository {
         Ok(checks)
     }
 
-    /// Get average price for a product on a specific date (UTC)
+    /// Get average price for a product within a time period [from, to)
     ///
-    /// Uses SUBSTR to extract date from ISO8601 timestamp and AVG() to calculate average.
-    /// Returns None if no price data exists for that date.
-    ///
-    /// Relies on `checked_at` being stored as ISO 8601 text where the first 10
-    /// characters are "YYYY-MM-DD" (e.g., "2024-01-15T10:30:00+00:00").
-    pub async fn get_average_price_for_date(
+    /// Uses a rolling time window instead of calendar dates, making it
+    /// timezone-agnostic. Returns None if no price data exists in the period.
+    pub async fn get_average_price_for_period(
         conn: &DatabaseConnection,
         product_id: Uuid,
-        date: NaiveDate,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
     ) -> Result<Option<i64>, AppError> {
         use sea_orm::Value;
-
-        let date_str = date.format("%Y-%m-%d").to_string();
 
         let result = AveragePriceResult::find_by_statement(Statement::from_sql_and_values(
             DbBackend::Sqlite,
@@ -109,15 +105,44 @@ impl AvailabilityCheckRepository {
                 SELECT AVG(price_cents) as avg_price
                 FROM availability_checks
                 WHERE product_id = ?
-                  AND SUBSTR(checked_at, 1, 10) = ?
+                  AND checked_at >= ?
+                  AND checked_at < ?
                   AND price_cents IS NOT NULL
             "#,
-            [Value::Uuid(Some(Box::new(product_id))), date_str.into()],
+            [
+                Value::Uuid(Some(Box::new(product_id))),
+                from.into(),
+                to.into(),
+            ],
         ))
         .one(conn)
         .await?;
 
         Ok(result.and_then(|r| r.avg_price.map(|avg| avg.round() as i64)))
+    }
+}
+
+#[cfg(test)]
+impl AvailabilityCheckRepository {
+    /// Test helper: create an availability check with a specific timestamp
+    pub async fn create_with_timestamp(
+        conn: &DatabaseConnection,
+        product_id: Uuid,
+        price_minor_units: Option<i64>,
+        checked_at: DateTime<Utc>,
+    ) -> AvailabilityCheckModel {
+        let active_model = AvailabilityCheckActiveModel {
+            id: Set(Uuid::new_v4()),
+            product_id: Set(product_id),
+            status: Set("in_stock".to_string()),
+            raw_availability: Set(None),
+            error_message: Set(None),
+            checked_at: Set(checked_at),
+            price_minor_units: Set(price_minor_units),
+            price_currency: Set(Some("USD".to_string())),
+            raw_price: Set(None),
+        };
+        active_model.insert(conn).await.unwrap()
     }
 }
 
@@ -310,5 +335,190 @@ mod tests {
             .unwrap();
 
         assert_eq!(limited.len(), 3);
+    }
+
+    mod average_price_period_tests {
+        use super::*;
+        use chrono::Duration;
+
+        #[tokio::test]
+        async fn test_no_data_returns_none() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+
+            let result = AvailabilityCheckRepository::get_average_price_for_period(
+                &conn, product_id, from, now,
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(result, None);
+        }
+
+        #[tokio::test]
+        async fn test_single_check_returns_price() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+            let check_time = now - Duration::hours(12);
+
+            AvailabilityCheckRepository::create_with_timestamp(
+                &conn,
+                product_id,
+                Some(10000),
+                check_time,
+            )
+            .await;
+
+            let result = AvailabilityCheckRepository::get_average_price_for_period(
+                &conn, product_id, from, now,
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(result, Some(10000));
+        }
+
+        #[tokio::test]
+        async fn test_multiple_checks_returns_average() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+
+            AvailabilityCheckRepository::create_with_timestamp(
+                &conn,
+                product_id,
+                Some(10000),
+                now - Duration::hours(12),
+            )
+            .await;
+            AvailabilityCheckRepository::create_with_timestamp(
+                &conn,
+                product_id,
+                Some(20000),
+                now - Duration::hours(6),
+            )
+            .await;
+
+            let result = AvailabilityCheckRepository::get_average_price_for_period(
+                &conn, product_id, from, now,
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(result, Some(15000));
+        }
+
+        #[tokio::test]
+        async fn test_excludes_outside_range() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+
+            // Inside range
+            AvailabilityCheckRepository::create_with_timestamp(
+                &conn,
+                product_id,
+                Some(10000),
+                now - Duration::hours(12),
+            )
+            .await;
+            // Outside range (before)
+            AvailabilityCheckRepository::create_with_timestamp(
+                &conn,
+                product_id,
+                Some(50000),
+                now - Duration::hours(30),
+            )
+            .await;
+
+            let result = AvailabilityCheckRepository::get_average_price_for_period(
+                &conn, product_id, from, now,
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(result, Some(10000));
+        }
+
+        #[tokio::test]
+        async fn test_excludes_null_prices() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+
+            AvailabilityCheckRepository::create_with_timestamp(
+                &conn,
+                product_id,
+                Some(10000),
+                now - Duration::hours(12),
+            )
+            .await;
+            AvailabilityCheckRepository::create_with_timestamp(
+                &conn,
+                product_id,
+                None,
+                now - Duration::hours(6),
+            )
+            .await;
+
+            let result = AvailabilityCheckRepository::get_average_price_for_period(
+                &conn, product_id, from, now,
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(result, Some(10000));
+        }
+
+        #[tokio::test]
+        async fn test_boundary_from_inclusive() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+
+            AvailabilityCheckRepository::create_with_timestamp(
+                &conn,
+                product_id,
+                Some(10000),
+                from,
+            )
+            .await;
+
+            let result = AvailabilityCheckRepository::get_average_price_for_period(
+                &conn, product_id, from, now,
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(result, Some(10000));
+        }
+
+        #[tokio::test]
+        async fn test_boundary_to_exclusive() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+
+            // Check at exact "to" boundary should be excluded
+            AvailabilityCheckRepository::create_with_timestamp(&conn, product_id, Some(10000), now)
+                .await;
+
+            let result = AvailabilityCheckRepository::get_average_price_for_period(
+                &conn, product_id, from, now,
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(result, None);
+        }
     }
 }
