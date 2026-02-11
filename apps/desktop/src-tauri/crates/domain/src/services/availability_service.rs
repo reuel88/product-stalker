@@ -15,12 +15,12 @@ use product_stalker_core::services::notification_helpers::NotificationData;
 use super::{NotificationService, ScraperService};
 
 /// Result of a single product availability check in a bulk operation
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct BulkCheckResult {
     pub product_id: String,
     pub product_name: String,
-    pub status: String,
-    pub previous_status: Option<String>,
+    pub status: AvailabilityStatus,
+    pub previous_status: Option<AvailabilityStatus>,
     pub is_back_in_stock: bool,
     pub price_cents: Option<i64>,
     pub price_currency: Option<String>,
@@ -51,7 +51,7 @@ pub struct CheckResultWithNotification {
 
 /// Result of processing a single availability check
 pub struct CheckProcessingResult {
-    pub status: String,
+    pub status: AvailabilityStatus,
     pub price_cents: Option<i64>,
     pub price_currency: Option<String>,
     pub error: Option<String>,
@@ -61,7 +61,7 @@ pub struct CheckProcessingResult {
 
 /// Context for checking a single product in a bulk operation
 pub struct ProductCheckContext {
-    pub previous_status: Option<String>,
+    pub previous_status: Option<AvailabilityStatus>,
 }
 
 /// Accumulated counters for bulk check results
@@ -108,15 +108,8 @@ impl BulkCheckResult {
         Self {
             product_id: product.id.to_string(),
             product_name: product.name.clone(),
-            status: AvailabilityStatus::Unknown.as_str().to_string(),
-            previous_status: None,
-            is_back_in_stock: false,
-            price_cents: None,
-            price_currency: None,
-            today_average_price_cents: None,
-            yesterday_average_price_cents: None,
-            is_price_drop: false,
             error: Some(error_message),
+            ..Default::default()
         }
     }
 }
@@ -128,7 +121,7 @@ impl AvailabilityService {
     /// Build CreateCheckParams from a successful scraping result
     fn params_from_success(result: super::scraper::ScrapingResult) -> CreateCheckParams {
         CreateCheckParams {
-            status: result.status.as_str().to_string(),
+            status: result.status,
             raw_availability: result.raw_availability,
             error_message: None,
             price_cents: result.price.price_cents,
@@ -140,7 +133,6 @@ impl AvailabilityService {
     /// Build CreateCheckParams from a scraping error
     fn params_from_error(error: &AppError) -> CreateCheckParams {
         CreateCheckParams {
-            status: AvailabilityStatus::Unknown.as_str().to_string(),
             error_message: Some(error.to_string()),
             ..Default::default()
         }
@@ -173,7 +165,7 @@ impl AvailabilityService {
     /// Process the result of an availability check into a structured result
     pub fn process_check_result(
         check_result: Result<AvailabilityCheckModel, AppError>,
-        previous_status: &Option<String>,
+        previous_status: &Option<AvailabilityStatus>,
         daily_comparison: &DailyPriceComparison,
     ) -> CheckProcessingResult {
         match check_result {
@@ -188,7 +180,7 @@ impl AvailabilityService {
     /// Build result when scraper failed but a record was created
     fn result_with_scraper_error(check: AvailabilityCheckModel) -> CheckProcessingResult {
         CheckProcessingResult {
-            status: check.status,
+            status: check.status_enum(),
             price_cents: check.price_cents,
             price_currency: check.price_currency,
             error: check.error_message,
@@ -200,17 +192,18 @@ impl AvailabilityService {
     /// Build result from a successful availability check
     fn result_from_successful_check(
         check: AvailabilityCheckModel,
-        previous_status: &Option<String>,
+        previous_status: &Option<AvailabilityStatus>,
         daily_comparison: &DailyPriceComparison,
     ) -> CheckProcessingResult {
-        let is_back_in_stock = Self::is_back_in_stock(previous_status, &check.status);
+        let status = check.status_enum();
+        let is_back_in_stock = Self::is_back_in_stock(previous_status, &status);
         let is_price_drop = Self::is_price_drop(
             daily_comparison.yesterday_average_cents,
             daily_comparison.today_average_cents,
         );
 
         CheckProcessingResult {
-            status: check.status,
+            status,
             price_cents: check.price_cents,
             price_currency: check.price_currency,
             error: None,
@@ -222,7 +215,7 @@ impl AvailabilityService {
     /// Build result when a database/infrastructure error occurred
     fn result_from_infrastructure_error(error: AppError) -> CheckProcessingResult {
         CheckProcessingResult {
-            status: AvailabilityStatus::Unknown.as_str().to_string(),
+            status: AvailabilityStatus::Unknown,
             price_cents: None,
             price_currency: None,
             error: Some(error.to_string()),
@@ -273,7 +266,7 @@ impl AvailabilityService {
     ) -> (BulkCheckResult, CheckProcessingResult) {
         let error_message = error.to_string();
         let result = CheckProcessingResult {
-            status: AvailabilityStatus::Unknown.as_str().to_string(),
+            status: AvailabilityStatus::Unknown,
             price_cents: None,
             price_currency: None,
             error: Some(error_message.clone()),
@@ -306,7 +299,7 @@ impl AvailabilityService {
         product_id: Uuid,
     ) -> Result<ProductCheckContext, AppError> {
         let previous_check = Self::get_latest(conn, product_id).await?;
-        let previous_status = previous_check.as_ref().map(|c| c.status.clone());
+        let previous_status = previous_check.as_ref().map(|c| c.status_enum());
 
         Ok(ProductCheckContext { previous_status })
     }
@@ -352,17 +345,21 @@ impl AvailabilityService {
     ///
     /// This ensures we only notify users about meaningful transitions,
     /// not products that were always in stock or are being checked for the first time.
-    pub fn is_back_in_stock(previous_status: &Option<String>, new_status: &str) -> bool {
-        let in_stock = AvailabilityStatus::InStock.as_str();
+    pub fn is_back_in_stock(
+        previous_status: &Option<AvailabilityStatus>,
+        new_status: &AvailabilityStatus,
+    ) -> bool {
         match previous_status {
-            Some(prev) => prev != in_stock && new_status == in_stock,
+            Some(prev) => {
+                *prev != AvailabilityStatus::InStock && *new_status == AvailabilityStatus::InStock
+            }
             None => false,
         }
     }
 
-    /// Check if the price dropped from previous check
-    pub fn is_price_drop(previous_price: Option<i64>, new_price: Option<i64>) -> bool {
-        match (previous_price, new_price) {
+    /// Check if today's average price dropped compared to yesterday's
+    pub fn is_price_drop(yesterday_average: Option<i64>, today_average: Option<i64>) -> bool {
+        match (yesterday_average, today_average) {
             (Some(prev), Some(new)) => new < prev,
             _ => false, // No price drop if either is None
         }
@@ -423,7 +420,7 @@ impl AvailabilityService {
     ) -> Result<CheckResultWithNotification, AppError> {
         // Step 1: Get previous status before checking
         let previous_check = Self::get_latest(conn, product_id).await?;
-        let previous_status = previous_check.map(|c| c.status);
+        let previous_status = previous_check.map(|c| c.status_enum());
 
         // Step 2: Perform the check
         let check = Self::check_product(conn, product_id, settings.enable_headless_browser).await?;
@@ -432,7 +429,7 @@ impl AvailabilityService {
         let daily_comparison = Self::get_daily_price_comparison(conn, product_id).await?;
 
         // Step 4: Determine if back in stock
-        let is_back_in_stock = Self::is_back_in_stock(&previous_status, &check.status);
+        let is_back_in_stock = Self::is_back_in_stock(&previous_status, &check.status_enum());
 
         // Step 5: Build notification if applicable (using NotificationService)
         let notification = NotificationService::build_single_notification(
@@ -511,7 +508,7 @@ mod tests {
                     Uuid::new_v4(),
                     product_id,
                     CreateCheckParams {
-                        status: "in_stock".to_string(),
+                        status: AvailabilityStatus::InStock,
                         ..Default::default()
                     },
                 )
@@ -538,9 +535,9 @@ mod tests {
                     product_id,
                     CreateCheckParams {
                         status: if i % 2 == 0 {
-                            "in_stock".to_string()
+                            AvailabilityStatus::InStock
                         } else {
-                            "out_of_stock".to_string()
+                            AvailabilityStatus::OutOfStock
                         },
                         ..Default::default()
                     },
@@ -567,7 +564,7 @@ mod tests {
                     Uuid::new_v4(),
                     product_id,
                     CreateCheckParams {
-                        status: "in_stock".to_string(),
+                        status: AvailabilityStatus::InStock,
                         ..Default::default()
                     },
                 )
@@ -606,69 +603,83 @@ mod tests {
 
         #[test]
         fn test_from_out_of_stock() {
-            let previous = Some("out_of_stock".to_string());
-            assert!(AvailabilityService::is_back_in_stock(&previous, "in_stock"));
+            let previous = Some(AvailabilityStatus::OutOfStock);
+            assert!(AvailabilityService::is_back_in_stock(
+                &previous,
+                &AvailabilityStatus::InStock
+            ));
         }
 
         #[test]
         fn test_from_back_order() {
-            let previous = Some("back_order".to_string());
-            assert!(AvailabilityService::is_back_in_stock(&previous, "in_stock"));
+            let previous = Some(AvailabilityStatus::BackOrder);
+            assert!(AvailabilityService::is_back_in_stock(
+                &previous,
+                &AvailabilityStatus::InStock
+            ));
         }
 
         #[test]
         fn test_from_unknown() {
-            let previous = Some("unknown".to_string());
-            assert!(AvailabilityService::is_back_in_stock(&previous, "in_stock"));
+            let previous = Some(AvailabilityStatus::Unknown);
+            assert!(AvailabilityService::is_back_in_stock(
+                &previous,
+                &AvailabilityStatus::InStock
+            ));
         }
 
         #[test]
         fn test_already_in_stock() {
-            let previous = Some("in_stock".to_string());
+            let previous = Some(AvailabilityStatus::InStock);
             assert!(!AvailabilityService::is_back_in_stock(
-                &previous, "in_stock"
+                &previous,
+                &AvailabilityStatus::InStock
             ));
         }
 
         #[test]
         fn test_still_out_of_stock() {
-            let previous = Some("out_of_stock".to_string());
+            let previous = Some(AvailabilityStatus::OutOfStock);
             assert!(!AvailabilityService::is_back_in_stock(
                 &previous,
-                "out_of_stock"
+                &AvailabilityStatus::OutOfStock
             ));
         }
 
         #[test]
         fn test_no_previous() {
-            let previous: Option<String> = None;
+            let previous: Option<AvailabilityStatus> = None;
             assert!(!AvailabilityService::is_back_in_stock(
-                &previous, "in_stock"
+                &previous,
+                &AvailabilityStatus::InStock
             ));
         }
 
         #[test]
         fn test_to_out_of_stock() {
-            let previous = Some("in_stock".to_string());
+            let previous = Some(AvailabilityStatus::InStock);
             assert!(!AvailabilityService::is_back_in_stock(
                 &previous,
-                "out_of_stock"
+                &AvailabilityStatus::OutOfStock
             ));
         }
 
         #[test]
         fn test_to_back_order() {
-            let previous = Some("in_stock".to_string());
+            let previous = Some(AvailabilityStatus::InStock);
             assert!(!AvailabilityService::is_back_in_stock(
                 &previous,
-                "back_order"
+                &AvailabilityStatus::BackOrder
             ));
         }
 
         #[test]
         fn test_to_unknown() {
-            let previous = Some("in_stock".to_string());
-            assert!(!AvailabilityService::is_back_in_stock(&previous, "unknown"));
+            let previous = Some(AvailabilityStatus::InStock);
+            assert!(!AvailabilityService::is_back_in_stock(
+                &previous,
+                &AvailabilityStatus::Unknown
+            ));
         }
     }
 
@@ -719,15 +730,15 @@ mod tests {
             let result = BulkCheckResult {
                 product_id: "test-id-123".to_string(),
                 product_name: "Test Product".to_string(),
-                status: "in_stock".to_string(),
-                previous_status: Some("out_of_stock".to_string()),
+                status: AvailabilityStatus::InStock,
+                previous_status: Some(AvailabilityStatus::OutOfStock),
                 is_back_in_stock: true,
                 price_cents: Some(78900),
                 price_currency: Some("USD".to_string()),
                 today_average_price_cents: Some(78900),
                 yesterday_average_price_cents: Some(89900),
                 is_price_drop: true,
-                error: None,
+                ..Default::default()
             };
             let json = serde_json::to_string(&result).unwrap();
             assert!(json.contains("test-id-123"));
@@ -742,15 +753,8 @@ mod tests {
             let result = BulkCheckResult {
                 product_id: "error-id".to_string(),
                 product_name: "Error Product".to_string(),
-                status: "unknown".to_string(),
-                previous_status: None,
-                is_back_in_stock: false,
-                price_cents: None,
-                price_currency: None,
-                today_average_price_cents: None,
-                yesterday_average_price_cents: None,
-                is_price_drop: false,
                 error: Some("Failed to fetch".to_string()),
+                ..Default::default()
             };
             let json = serde_json::to_string(&result).unwrap();
             assert!(json.contains("Failed to fetch"));
@@ -785,15 +789,12 @@ mod tests {
             let result = BulkCheckResult {
                 product_id: "p1".to_string(),
                 product_name: "Product 1".to_string(),
-                status: "in_stock".to_string(),
-                previous_status: Some("out_of_stock".to_string()),
+                status: AvailabilityStatus::InStock,
+                previous_status: Some(AvailabilityStatus::OutOfStock),
                 is_back_in_stock: true,
                 price_cents: Some(78900),
                 price_currency: Some("USD".to_string()),
-                today_average_price_cents: None,
-                yesterday_average_price_cents: None,
-                is_price_drop: false,
-                error: None,
+                ..Default::default()
             };
             let summary = BulkCheckSummary {
                 total: 1,
@@ -895,7 +896,7 @@ mod tests {
                 Uuid::new_v4(),
                 product_id,
                 CreateCheckParams {
-                    status: "in_stock".to_string(),
+                    status: AvailabilityStatus::InStock,
                     price_cents: Some(15000),
                     price_currency: Some("USD".to_string()),
                     ..Default::default()

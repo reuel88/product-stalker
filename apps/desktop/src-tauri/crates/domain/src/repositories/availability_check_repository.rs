@@ -6,6 +6,7 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
+use crate::entities::availability_check::AvailabilityStatus;
 use crate::entities::prelude::*;
 
 /// Helper struct for parsing SQLite AVG query results
@@ -20,7 +21,7 @@ pub struct AvailabilityCheckRepository;
 /// Parameters for creating an availability check
 #[derive(Default)]
 pub struct CreateCheckParams {
-    pub status: String,
+    pub status: AvailabilityStatus,
     pub raw_availability: Option<String>,
     pub error_message: Option<String>,
     pub price_cents: Option<i64>,
@@ -41,7 +42,7 @@ impl AvailabilityCheckRepository {
         let active_model = AvailabilityCheckActiveModel {
             id: Set(id),
             product_id: Set(product_id),
-            status: Set(params.status),
+            status: Set(params.status.as_str().to_string()),
             raw_availability: Set(params.raw_availability),
             error_message: Set(params.error_message),
             checked_at: Set(now),
@@ -136,7 +137,7 @@ mod tests {
             id,
             product_id,
             CreateCheckParams {
-                status: "in_stock".to_string(),
+                status: AvailabilityStatus::InStock,
                 raw_availability: Some("http://schema.org/InStock".to_string()),
                 ..Default::default()
             },
@@ -165,7 +166,7 @@ mod tests {
             id,
             product_id,
             CreateCheckParams {
-                status: "unknown".to_string(),
+                status: AvailabilityStatus::Unknown,
                 error_message: Some("Failed to fetch page".to_string()),
                 ..Default::default()
             },
@@ -192,7 +193,7 @@ mod tests {
             id,
             product_id,
             CreateCheckParams {
-                status: "in_stock".to_string(),
+                status: AvailabilityStatus::InStock,
                 raw_availability: Some("http://schema.org/InStock".to_string()),
                 price_cents: Some(78900),
                 price_currency: Some("USD".to_string()),
@@ -222,9 +223,9 @@ mod tests {
                 product_id,
                 CreateCheckParams {
                     status: if i == 2 {
-                        "in_stock".to_string()
+                        AvailabilityStatus::InStock
                     } else {
-                        "out_of_stock".to_string()
+                        AvailabilityStatus::OutOfStock
                     },
                     ..Default::default()
                 },
@@ -268,7 +269,7 @@ mod tests {
                 id,
                 product_id,
                 CreateCheckParams {
-                    status: "in_stock".to_string(),
+                    status: AvailabilityStatus::InStock,
                     ..Default::default()
                 },
             )
@@ -296,7 +297,7 @@ mod tests {
                 id,
                 product_id,
                 CreateCheckParams {
-                    status: "in_stock".to_string(),
+                    status: AvailabilityStatus::InStock,
                     ..Default::default()
                 },
             )

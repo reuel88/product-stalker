@@ -261,41 +261,19 @@ mod tests {
                 BulkCheckResult {
                     product_id: "1".to_string(),
                     product_name: "Product A".to_string(),
-                    status: "in_stock".to_string(),
-                    previous_status: Some("out_of_stock".to_string()),
                     is_back_in_stock: true,
-                    price_cents: None,
-                    price_currency: None,
-                    today_average_price_cents: None,
-                    yesterday_average_price_cents: None,
-                    is_price_drop: false,
-                    error: None,
+                    ..Default::default()
                 },
                 BulkCheckResult {
                     product_id: "2".to_string(),
                     product_name: "Product B".to_string(),
-                    status: "in_stock".to_string(),
-                    previous_status: Some("in_stock".to_string()),
-                    is_back_in_stock: false,
-                    price_cents: Some(5000),
-                    price_currency: Some("USD".to_string()),
-                    today_average_price_cents: Some(5000),
-                    yesterday_average_price_cents: Some(7000),
                     is_price_drop: true,
-                    error: None,
+                    ..Default::default()
                 },
                 BulkCheckResult {
                     product_id: "3".to_string(),
                     product_name: "Product C".to_string(),
-                    status: "out_of_stock".to_string(),
-                    previous_status: None,
-                    is_back_in_stock: false,
-                    price_cents: None,
-                    price_currency: None,
-                    today_average_price_cents: None,
-                    yesterday_average_price_cents: None,
-                    is_price_drop: false,
-                    error: None,
+                    ..Default::default()
                 },
             ];
 
@@ -337,15 +315,8 @@ mod tests {
             let results = vec![BulkCheckResult {
                 product_id: "1".to_string(),
                 product_name: "Product A".to_string(),
-                status: "in_stock".to_string(),
-                previous_status: Some("out_of_stock".to_string()),
                 is_back_in_stock: true,
-                price_cents: None,
-                price_currency: None,
-                today_average_price_cents: None,
-                yesterday_average_price_cents: None,
-                is_price_drop: false,
-                error: None,
+                ..Default::default()
             }];
 
             let notification =
@@ -360,15 +331,8 @@ mod tests {
             let results = vec![BulkCheckResult {
                 product_id: "1".to_string(),
                 product_name: "Product A".to_string(),
-                status: "in_stock".to_string(),
-                previous_status: Some("out_of_stock".to_string()),
                 is_back_in_stock: true,
-                price_cents: None,
-                price_currency: None,
-                today_average_price_cents: None,
-                yesterday_average_price_cents: None,
-                is_price_drop: false,
-                error: None,
+                ..Default::default()
             }];
 
             let notification =
@@ -386,15 +350,8 @@ mod tests {
             let results = vec![BulkCheckResult {
                 product_id: "1".to_string(),
                 product_name: "Product A".to_string(),
-                status: "in_stock".to_string(),
-                previous_status: Some("in_stock".to_string()),
-                is_back_in_stock: false,
-                price_cents: Some(5000),
-                price_currency: Some("USD".to_string()),
-                today_average_price_cents: Some(5000),
-                yesterday_average_price_cents: Some(7000),
                 is_price_drop: true,
-                error: None,
+                ..Default::default()
             }];
 
             let notification =
@@ -413,28 +370,14 @@ mod tests {
                 BulkCheckResult {
                     product_id: "1".to_string(),
                     product_name: "Product A".to_string(),
-                    status: "in_stock".to_string(),
-                    previous_status: Some("out_of_stock".to_string()),
                     is_back_in_stock: true,
-                    price_cents: None,
-                    price_currency: None,
-                    today_average_price_cents: None,
-                    yesterday_average_price_cents: None,
-                    is_price_drop: false,
-                    error: None,
+                    ..Default::default()
                 },
                 BulkCheckResult {
                     product_id: "2".to_string(),
                     product_name: "Product B".to_string(),
-                    status: "in_stock".to_string(),
-                    previous_status: Some("in_stock".to_string()),
-                    is_back_in_stock: false,
-                    price_cents: Some(5000),
-                    price_currency: Some("USD".to_string()),
-                    today_average_price_cents: Some(5000),
-                    yesterday_average_price_cents: Some(7000),
                     is_price_drop: true,
-                    error: None,
+                    ..Default::default()
                 },
             ];
 

@@ -8,6 +8,13 @@ use headless_chrome::{Browser, LaunchOptions};
 
 use product_stalker_core::AppError;
 
+/// JavaScript to hide the webdriver property, bypassing Cloudflare's navigator.webdriver detection
+const WEBDRIVER_OVERRIDE_SCRIPT: &str = r#"
+    Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined
+    });
+"#;
+
 /// Service for headless browser automation
 ///
 /// Used as a fallback when HTTP requests are blocked by bot protection
@@ -48,16 +55,8 @@ impl HeadlessService {
             .map_err(|e| AppError::Internal(format!("Failed to create browser tab: {}", e)))?;
 
         // Inject script to hide webdriver property before navigation
-        // This helps bypass Cloudflare's navigator.webdriver detection
         log::debug!("Headless: injecting anti-detection script");
-        let _ = tab.evaluate(
-            r#"
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            });
-            "#,
-            false,
-        );
+        let _ = tab.evaluate(WEBDRIVER_OVERRIDE_SCRIPT, false);
 
         // Navigate to the URL
         log::debug!("Headless: navigating to {}", url);
@@ -70,14 +69,7 @@ impl HeadlessService {
             .map_err(|e| AppError::Scraping(format!("Page load timeout: {}", e)))?;
 
         // Re-inject script after navigation in case page reset it
-        let _ = tab.evaluate(
-            r#"
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            });
-            "#,
-            false,
-        );
+        let _ = tab.evaluate(WEBDRIVER_OVERRIDE_SCRIPT, false);
 
         // Get the page HTML
         log::debug!("Headless: getting page content");

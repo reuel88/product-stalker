@@ -22,6 +22,14 @@ pub struct ProductUpdateInput {
     pub notes: Option<Option<String>>,
 }
 
+/// Parameters for creating a new product at the repository level
+pub struct CreateProductRepoParams {
+    pub name: String,
+    pub url: String,
+    pub description: Option<String>,
+    pub notes: Option<String>,
+}
+
 /// Repository for product data access
 ///
 /// Encapsulates all database operations for products.
@@ -48,19 +56,16 @@ impl ProductRepository {
     pub async fn create(
         conn: &DatabaseConnection,
         id: Uuid,
-        name: String,
-        url: String,
-        description: Option<String>,
-        notes: Option<String>,
+        params: CreateProductRepoParams,
     ) -> Result<ProductModel, AppError> {
         let now = chrono::Utc::now();
 
         let active_model = ProductActiveModel {
             id: Set(id),
-            name: Set(name),
-            url: Set(url),
-            description: Set(description),
-            notes: Set(notes),
+            name: Set(params.name),
+            url: Set(params.url),
+            description: Set(params.description),
+            notes: Set(params.notes),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -112,21 +117,23 @@ mod tests {
     use super::*;
     use crate::test_utils::setup_products_db;
 
+    fn params(name: &str, url: &str) -> CreateProductRepoParams {
+        CreateProductRepoParams {
+            name: name.to_string(),
+            url: url.to_string(),
+            description: None,
+            notes: None,
+        }
+    }
+
     #[tokio::test]
     async fn test_create_and_find_product() {
         let conn = setup_products_db().await;
         let id = Uuid::new_v4();
 
-        let created = ProductRepository::create(
-            &conn,
-            id,
-            "Test".to_string(),
-            "https://test.com".to_string(),
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+        let created = ProductRepository::create(&conn, id, params("Test", "https://test.com"))
+            .await
+            .unwrap();
 
         assert_eq!(created.name, "Test");
 
@@ -147,16 +154,9 @@ mod tests {
         let conn = setup_products_db().await;
         let id = Uuid::new_v4();
 
-        ProductRepository::create(
-            &conn,
-            id,
-            "Test".to_string(),
-            "https://test.com".to_string(),
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+        ProductRepository::create(&conn, id, params("Test", "https://test.com"))
+            .await
+            .unwrap();
 
         let rows = ProductRepository::delete_by_id(&conn, id).await.unwrap();
         assert_eq!(rows, 1);
@@ -170,16 +170,10 @@ mod tests {
         let conn = setup_products_db().await;
         let id = Uuid::new_v4();
 
-        let created = ProductRepository::create(
-            &conn,
-            id,
-            "Original".to_string(),
-            "https://original.com".to_string(),
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+        let created =
+            ProductRepository::create(&conn, id, params("Original", "https://original.com"))
+                .await
+                .unwrap();
 
         let updated = ProductRepository::update(
             &conn,
@@ -225,10 +219,7 @@ mod tests {
             ProductRepository::create(
                 &conn,
                 Uuid::new_v4(),
-                format!("Product {}", i),
-                format!("https://p{}.com", i),
-                None,
-                None,
+                params(&format!("Product {}", i), &format!("https://p{}.com", i)),
             )
             .await
             .unwrap();
@@ -246,10 +237,12 @@ mod tests {
         let created = ProductRepository::create(
             &conn,
             id,
-            "Full Product".to_string(),
-            "https://full.com".to_string(),
-            Some("A description".to_string()),
-            Some("Some notes".to_string()),
+            CreateProductRepoParams {
+                name: "Full Product".to_string(),
+                url: "https://full.com".to_string(),
+                description: Some("A description".to_string()),
+                notes: Some("Some notes".to_string()),
+            },
         )
         .await
         .unwrap();
@@ -265,16 +258,10 @@ mod tests {
         let conn = setup_products_db().await;
         let id = Uuid::new_v4();
 
-        let created = ProductRepository::create(
-            &conn,
-            id,
-            "Original".to_string(),
-            "https://original.com".to_string(),
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+        let created =
+            ProductRepository::create(&conn, id, params("Original", "https://original.com"))
+                .await
+                .unwrap();
 
         let updated = ProductRepository::update(
             &conn,
@@ -303,10 +290,12 @@ mod tests {
         let created = ProductRepository::create(
             &conn,
             id,
-            "Product".to_string(),
-            "https://product.com".to_string(),
-            Some("Has description".to_string()),
-            Some("Has notes".to_string()),
+            CreateProductRepoParams {
+                name: "Product".to_string(),
+                url: "https://product.com".to_string(),
+                description: Some("Has description".to_string()),
+                notes: Some("Has notes".to_string()),
+            },
         )
         .await
         .unwrap();

@@ -97,7 +97,7 @@ impl TauriAvailabilityService {
                 "availability:check-progress",
                 &BulkCheckProgressEvent {
                     product_id: product.id.to_string(),
-                    status: bulk_result.status.clone(),
+                    status: bulk_result.status.as_str().to_string(),
                     current: index + 1,
                     total,
                 },
