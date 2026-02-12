@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { formatDate } from "@/lib/format-date";
 import type {
 	AvailabilityCheckResponse,
 	ProductResponse,
@@ -95,9 +96,7 @@ describe("ProductInfoCard", () => {
 			const product = createMockProduct({ created_at: "2024-01-01T00:00:00Z" });
 			render(<ProductInfoCard product={product} latestCheck={null} />);
 
-			const expectedDate = new Date(
-				"2024-01-01T00:00:00Z",
-			).toLocaleDateString();
+			const expectedDate = formatDate("2024-01-01T00:00:00Z");
 			expect(
 				screen.getByText(new RegExp(`Added: ${expectedDate}`)),
 			).toBeInTheDocument();
@@ -107,9 +106,7 @@ describe("ProductInfoCard", () => {
 			const product = createMockProduct({ updated_at: "2024-02-15T00:00:00Z" });
 			render(<ProductInfoCard product={product} latestCheck={null} />);
 
-			const expectedDate = new Date(
-				"2024-02-15T00:00:00Z",
-			).toLocaleDateString();
+			const expectedDate = formatDate("2024-02-15T00:00:00Z");
 			expect(
 				screen.getByText(new RegExp(`Updated: ${expectedDate}`)),
 			).toBeInTheDocument();

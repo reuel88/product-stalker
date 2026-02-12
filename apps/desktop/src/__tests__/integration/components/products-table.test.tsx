@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS, UI } from "@/constants";
+import { formatDate } from "@/lib/format-date";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
 import {
 	createMockProduct,
@@ -105,7 +106,7 @@ describe("ProductsTable", () => {
 			);
 
 			// Date format depends on locale, just verify it's rendered
-			const dateString = new Date("2024-01-15T10:30:00Z").toLocaleDateString();
+			const dateString = formatDate("2024-01-15T10:30:00Z");
 			expect(screen.getByText(dateString)).toBeInTheDocument();
 		});
 	});
@@ -226,11 +227,6 @@ describe("ProductsTable", () => {
 			expect(screen.getByText("Product 1")).toBeInTheDocument();
 			expect(screen.getByText("Product 10")).toBeInTheDocument();
 			expect(screen.queryByText("Product 11")).not.toBeInTheDocument();
-
-			// Get all pagination buttons (first, prev, next, last)
-			const _paginationButtons = screen
-				.getAllByRole("button")
-				.filter((btn) => btn.closest(".flex.items-center.gap-1"));
 
 			// Find next page button by looking for one that's not disabled and navigates forward
 			const buttons = screen.getAllByRole("button");

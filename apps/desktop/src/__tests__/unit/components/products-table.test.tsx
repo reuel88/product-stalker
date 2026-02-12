@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UI } from "@/constants";
+import { formatDate } from "@/lib/format-date";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
 import { createMockProduct, createMockProducts } from "../../mocks/data";
 import { getMockedInvoke, mockInvokeMultiple } from "../../mocks/tauri";
@@ -115,7 +116,7 @@ describe("ProductsTable", () => {
 			);
 
 			// Date format depends on locale, just verify it's rendered
-			const dateString = new Date("2024-01-15T10:30:00Z").toLocaleDateString();
+			const dateString = formatDate("2024-01-15T10:30:00Z");
 			expect(screen.getByText(dateString)).toBeInTheDocument();
 		});
 
