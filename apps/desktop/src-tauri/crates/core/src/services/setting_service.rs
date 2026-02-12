@@ -89,6 +89,7 @@ pub struct UpdateSettingsParams {
 /// # use sea_orm::DatabaseConnection;
 /// async fn process_products(conn: &DatabaseConnection) -> Result<(), AppError> {
 ///     let cache = SettingsCache::load(conn).await?;
+///     # let products: Vec<()> = vec![];
 ///
 ///     // Settings are loaded once and can be accessed multiple times
 ///     for product in products {

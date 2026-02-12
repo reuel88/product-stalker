@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import "@testing-library/jest-dom";
 import { beforeEach, vi } from "vitest";
 
@@ -52,7 +53,7 @@ vi.mock("@tanstack/react-router", async () => {
 			params,
 			...props
 		}: {
-			children: React.ReactNode;
+			children: ReactNode;
 			to: string;
 			params?: Record<string, string>;
 		}) => {

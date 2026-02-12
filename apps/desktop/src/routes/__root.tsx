@@ -4,6 +4,7 @@ import {
 	Outlet,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import type { ReactNode } from "react";
 import { useCallback } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { useSettings } from "@/modules/settings/hooks/useSettings";
@@ -36,11 +37,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 	}),
 });
 
-function PaletteProviderWithSettings({
-	children,
-}: {
-	children: React.ReactNode;
-}) {
+function PaletteProviderWithSettings({ children }: { children: ReactNode }) {
 	const { settings, updateSettings } = useSettings();
 
 	const handlePaletteChange = useCallback(
