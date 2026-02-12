@@ -76,6 +76,76 @@ pub struct UpdateSettingsParams {
     pub color_palette: Option<String>,
 }
 
+/// Cached settings for bulk operations.
+///
+/// Loads settings once to avoid repeated database reads during bulk processing.
+/// This struct provides efficient access to both global settings and domain settings
+/// during operations that process multiple items (e.g., checking all products).
+///
+/// # Example
+/// ```rust
+/// # use product_stalker_core::services::setting_service::SettingsCache;
+/// # use product_stalker_core::AppError;
+/// # use sea_orm::DatabaseConnection;
+/// async fn process_products(conn: &DatabaseConnection) -> Result<(), AppError> {
+///     let cache = SettingsCache::load(conn).await?;
+///
+///     // Settings are loaded once and can be accessed multiple times
+///     for product in products {
+///         let enabled = cache.enable_notifications();
+///         // Process product...
+///     }
+///     Ok(())
+/// }
+/// ```
+#[derive(Clone, Debug)]
+pub struct SettingsCache {
+    settings: Settings,
+    loaded_at: DateTime<Utc>,
+}
+
+impl SettingsCache {
+    /// Load settings from database into cache
+    pub async fn load(conn: &DatabaseConnection) -> Result<Self, AppError> {
+        let settings = SettingService::get(conn).await?;
+
+        Ok(Self {
+            settings,
+            loaded_at: Utc::now(),
+        })
+    }
+
+    /// Get the current theme setting
+    pub fn theme(&self) -> &str {
+        &self.settings.theme
+    }
+
+    /// Check if notifications are enabled
+    pub fn enable_notifications(&self) -> bool {
+        self.settings.enable_notifications
+    }
+
+    /// Check if logging is enabled
+    pub fn enable_logging(&self) -> bool {
+        self.settings.enable_logging
+    }
+
+    /// Get the log level
+    pub fn log_level(&self) -> &str {
+        &self.settings.log_level
+    }
+
+    /// Get when these settings were loaded
+    pub fn loaded_at(&self) -> DateTime<Utc> {
+        self.loaded_at
+    }
+
+    /// Get the full settings struct
+    pub fn settings(&self) -> &Settings {
+        &self.settings
+    }
+}
+
 /// Service layer for settings business logic
 ///
 /// Validates inputs and orchestrates EAV repository calls.
@@ -494,5 +564,56 @@ mod integration_tests {
 
         let settings = SettingService::get(&conn).await.unwrap();
         assert_eq!(settings.color_palette, "ocean");
+    }
+
+    #[tokio::test]
+    async fn test_settings_cache_loads() {
+        let conn = setup_app_settings_db().await;
+
+        let cache = SettingsCache::load(&conn).await;
+        assert!(cache.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_settings_cache_provides_access_to_settings() {
+        let conn = setup_app_settings_db().await;
+
+        let cache = SettingsCache::load(&conn).await.unwrap();
+
+        assert_eq!(cache.theme(), "system");
+        assert!(cache.enable_notifications());
+        assert!(cache.enable_logging());
+        assert_eq!(cache.log_level(), "info");
+    }
+
+    #[tokio::test]
+    async fn test_settings_cache_reflects_updated_values() {
+        let conn = setup_app_settings_db().await;
+
+        // Update theme
+        let params = UpdateSettingsParams {
+            theme: Some("dark".to_string()),
+            enable_notifications: Some(false),
+            ..Default::default()
+        };
+        SettingService::update(&conn, params).await.unwrap();
+
+        // Load cache and verify it reflects the updates
+        let cache = SettingsCache::load(&conn).await.unwrap();
+        assert_eq!(cache.theme(), "dark");
+        assert!(!cache.enable_notifications());
+    }
+
+    #[tokio::test]
+    async fn test_settings_cache_tracks_load_time() {
+        let conn = setup_app_settings_db().await;
+
+        let before = chrono::Utc::now();
+        let cache = SettingsCache::load(&conn).await.unwrap();
+        let after = chrono::Utc::now();
+
+        let loaded_at = cache.loaded_at();
+        assert!(loaded_at >= before);
+        assert!(loaded_at <= after);
     }
 }

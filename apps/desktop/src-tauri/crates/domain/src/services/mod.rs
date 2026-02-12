@@ -13,7 +13,7 @@ pub use availability_service::{
     CheckResultWithNotification, DailyPriceComparison, ProductCheckContext,
 };
 pub use domain_setting_service::{
-    DomainSettingService, DomainSettings, UpdateDomainSettingsParams,
+    DomainSettingService, DomainSettings, DomainSettingsCache, UpdateDomainSettingsParams,
 };
 pub use headless_service::HeadlessService;
 pub use notification_service::NotificationService;

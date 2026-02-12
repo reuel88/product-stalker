@@ -70,7 +70,9 @@ Layer locations:
 - **Entities** (`crates/core/src/entities/`, `crates/domain/src/entities/`): SeaORM models
 
 ### Frontend Module Pattern
-Each feature module in `src/modules/` follows: `hooks/`, `types.ts`, `ui/components/`, `ui/views/`
+Each feature module in `src/modules/` follows: `hooks/`, `types.ts`, `*-utils.ts` (optional), `ui/components/`, `ui/views/`
+
+**Utility files:** Pure utility modules (e.g., `price-utils.ts`) with no UI dependencies should be placed at the module root when consumed by multiple sub-layers (`ui/components/` and `ui/views/`). Layer-specific utilities should be co-located with their consumers.
 
 ## Code Style
 

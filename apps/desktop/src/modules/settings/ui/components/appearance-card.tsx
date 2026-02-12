@@ -1,10 +1,3 @@
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -20,6 +13,7 @@ import type {
 	PaletteDefinition,
 	PaletteId,
 } from "@/modules/shared/themes/types";
+import { SettingsCard } from "./settings-card";
 
 interface AppearanceCardProps {
 	settings: Settings;
@@ -72,39 +66,37 @@ export function AppearanceCard({
 	const { paletteId, setPalette, palettes } = usePalette();
 
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>Appearance</CardTitle>
-				<CardDescription>Customize how the app looks</CardDescription>
-			</CardHeader>
-			<CardContent className="space-y-4">
-				<div className="flex items-center justify-between">
-					<Label htmlFor="theme">Theme</Label>
-					<Select value={settings.theme} onValueChange={onThemeChange}>
-						<SelectTrigger className="w-32">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="light">Light</SelectItem>
-							<SelectItem value="dark">Dark</SelectItem>
-							<SelectItem value="system">System</SelectItem>
-						</SelectContent>
-					</Select>
+		<SettingsCard
+			title="Appearance"
+			description="Customize how the app looks"
+			contentClassName="space-y-4"
+		>
+			<div className="flex items-center justify-between">
+				<Label htmlFor="theme">Theme</Label>
+				<Select value={settings.theme} onValueChange={onThemeChange}>
+					<SelectTrigger className="w-32">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="light">Light</SelectItem>
+						<SelectItem value="dark">Dark</SelectItem>
+						<SelectItem value="system">System</SelectItem>
+					</SelectContent>
+				</Select>
+			</div>
+			<div className="space-y-2">
+				<Label>Color Palette</Label>
+				<div className="grid grid-cols-3 gap-2">
+					{palettes.map((palette) => (
+						<PaletteCard
+							key={palette.id}
+							palette={palette}
+							isActive={palette.id === paletteId}
+							onSelect={setPalette}
+						/>
+					))}
 				</div>
-				<div className="space-y-2">
-					<Label>Color Palette</Label>
-					<div className="grid grid-cols-3 gap-2">
-						{palettes.map((palette) => (
-							<PaletteCard
-								key={palette.id}
-								palette={palette}
-								isActive={palette.id === paletteId}
-								onSelect={setPalette}
-							/>
-						))}
-					</div>
-				</div>
-			</CardContent>
-		</Card>
+			</div>
+		</SettingsCard>
 	);
 }

@@ -1,14 +1,8 @@
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
 import type {
 	Settings,
 	UpdateSettingsInput,
 } from "@/modules/settings/hooks/useSettings";
+import { SettingsCard } from "./settings-card";
 import { SettingsSwitchRow } from "./settings-switch-row";
 
 interface InterfaceCardProps {
@@ -18,19 +12,13 @@ interface InterfaceCardProps {
 
 export function InterfaceCard({ settings, onUpdate }: InterfaceCardProps) {
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>Interface</CardTitle>
-				<CardDescription>UI preferences</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<SettingsSwitchRow
-					id="sidebar-expanded"
-					label="Sidebar expanded"
-					checked={settings.sidebar_expanded}
-					onCheckedChange={(checked) => onUpdate({ sidebar_expanded: checked })}
-				/>
-			</CardContent>
-		</Card>
+		<SettingsCard title="Interface" description="UI preferences">
+			<SettingsSwitchRow
+				id="sidebar-expanded"
+				label="Sidebar expanded"
+				checked={settings.sidebar_expanded}
+				onCheckedChange={(checked) => onUpdate({ sidebar_expanded: checked })}
+			/>
+		</SettingsCard>
 	);
 }

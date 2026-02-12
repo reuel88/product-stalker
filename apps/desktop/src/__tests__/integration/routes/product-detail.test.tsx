@@ -298,4 +298,210 @@ describe("ProductDetailView", () => {
 			});
 		});
 	});
+
+	describe("detailed price display", () => {
+		it("should display detailed price indicator with price drop", async () => {
+			const product = createMockProduct({ id: "product-1" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: 79900,
+				today_average_price_minor_units: 79900,
+				yesterday_average_price_minor_units: 89900,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+
+			mockInvokeMultiple({
+				[COMMANDS.GET_PRODUCT]: product,
+				[COMMANDS.GET_LATEST_AVAILABILITY]: check,
+				[COMMANDS.GET_AVAILABILITY_HISTORY]: [check],
+			});
+
+			render(<ProductDetailView productId="product-1" />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test Product product-1")).toBeInTheDocument();
+			});
+
+			// Wait for price to appear (availability query resolves async)
+			await waitFor(() => {
+				const priceElements = screen.getAllByText("$799.00");
+				expect(priceElements.length).toBeGreaterThan(0);
+			});
+
+			// Assert detailed comparison text (includes the "from" price)
+			expect(screen.getByText(/Down.*from.*\$899\.00/)).toBeInTheDocument();
+
+			// Assert green color class for price drop
+			const comparisonElement = screen.getByText(/Down.*from/);
+			expect(comparisonElement).toHaveClass(/text-green/);
+		});
+
+		it("should display detailed price indicator with price increase", async () => {
+			const product = createMockProduct({ id: "product-1" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: 89900,
+				today_average_price_minor_units: 89900,
+				yesterday_average_price_minor_units: 79900,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+
+			mockInvokeMultiple({
+				[COMMANDS.GET_PRODUCT]: product,
+				[COMMANDS.GET_LATEST_AVAILABILITY]: check,
+				[COMMANDS.GET_AVAILABILITY_HISTORY]: [check],
+			});
+
+			render(<ProductDetailView productId="product-1" />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test Product product-1")).toBeInTheDocument();
+			});
+
+			// Wait for price to appear (availability query resolves async)
+			await waitFor(() => {
+				const priceElements = screen.getAllByText("$899.00");
+				expect(priceElements.length).toBeGreaterThan(0);
+			});
+
+			// Assert detailed comparison text (includes the "from" price)
+			expect(screen.getByText(/Up.*from.*\$799\.00/)).toBeInTheDocument();
+
+			// Assert red color class for price increase
+			const comparisonElement = screen.getByText(/Up.*from/);
+			expect(comparisonElement).toHaveClass(/text-red/);
+		});
+
+		it("should display price without comparison on first check", async () => {
+			const product = createMockProduct({ id: "product-1" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: 79900,
+				today_average_price_minor_units: null,
+				yesterday_average_price_minor_units: null,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+
+			mockInvokeMultiple({
+				[COMMANDS.GET_PRODUCT]: product,
+				[COMMANDS.GET_LATEST_AVAILABILITY]: check,
+				[COMMANDS.GET_AVAILABILITY_HISTORY]: [check],
+			});
+
+			render(<ProductDetailView productId="product-1" />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test Product product-1")).toBeInTheDocument();
+			});
+
+			// Wait for price to appear (availability query resolves async)
+			await waitFor(() => {
+				const priceElements = screen.getAllByText("$799.00");
+				expect(priceElements.length).toBeGreaterThan(0);
+			});
+
+			// Assert no comparison text
+			expect(screen.queryByText(/Down.*from/)).not.toBeInTheDocument();
+			expect(screen.queryByText(/Up.*from/)).not.toBeInTheDocument();
+		});
+
+		it("should not show price section when price is null", async () => {
+			const product = createMockProduct({ id: "product-1" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: null,
+				price_currency: null,
+				status: "out_of_stock",
+			});
+
+			mockInvokeMultiple({
+				[COMMANDS.GET_PRODUCT]: product,
+				[COMMANDS.GET_LATEST_AVAILABILITY]: check,
+				[COMMANDS.GET_AVAILABILITY_HISTORY]: [check],
+			});
+
+			render(<ProductDetailView productId="product-1" />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test Product product-1")).toBeInTheDocument();
+			});
+
+			// Wait for the availability to load, then verify no price section
+			await waitFor(() => {
+				// Verify "Current Price" label is not present
+				expect(screen.queryByText("Current Price")).not.toBeInTheDocument();
+			});
+
+			// Verify no price information is displayed
+			expect(screen.queryByText(/\$/)).not.toBeInTheDocument();
+		});
+
+		it("should display JPY currency without decimals in detailed view", async () => {
+			const product = createMockProduct({ id: "product-1" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: 1500,
+				today_average_price_minor_units: null,
+				yesterday_average_price_minor_units: null,
+				price_currency: "JPY",
+				currency_exponent: 0,
+			});
+
+			mockInvokeMultiple({
+				[COMMANDS.GET_PRODUCT]: product,
+				[COMMANDS.GET_LATEST_AVAILABILITY]: check,
+				[COMMANDS.GET_AVAILABILITY_HISTORY]: [check],
+			});
+
+			render(<ProductDetailView productId="product-1" />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test Product product-1")).toBeInTheDocument();
+			});
+
+			// Wait for JPY price to appear (availability query resolves async)
+			await waitFor(() => {
+				const priceElements = screen.getAllByText("¥1,500");
+				expect(priceElements.length).toBeGreaterThan(0);
+			});
+		});
+
+		it("should display large percentage change correctly", async () => {
+			const product = createMockProduct({ id: "product-1" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: 50000,
+				today_average_price_minor_units: 50000,
+				yesterday_average_price_minor_units: 100000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+
+			mockInvokeMultiple({
+				[COMMANDS.GET_PRODUCT]: product,
+				[COMMANDS.GET_LATEST_AVAILABILITY]: check,
+				[COMMANDS.GET_AVAILABILITY_HISTORY]: [check],
+			});
+
+			render(<ProductDetailView productId="product-1" />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test Product product-1")).toBeInTheDocument();
+			});
+
+			// Wait for price to appear (availability query resolves async)
+			await waitFor(() => {
+				const currentPriceElements = screen.getAllByText("$500.00");
+				expect(currentPriceElements.length).toBeGreaterThan(0);
+			});
+
+			// Assert comparison text with 50% change (includes the "from" price)
+			expect(
+				screen.getByText(/Down 50% from.*\$1,000\.00/),
+			).toBeInTheDocument();
+		});
+	});
 });

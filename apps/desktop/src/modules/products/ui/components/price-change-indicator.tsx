@@ -1,11 +1,6 @@
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-	calculatePriceChangePercent,
-	formatPrice,
-	formatPriceChangePercent,
-	getPriceChangeDirection,
-} from "@/modules/products/price-utils";
+import { usePriceFormatting } from "@/modules/products/hooks/usePriceFormatting";
 
 interface PriceChangeIndicatorProps {
 	currentPriceMinorUnits: number | null;
@@ -41,49 +36,50 @@ export function PriceChangeIndicator({
 	currencyExponent,
 	variant,
 }: PriceChangeIndicatorProps) {
+	const {
+		formattedCurrentPrice,
+		formattedPreviousPrice,
+		formattedPercentChange,
+		direction,
+		percentChange,
+		hasComparison,
+	} = usePriceFormatting({
+		currentPriceMinorUnits,
+		todayAverageMinorUnits,
+		yesterdayAverageMinorUnits,
+		currency,
+		currencyExponent,
+	});
+
 	if (currentPriceMinorUnits === null) {
 		return <span className="text-muted-foreground">-</span>;
 	}
 
-	const currentPrice = formatPrice(
-		currentPriceMinorUnits,
-		currency,
-		currencyExponent,
-	);
-	const direction = getPriceChangeDirection(
-		todayAverageMinorUnits,
-		yesterdayAverageMinorUnits,
-	);
-	const percent = calculatePriceChangePercent(
-		todayAverageMinorUnits,
-		yesterdayAverageMinorUnits,
-	);
-
-	if (direction === "unknown" || direction === "unchanged") {
+	if (!hasComparison) {
 		if (variant === "compact") {
-			return <span className="text-muted-foreground">{currentPrice}</span>;
+			return (
+				<span className="text-muted-foreground">{formattedCurrentPrice}</span>
+			);
 		}
-		return <p className="font-semibold text-2xl">{currentPrice}</p>;
+		return <p className="font-semibold text-2xl">{formattedCurrentPrice}</p>;
 	}
 
 	if (variant === "compact") {
 		return (
 			<CompactIndicator
-				currentPrice={currentPrice}
-				direction={direction}
-				percent={percent}
+				currentPrice={formattedCurrentPrice}
+				direction={direction as "up" | "down"}
+				formattedPercent={formattedPercentChange}
 			/>
 		);
 	}
 
 	return (
 		<DetailedIndicator
-			currentPrice={currentPrice}
-			yesterdayAverageMinorUnits={yesterdayAverageMinorUnits}
-			currency={currency}
-			currencyExponent={currencyExponent}
-			direction={direction}
-			percent={percent}
+			currentPrice={formattedCurrentPrice}
+			yesterdayPrice={formattedPreviousPrice}
+			direction={direction as "up" | "down"}
+			percent={percentChange}
 		/>
 	);
 }
@@ -96,17 +92,16 @@ const PRICE_DIRECTION_COLORS = {
 interface CompactIndicatorProps {
 	currentPrice: string;
 	direction: "up" | "down";
-	percent: number | null;
+	formattedPercent: string;
 }
 
 function CompactIndicator({
 	currentPrice,
 	direction,
-	percent,
+	formattedPercent,
 }: CompactIndicatorProps) {
 	const isDown = direction === "down";
 	const Icon = isDown ? TrendingDown : TrendingUp;
-	const formattedPercent = formatPriceChangePercent(percent);
 
 	return (
 		<span className="inline-flex items-center gap-1">
@@ -126,28 +121,19 @@ function CompactIndicator({
 
 interface DetailedIndicatorProps {
 	currentPrice: string;
-	yesterdayAverageMinorUnits: number | null;
-	currency: string | null;
-	currencyExponent: number;
+	yesterdayPrice: string;
 	direction: "up" | "down";
 	percent: number | null;
 }
 
 function DetailedIndicator({
 	currentPrice,
-	yesterdayAverageMinorUnits,
-	currency,
-	currencyExponent,
+	yesterdayPrice,
 	direction,
 	percent,
 }: DetailedIndicatorProps) {
 	const isDown = direction === "down";
 	const Icon = isDown ? TrendingDown : TrendingUp;
-	const yesterdayPrice = formatPrice(
-		yesterdayAverageMinorUnits,
-		currency,
-		currencyExponent,
-	);
 	const percentValue = percent !== null ? Math.abs(percent) : 0;
 	const directionLabel = isDown ? "Down" : "Up";
 
