@@ -6,6 +6,7 @@ import {
 	formatPriceChangePercent,
 	getDateRangeLabel,
 	getPriceChangeDirection,
+	isRoundedZero,
 	transformToPriceDataPoints,
 } from "@/modules/products/price-utils";
 import type { AvailabilityCheckResponse } from "@/modules/products/types";
@@ -351,5 +352,50 @@ describe("formatPrice", () => {
 
 	it("should return dash when both are null", () => {
 		expect(formatPrice(null, null)).toBe("-");
+	});
+});
+
+describe("isRoundedZero", () => {
+	it("should return true when change rounds to 0% but is not exactly 0 (positive)", () => {
+		// 0.05% increase rounds to 0%
+		expect(isRoundedZero(80000, 79960)).toBe(true);
+		// 0.4% increase rounds to 0%
+		expect(isRoundedZero(80320, 80000)).toBe(true);
+	});
+
+	it("should return true when change rounds to 0% but is not exactly 0 (negative)", () => {
+		// -0.05% decrease rounds to 0%
+		expect(isRoundedZero(79960, 80000)).toBe(true);
+		// -0.4% decrease rounds to 0%
+		expect(isRoundedZero(80000, 80320)).toBe(true);
+	});
+
+	it("should return false when change is exactly 0%", () => {
+		expect(isRoundedZero(80000, 80000)).toBe(false);
+	});
+
+	it("should return false when change is 1% or more", () => {
+		// 1% increase
+		expect(isRoundedZero(80800, 80000)).toBe(false);
+		// -1% decrease
+		expect(isRoundedZero(79200, 80000)).toBe(false);
+		// 5% increase
+		expect(isRoundedZero(84000, 80000)).toBe(false);
+	});
+
+	it("should return false when today value is null", () => {
+		expect(isRoundedZero(null, 80000)).toBe(false);
+	});
+
+	it("should return false when yesterday value is null", () => {
+		expect(isRoundedZero(80000, null)).toBe(false);
+	});
+
+	it("should return false when both values are null", () => {
+		expect(isRoundedZero(null, null)).toBe(false);
+	});
+
+	it("should return false when yesterday value is zero", () => {
+		expect(isRoundedZero(100, 0)).toBe(false);
 	});
 });

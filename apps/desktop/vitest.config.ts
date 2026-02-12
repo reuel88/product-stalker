@@ -69,6 +69,20 @@ export default defineConfig({
 			}),
 			defineProject({
 				test: {
+					name: "lib",
+					include: ["src/__tests__/lib/**/*.{test,spec}.{ts,tsx}"],
+					environment: "jsdom",
+					globals: true,
+					setupFiles: ["./src/__tests__/setup.ts"],
+				},
+				resolve: {
+					alias: {
+						"@": path.resolve(__dirname, "./src"),
+					},
+				},
+			}),
+			defineProject({
+				test: {
 					name: "integration",
 					include: ["src/__tests__/integration/**/*.{test,spec}.{ts,tsx}"],
 					environment: "jsdom",

@@ -4,6 +4,7 @@ import {
 	formatPrice,
 	formatPriceChangePercent,
 	getPriceChangeDirection,
+	isRoundedZero,
 	type PriceChangeDirection,
 } from "@/modules/products/price-utils";
 
@@ -39,6 +40,8 @@ export interface PriceFormattingResult {
 	formattedPercentChange: string;
 	/** Whether price comparison data is available */
 	hasComparison: boolean;
+	/** Whether the percentage change rounds to 0% but is not exactly zero */
+	isRoundedZero: boolean;
 }
 
 /**
@@ -127,6 +130,15 @@ export function usePriceFormatting({
 		[direction],
 	);
 
+	const isRoundedZeroValue = useMemo(
+		() =>
+			isRoundedZero(
+				todayAverageMinorUnits ?? null,
+				yesterdayAverageMinorUnits ?? null,
+			),
+		[todayAverageMinorUnits, yesterdayAverageMinorUnits],
+	);
+
 	return {
 		formattedCurrentPrice,
 		formattedPreviousPrice,
@@ -134,5 +146,6 @@ export function usePriceFormatting({
 		percentChange,
 		formattedPercentChange,
 		hasComparison,
+		isRoundedZero: isRoundedZeroValue,
 	};
 }

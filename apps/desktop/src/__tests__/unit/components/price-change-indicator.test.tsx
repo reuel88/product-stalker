@@ -82,6 +82,42 @@ describe("PriceChangeIndicator", () => {
 			expect(screen.queryByText("+0%")).not.toBeInTheDocument();
 			expect(screen.queryByText("-0%")).not.toBeInTheDocument();
 		});
+
+		it("should show icon only when price change rounds to 0% (increase)", () => {
+			render(
+				<PriceChangeIndicator
+					currentPriceMinorUnits={80000}
+					todayAverageMinorUnits={80000}
+					yesterdayAverageMinorUnits={79960}
+					currency="USD"
+					currencyExponent={2}
+					variant="compact"
+				/>,
+			);
+
+			expect(screen.getByText("$800.00")).toBeInTheDocument();
+			// Icon should be present but percentage text should not
+			expect(screen.queryByText("+0%")).not.toBeInTheDocument();
+			expect(screen.queryByText("0%")).not.toBeInTheDocument();
+		});
+
+		it("should show icon only when price change rounds to 0% (decrease)", () => {
+			render(
+				<PriceChangeIndicator
+					currentPriceMinorUnits={79960}
+					todayAverageMinorUnits={79960}
+					yesterdayAverageMinorUnits={80000}
+					currency="USD"
+					currencyExponent={2}
+					variant="compact"
+				/>,
+			);
+
+			expect(screen.getByText("$799.60")).toBeInTheDocument();
+			// Icon should be present but percentage text should not
+			expect(screen.queryByText("-0%")).not.toBeInTheDocument();
+			expect(screen.queryByText("0%")).not.toBeInTheDocument();
+		});
 	});
 
 	describe("detailed variant", () => {
@@ -145,6 +181,42 @@ describe("PriceChangeIndicator", () => {
 			);
 
 			expect(screen.getByText("-")).toBeInTheDocument();
+		});
+
+		it("should show minimal change text when price change rounds to 0% (increase)", () => {
+			render(
+				<PriceChangeIndicator
+					currentPriceMinorUnits={80000}
+					todayAverageMinorUnits={80000}
+					yesterdayAverageMinorUnits={79960}
+					currency="USD"
+					currencyExponent={2}
+					variant="detailed"
+				/>,
+			);
+
+			expect(screen.getByText("$800.00")).toBeInTheDocument();
+			expect(screen.getByText(/Minimal up from \$799\.60/)).toBeInTheDocument();
+			expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
+		});
+
+		it("should show minimal change text when price change rounds to 0% (decrease)", () => {
+			render(
+				<PriceChangeIndicator
+					currentPriceMinorUnits={79960}
+					todayAverageMinorUnits={79960}
+					yesterdayAverageMinorUnits={80000}
+					currency="USD"
+					currencyExponent={2}
+					variant="detailed"
+				/>,
+			);
+
+			expect(screen.getByText("$799.60")).toBeInTheDocument();
+			expect(
+				screen.getByText(/Minimal down from \$800\.00/),
+			).toBeInTheDocument();
+			expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
 		});
 	});
 });

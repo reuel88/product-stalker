@@ -6,10 +6,17 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useSettings } from "@/modules/settings/hooks/useSettings";
 import { useTheme } from "@/modules/shared/providers/theme-provider";
 
 export function ModeToggle() {
 	const { setTheme } = useTheme();
+	const { updateSettings } = useSettings();
+
+	const handleThemeChange = (value: "light" | "dark" | "system") => {
+		setTheme(value);
+		updateSettings({ theme: value });
+	};
 
 	return (
 		<DropdownMenu>
@@ -19,13 +26,13 @@ export function ModeToggle() {
 				<span className="sr-only">Toggle theme</span>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
-				<DropdownMenuItem onClick={() => setTheme("light")}>
+				<DropdownMenuItem onClick={() => handleThemeChange("light")}>
 					Light
 				</DropdownMenuItem>
-				<DropdownMenuItem onClick={() => setTheme("dark")}>
+				<DropdownMenuItem onClick={() => handleThemeChange("dark")}>
 					Dark
 				</DropdownMenuItem>
-				<DropdownMenuItem onClick={() => setTheme("system")}>
+				<DropdownMenuItem onClick={() => handleThemeChange("system")}>
 					System
 				</DropdownMenuItem>
 			</DropdownMenuContent>

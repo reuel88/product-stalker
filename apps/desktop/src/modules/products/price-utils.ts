@@ -170,6 +170,44 @@ export function formatPriceChangePercent(percent: number | null): string {
 }
 
 /**
+ * Checks if a percentage change rounds to 0 but is not actually zero.
+ * Used to determine whether to show just the icon without percentage text.
+ *
+ * @param todayAverageMinorUnits - Today's average price in minor units
+ * @param yesterdayAverageMinorUnits - Yesterday's average price in minor units
+ * @returns True if the change rounds to 0% but prices are different, false otherwise
+ *
+ * @example
+ * ```ts
+ * isRoundedZero(80000, 79960) // true (0.05% increase, rounds to 0%)
+ * isRoundedZero(79960, 80000) // true (-0.05% decrease, rounds to 0%)
+ * isRoundedZero(80000, 80000) // false (exactly 0%, no change)
+ * isRoundedZero(80800, 80000) // false (1% increase)
+ * isRoundedZero(null, 80000) // false (cannot calculate)
+ * ```
+ */
+export function isRoundedZero(
+	todayAverageMinorUnits: number | null,
+	yesterdayAverageMinorUnits: number | null,
+): boolean {
+	if (
+		todayAverageMinorUnits === null ||
+		yesterdayAverageMinorUnits === null ||
+		yesterdayAverageMinorUnits === 0
+	) {
+		return false;
+	}
+
+	const change = todayAverageMinorUnits - yesterdayAverageMinorUnits;
+	if (change === 0) {
+		return false; // Exactly zero, not rounded
+	}
+
+	const percentChange = (change / yesterdayAverageMinorUnits) * 100;
+	return Math.round(percentChange) === 0; // Rounds to zero but isn't exactly zero
+}
+
+/**
  * Format a price in minor units to a localized currency string.
  *
  * @param minorUnits - Price in smallest currency unit (e.g., cents for USD, yen for JPY)

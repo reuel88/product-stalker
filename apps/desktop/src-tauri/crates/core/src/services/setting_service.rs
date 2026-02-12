@@ -323,14 +323,41 @@ impl SettingService {
     }
 
     fn validate_display_timezone(timezone: &str) -> Result<(), AppError> {
-        // Accept "auto" or IANA timezone format (contains '/')
-        if timezone == "auto" || timezone.contains('/') {
-            Ok(())
-        } else {
-            Err(AppError::Validation(format!(
-                "Invalid timezone: {}. Must be 'auto' or an IANA timezone (e.g., 'America/New_York')",
+        match timezone {
+            "auto"
+            | "America/New_York"
+            | "America/Chicago"
+            | "America/Denver"
+            | "America/Los_Angeles"
+            | "America/Anchorage"
+            | "Pacific/Honolulu"
+            | "America/Toronto"
+            | "America/Vancouver"
+            | "America/Mexico_City"
+            | "America/Sao_Paulo"
+            | "America/Buenos_Aires"
+            | "Europe/London"
+            | "Europe/Paris"
+            | "Europe/Berlin"
+            | "Europe/Madrid"
+            | "Europe/Rome"
+            | "Europe/Amsterdam"
+            | "Europe/Stockholm"
+            | "Europe/Moscow"
+            | "Asia/Dubai"
+            | "Asia/Kolkata"
+            | "Asia/Shanghai"
+            | "Asia/Tokyo"
+            | "Asia/Seoul"
+            | "Asia/Singapore"
+            | "Asia/Hong_Kong"
+            | "Australia/Sydney"
+            | "Australia/Melbourne"
+            | "Pacific/Auckland" => Ok(()),
+            _ => Err(AppError::Validation(format!(
+                "Invalid timezone: {}. Must be 'auto' or a supported IANA timezone",
                 timezone
-            )))
+            ))),
         }
     }
 
@@ -451,8 +478,70 @@ mod tests {
 
     #[test]
     fn test_validate_display_timezone_rejects_invalid_format() {
+        // Simple string without slash
         let result = SettingService::validate_display_timezone("EST");
         assert!(result.is_err());
+
+        // Invalid timezone that looks like IANA but isn't in allowlist
+        let result = SettingService::validate_display_timezone("Fake/Timezone");
+        assert!(result.is_err());
+
+        // Generic slash pattern
+        let result = SettingService::validate_display_timezone("just/slash");
+        assert!(result.is_err());
+
+        // Just a slash
+        let result = SettingService::validate_display_timezone("/");
+        assert!(result.is_err());
+
+        // Real region but fake city
+        let result = SettingService::validate_display_timezone("America/Invalid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_display_timezone_allowlist_complete() {
+        // Verify all 31 timezones from frontend TIMEZONE_OPTIONS are accepted
+        let valid_timezones = [
+            "auto",
+            "America/New_York",
+            "America/Chicago",
+            "America/Denver",
+            "America/Los_Angeles",
+            "America/Anchorage",
+            "Pacific/Honolulu",
+            "America/Toronto",
+            "America/Vancouver",
+            "America/Mexico_City",
+            "America/Sao_Paulo",
+            "America/Buenos_Aires",
+            "Europe/London",
+            "Europe/Paris",
+            "Europe/Berlin",
+            "Europe/Madrid",
+            "Europe/Rome",
+            "Europe/Amsterdam",
+            "Europe/Stockholm",
+            "Europe/Moscow",
+            "Asia/Dubai",
+            "Asia/Kolkata",
+            "Asia/Shanghai",
+            "Asia/Tokyo",
+            "Asia/Seoul",
+            "Asia/Singapore",
+            "Asia/Hong_Kong",
+            "Australia/Sydney",
+            "Australia/Melbourne",
+            "Pacific/Auckland",
+        ];
+
+        for timezone in valid_timezones.iter() {
+            assert!(
+                SettingService::validate_display_timezone(timezone).is_ok(),
+                "Timezone {} should be valid",
+                timezone
+            );
+        }
     }
 
     #[test]
