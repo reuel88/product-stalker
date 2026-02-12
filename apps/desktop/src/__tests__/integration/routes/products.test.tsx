@@ -1,3 +1,4 @@
+import type { InvokeArgs } from "@tauri-apps/api/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS, MESSAGES } from "@/constants";
 import { ProductsView } from "@/modules/products/ui/views/products-view";
@@ -410,18 +411,18 @@ describe("ProductsComponent", () => {
 			});
 
 			// Mock the invoke command handler
-			getMockedInvoke().mockImplementation(
-				(cmd: string, args?: { productId?: string }) => {
-					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
-					if (
-						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
-						args?.productId === "product-1"
-					) {
-						return Promise.resolve(check);
-					}
-					return Promise.reject(new Error(`Unmocked: ${cmd}`));
-				},
-			);
+			getMockedInvoke().mockImplementation((cmd: string, args?: InvokeArgs) => {
+				const typedArgs = args as { productId?: string } | undefined;
+
+				if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+				if (
+					cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+					typedArgs?.productId === "product-1"
+				) {
+					return Promise.resolve(check);
+				}
+				return Promise.reject(new Error(`Unmocked: ${cmd}`));
+			});
 
 			render(<ProductsView />);
 
@@ -451,18 +452,18 @@ describe("ProductsComponent", () => {
 				currency_exponent: 2,
 			});
 
-			getMockedInvoke().mockImplementation(
-				(cmd: string, args?: { productId?: string }) => {
-					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
-					if (
-						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
-						args?.productId === "product-1"
-					) {
-						return Promise.resolve(check);
-					}
-					return Promise.reject(new Error(`Unmocked: ${cmd}`));
-				},
-			);
+			getMockedInvoke().mockImplementation((cmd: string, args?: InvokeArgs) => {
+				const typedArgs = args as { productId?: string } | undefined;
+
+				if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+				if (
+					cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+					typedArgs?.productId === "product-1"
+				) {
+					return Promise.resolve(check);
+				}
+				return Promise.reject(new Error(`Unmocked: ${cmd}`));
+			});
 
 			render(<ProductsView />);
 
@@ -492,18 +493,18 @@ describe("ProductsComponent", () => {
 				currency_exponent: 2,
 			});
 
-			getMockedInvoke().mockImplementation(
-				(cmd: string, args?: { productId?: string }) => {
-					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
-					if (
-						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
-						args?.productId === "product-1"
-					) {
-						return Promise.resolve(check);
-					}
-					return Promise.reject(new Error(`Unmocked: ${cmd}`));
-				},
-			);
+			getMockedInvoke().mockImplementation((cmd: string, args?: InvokeArgs) => {
+				const typedArgs = args as { productId?: string } | undefined;
+
+				if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+				if (
+					cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+					typedArgs?.productId === "product-1"
+				) {
+					return Promise.resolve(check);
+				}
+				return Promise.reject(new Error(`Unmocked: ${cmd}`));
+			});
 
 			render(<ProductsView />);
 
@@ -530,18 +531,18 @@ describe("ProductsComponent", () => {
 				status: "out_of_stock",
 			});
 
-			getMockedInvoke().mockImplementation(
-				(cmd: string, args?: { productId?: string }) => {
-					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
-					if (
-						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
-						args?.productId === "product-1"
-					) {
-						return Promise.resolve(check);
-					}
-					return Promise.reject(new Error(`Unmocked: ${cmd}`));
-				},
-			);
+			getMockedInvoke().mockImplementation((cmd: string, args?: InvokeArgs) => {
+				const typedArgs = args as { productId?: string } | undefined;
+
+				if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+				if (
+					cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+					typedArgs?.productId === "product-1"
+				) {
+					return Promise.resolve(check);
+				}
+				return Promise.reject(new Error(`Unmocked: ${cmd}`));
+			});
 
 			render(<ProductsView />);
 
@@ -567,18 +568,18 @@ describe("ProductsComponent", () => {
 				currency_exponent: 0,
 			});
 
-			getMockedInvoke().mockImplementation(
-				(cmd: string, args?: { productId?: string }) => {
-					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
-					if (
-						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
-						args?.productId === "product-1"
-					) {
-						return Promise.resolve(check);
-					}
-					return Promise.reject(new Error(`Unmocked: ${cmd}`));
-				},
-			);
+			getMockedInvoke().mockImplementation((cmd: string, args?: InvokeArgs) => {
+				const typedArgs = args as { productId?: string } | undefined;
+
+				if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+				if (
+					cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+					typedArgs?.productId === "product-1"
+				) {
+					return Promise.resolve(check);
+				}
+				return Promise.reject(new Error(`Unmocked: ${cmd}`));
+			});
 
 			render(<ProductsView />);
 
@@ -603,18 +604,18 @@ describe("ProductsComponent", () => {
 				currency_exponent: 2,
 			});
 
-			getMockedInvoke().mockImplementation(
-				(cmd: string, args?: { productId?: string }) => {
-					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
-					if (
-						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
-						args?.productId === "product-1"
-					) {
-						return Promise.resolve(check);
-					}
-					return Promise.reject(new Error(`Unmocked: ${cmd}`));
-				},
-			);
+			getMockedInvoke().mockImplementation((cmd: string, args?: InvokeArgs) => {
+				const typedArgs = args as { productId?: string } | undefined;
+
+				if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+				if (
+					cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+					typedArgs?.productId === "product-1"
+				) {
+					return Promise.resolve(check);
+				}
+				return Promise.reject(new Error(`Unmocked: ${cmd}`));
+			});
 
 			render(<ProductsView />);
 
@@ -643,18 +644,18 @@ describe("ProductsComponent", () => {
 				currency_exponent: 2,
 			});
 
-			getMockedInvoke().mockImplementation(
-				(cmd: string, args?: { productId?: string }) => {
-					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
-					if (
-						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
-						args?.productId === "product-1"
-					) {
-						return Promise.resolve(check);
-					}
-					return Promise.reject(new Error(`Unmocked: ${cmd}`));
-				},
-			);
+			getMockedInvoke().mockImplementation((cmd: string, args?: InvokeArgs) => {
+				const typedArgs = args as { productId?: string } | undefined;
+
+				if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+				if (
+					cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+					typedArgs?.productId === "product-1"
+				) {
+					return Promise.resolve(check);
+				}
+				return Promise.reject(new Error(`Unmocked: ${cmd}`));
+			});
 
 			render(<ProductsView />);
 
