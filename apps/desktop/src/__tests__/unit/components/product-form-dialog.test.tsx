@@ -100,7 +100,8 @@ describe("ProductFormDialog", () => {
 				<ProductFormDialog {...defaultProps} onFormChange={onFormChange} />,
 			);
 
-			const urlInput = screen.getByLabelText("URL");
+			const urlInput = await screen.findByLabelText("URL");
+			await user.click(urlInput);
 			await user.type(urlInput, "h");
 
 			expect(onFormChange).toHaveBeenCalled();
@@ -115,7 +116,7 @@ describe("ProductFormDialog", () => {
 				<ProductFormDialog {...defaultProps} onFormChange={onFormChange} />,
 			);
 
-			const descInput = screen.getByLabelText("Description");
+			const descInput = await screen.findByLabelText("Description");
 			await user.click(descInput);
 			await user.type(descInput, "D");
 
@@ -131,7 +132,7 @@ describe("ProductFormDialog", () => {
 				<ProductFormDialog {...defaultProps} onFormChange={onFormChange} />,
 			);
 
-			const notesInput = screen.getByLabelText("Notes");
+			const notesInput = await screen.findByLabelText("Notes");
 			await user.click(notesInput);
 			await user.type(notesInput, "N");
 
