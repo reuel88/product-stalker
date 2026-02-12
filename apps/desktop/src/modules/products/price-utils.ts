@@ -87,9 +87,18 @@ export type PriceChangeDirection = "up" | "down" | "unchanged" | "unknown";
 
 /**
  * Determine the direction of price change.
+ *
  * @param currentMinorUnits - Current price in minor units
  * @param previousMinorUnits - Previous price in minor units
  * @returns Direction of price change
+ *
+ * @example
+ * ```ts
+ * getPriceChangeDirection(79900, 89900) // "down" (price decreased)
+ * getPriceChangeDirection(89900, 79900) // "up" (price increased)
+ * getPriceChangeDirection(79900, 79900) // "unchanged"
+ * getPriceChangeDirection(null, 79900) // "unknown"
+ * ```
  */
 export function getPriceChangeDirection(
 	currentMinorUnits: number | null,
@@ -112,9 +121,19 @@ export function getPriceChangeDirection(
 
 /**
  * Calculate the percentage change between two prices.
+ *
  * @param currentMinorUnits - Current price in minor units
  * @param previousMinorUnits - Previous price in minor units
  * @returns Percentage change (positive for increase, negative for decrease), or null if cannot be calculated
+ *
+ * @example
+ * ```ts
+ * calculatePriceChangePercent(89900, 79900) // 13 (13% increase)
+ * calculatePriceChangePercent(79900, 89900) // -11 (11% decrease)
+ * calculatePriceChangePercent(79900, 79900) // 0 (no change)
+ * calculatePriceChangePercent(null, 79900) // null (cannot calculate)
+ * calculatePriceChangePercent(79900, 0) // null (avoid division by zero)
+ * ```
  */
 export function calculatePriceChangePercent(
 	currentMinorUnits: number | null,
@@ -150,10 +169,19 @@ export function formatPriceChangePercent(percent: number | null): string {
 
 /**
  * Format a price in minor units to a localized currency string.
+ *
  * @param minorUnits - Price in smallest currency unit (e.g., cents for USD, yen for JPY)
  * @param currency - ISO 4217 currency code (e.g., "USD", "EUR", "JPY")
  * @param exponent - Number of decimal places for the currency (0 for JPY, 2 for USD, 3 for KWD). Defaults to 2.
  * @returns Formatted price string or "-" if price is not available
+ *
+ * @example
+ * ```ts
+ * formatPrice(79900, "USD", 2) // "$799.00"
+ * formatPrice(1500, "JPY", 0) // "¥1,500"
+ * formatPrice(12345, "KWD", 3) // "KD 12.345"
+ * formatPrice(null, "USD", 2) // "-"
+ * ```
  */
 export function formatPrice(
 	minorUnits: number | null,

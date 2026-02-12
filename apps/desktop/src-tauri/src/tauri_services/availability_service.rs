@@ -12,10 +12,11 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
-use crate::core::services::SettingService;
+use crate::core::services::{SettingService, SettingsCache};
 use crate::core::AppError;
 use crate::domain::services::{
-    AvailabilityService, BulkCheckSummary, DomainSettingService, NotificationData, ProductService,
+    AvailabilityService, BulkCheckSummary, DomainSettingService, DomainSettingsCache,
+    NotificationData, ProductService,
 };
 
 /// Delay in milliseconds between consecutive product checks during bulk operations.
@@ -66,13 +67,15 @@ impl TauriAvailabilityService {
     ///
     /// Emits "availability:check-progress" events for each product checked.
     /// Delegates per-product checking to domain's `AvailabilityService::check_single_product`.
+    /// Uses settings caching to avoid repeated database reads during bulk processing.
     pub async fn check_all_products_with_notification(
         conn: &DatabaseConnection,
         app: &AppHandle,
     ) -> Result<TauriBulkCheckResult, AppError> {
-        let settings = SettingService::get(conn).await?;
-        let domain_settings = DomainSettingService::get(conn).await?;
-        let enable_headless = domain_settings.enable_headless_browser;
+        // Load settings once and cache for the entire bulk operation
+        let settings_cache = SettingsCache::load(conn).await?;
+        let domain_cache = DomainSettingsCache::load(conn).await?;
+        let enable_headless = domain_cache.enable_headless_browser();
 
         let products = ProductService::get_all(conn).await?;
         let total = products.len();
@@ -117,7 +120,7 @@ impl TauriAvailabilityService {
         let summary = AvailabilityService::build_summary_from_results(total, paired_results);
 
         let notification = AvailabilityService::build_bulk_notification_with_settings(
-            settings.enable_notifications,
+            settings_cache.enable_notifications(),
             &summary,
         );
 

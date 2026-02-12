@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS, MESSAGES } from "@/constants";
 import { ProductsView } from "@/modules/products/ui/views/products-view";
-import { createMockProduct } from "../../mocks/data";
+import {
+	createMockAvailabilityCheck,
+	createMockProduct,
+} from "../../mocks/data";
 import {
 	getMockedInvoke,
 	mockInvokeError,
@@ -391,6 +394,282 @@ describe("ProductsComponent", () => {
 					screen.queryByText(/Are you sure you want to delete/),
 				).not.toBeInTheDocument();
 			});
+		});
+	});
+
+	describe("price display in table", () => {
+		it("should display compact price indicator with price drop", async () => {
+			const product = createMockProduct({ id: "product-1", name: "Test" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: 79900,
+				today_average_price_minor_units: 79900,
+				yesterday_average_price_minor_units: 89900,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+
+			// Mock the invoke command handler
+			getMockedInvoke().mockImplementation(
+				(cmd: string, args?: { productId?: string }) => {
+					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+					if (
+						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+						args?.productId === "product-1"
+					) {
+						return Promise.resolve(check);
+					}
+					return Promise.reject(new Error(`Unmocked: ${cmd}`));
+				},
+			);
+
+			render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test")).toBeInTheDocument();
+			});
+
+			// Wait for price to appear (availability query resolves async)
+			await waitFor(() => {
+				expect(screen.getByText("$799.00")).toBeInTheDocument();
+			});
+
+			// Assert percentage change is visible with proper color (negative percentage for price drop)
+			const percentElement = screen.getByText(/-\d+%/);
+			expect(percentElement).toBeInTheDocument();
+			expect(percentElement).toHaveClass(/text-green/);
+		});
+
+		it("should display compact price indicator with price increase", async () => {
+			const product = createMockProduct({ id: "product-1", name: "Test" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: 89900,
+				today_average_price_minor_units: 89900,
+				yesterday_average_price_minor_units: 79900,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+
+			getMockedInvoke().mockImplementation(
+				(cmd: string, args?: { productId?: string }) => {
+					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+					if (
+						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+						args?.productId === "product-1"
+					) {
+						return Promise.resolve(check);
+					}
+					return Promise.reject(new Error(`Unmocked: ${cmd}`));
+				},
+			);
+
+			render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test")).toBeInTheDocument();
+			});
+
+			// Wait for price to appear (availability query resolves async)
+			await waitFor(() => {
+				expect(screen.getByText("$899.00")).toBeInTheDocument();
+			});
+
+			// Assert percentage change is visible with proper color (positive percentage for price increase)
+			const percentElement = screen.getByText(/\+\d+%/);
+			expect(percentElement).toBeInTheDocument();
+			expect(percentElement).toHaveClass(/text-red/);
+		});
+
+		it("should display price without comparison on first check", async () => {
+			const product = createMockProduct({ id: "product-1", name: "Test" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: 79900,
+				today_average_price_minor_units: null,
+				yesterday_average_price_minor_units: null,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+
+			getMockedInvoke().mockImplementation(
+				(cmd: string, args?: { productId?: string }) => {
+					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+					if (
+						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+						args?.productId === "product-1"
+					) {
+						return Promise.resolve(check);
+					}
+					return Promise.reject(new Error(`Unmocked: ${cmd}`));
+				},
+			);
+
+			render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test")).toBeInTheDocument();
+			});
+
+			// Wait for price to appear (availability query resolves async)
+			await waitFor(() => {
+				expect(screen.getByText("$799.00")).toBeInTheDocument();
+			});
+
+			// Assert no percentage indicators
+			expect(screen.queryByText(/-\d+%/)).not.toBeInTheDocument();
+			expect(screen.queryByText(/\+\d+%/)).not.toBeInTheDocument();
+		});
+
+		it("should display dash for null price", async () => {
+			const product = createMockProduct({ id: "product-1", name: "Test" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: null,
+				price_currency: null,
+				status: "out_of_stock",
+			});
+
+			getMockedInvoke().mockImplementation(
+				(cmd: string, args?: { productId?: string }) => {
+					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+					if (
+						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+						args?.productId === "product-1"
+					) {
+						return Promise.resolve(check);
+					}
+					return Promise.reject(new Error(`Unmocked: ${cmd}`));
+				},
+			);
+
+			render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test")).toBeInTheDocument();
+			});
+
+			// Wait for dash to appear in price cell (availability query resolves async)
+			await waitFor(() => {
+				const priceCell = screen.getByTestId("price-product-1");
+				expect(priceCell.textContent).toBe("-");
+			});
+		});
+
+		it("should display JPY currency without decimals", async () => {
+			const product = createMockProduct({ id: "product-1", name: "Test" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: 1500,
+				today_average_price_minor_units: null,
+				yesterday_average_price_minor_units: null,
+				price_currency: "JPY",
+				currency_exponent: 0,
+			});
+
+			getMockedInvoke().mockImplementation(
+				(cmd: string, args?: { productId?: string }) => {
+					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+					if (
+						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+						args?.productId === "product-1"
+					) {
+						return Promise.resolve(check);
+					}
+					return Promise.reject(new Error(`Unmocked: ${cmd}`));
+				},
+			);
+
+			render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test")).toBeInTheDocument();
+			});
+
+			// Wait for JPY price to appear (availability query resolves async)
+			await waitFor(() => {
+				expect(screen.getByText("¥1,500")).toBeInTheDocument();
+			});
+		});
+
+		it("should display zero price", async () => {
+			const product = createMockProduct({ id: "product-1", name: "Test" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: 0,
+				today_average_price_minor_units: null,
+				yesterday_average_price_minor_units: null,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+
+			getMockedInvoke().mockImplementation(
+				(cmd: string, args?: { productId?: string }) => {
+					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+					if (
+						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+						args?.productId === "product-1"
+					) {
+						return Promise.resolve(check);
+					}
+					return Promise.reject(new Error(`Unmocked: ${cmd}`));
+				},
+			);
+
+			render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test")).toBeInTheDocument();
+			});
+
+			// Wait for zero price to appear (availability query resolves async)
+			await waitFor(() => {
+				expect(screen.getByText("$0.00")).toBeInTheDocument();
+			});
+
+			// Assert no trend indicators
+			expect(screen.queryByText(/-\d+%/)).not.toBeInTheDocument();
+			expect(screen.queryByText(/\+\d+%/)).not.toBeInTheDocument();
+		});
+
+		it("should display price without trend indicator when unchanged", async () => {
+			const product = createMockProduct({ id: "product-1", name: "Test" });
+			const check = createMockAvailabilityCheck({
+				product_id: "product-1",
+				price_minor_units: 79900,
+				today_average_price_minor_units: 79900,
+				yesterday_average_price_minor_units: 79900,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+
+			getMockedInvoke().mockImplementation(
+				(cmd: string, args?: { productId?: string }) => {
+					if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([product]);
+					if (
+						cmd === COMMANDS.GET_LATEST_AVAILABILITY &&
+						args?.productId === "product-1"
+					) {
+						return Promise.resolve(check);
+					}
+					return Promise.reject(new Error(`Unmocked: ${cmd}`));
+				},
+			);
+
+			render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Test")).toBeInTheDocument();
+			});
+
+			// Wait for price to appear (availability query resolves async)
+			await waitFor(() => {
+				expect(screen.getByText("$799.00")).toBeInTheDocument();
+			});
+
+			// Assert no trend indicators (0% change = no comparison shown)
+			expect(screen.queryByText(/-\d+%/)).not.toBeInTheDocument();
+			expect(screen.queryByText(/\+\d+%/)).not.toBeInTheDocument();
 		});
 	});
 });

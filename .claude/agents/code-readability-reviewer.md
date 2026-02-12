@@ -97,6 +97,78 @@ fn process_order(order: Order) -> Result<Receipt> {
 - Are similar operations handled in similar ways?
 - Does the code align with language-specific idioms and best practices?
 
+### 8. React/JSX Patterns
+
+**React philosophy: Composition over Inheritance**
+
+React components should use composition patterns rather than class inheritance for code reuse. Evaluate the following:
+
+**Composition Patterns:**
+- **Children prop**: Does the component use `children` for generic content composition?
+- **Multiple slots**: Are named props used for multiple composition points (e.g., `header`, `footer`, `sidebar`)?
+- **Render props**: When sharing stateful logic, are render props or custom hooks used instead of inheritance?
+- **Component composition**: Are complex UIs built by composing smaller, focused components?
+- **Props for customization**: Does the component accept props for behavior/appearance rather than extending base classes?
+
+**Good pattern:**
+```tsx
+// Composition - flexible and clear
+function Dialog({ title, children, actions }) {
+  return (
+    <div className="dialog">
+      <header>{title}</header>
+      <div className="content">{children}</div>
+      <footer>{actions}</footer>
+    </div>
+  );
+}
+
+// Usage shows clear structure
+<Dialog
+  title="Confirm Delete"
+  actions={<Button onClick={handleDelete}>Delete</Button>}
+>
+  <p>Are you sure you want to delete this item?</p>
+</Dialog>
+```
+
+**Bad pattern:**
+```tsx
+// Inheritance - rigid and unclear
+class BaseDialog extends React.Component {
+  render() {
+    return <div className="dialog">{this.renderContent()}</div>;
+  }
+}
+
+class ConfirmDialog extends BaseDialog {
+  renderContent() {
+    return <p>Are you sure?</p>;
+  }
+}
+// Now you have to read both classes to understand behavior
+```
+
+**Component Design Best Practices:**
+- **Single responsibility**: Does each component do one thing well?
+- **Prop interface clarity**: Are props clearly named and typed?
+- **Avoid prop drilling**: For deeply nested state, is Context or state management used appropriately?
+- **Hooks for logic reuse**: Are custom hooks used to share stateful logic instead of HOCs or render props?
+- **Conditional rendering**: Is conditional JSX clear and not deeply nested?
+
+**JSX Readability:**
+- **Keep JSX shallow**: Avoid deeply nested JSX (extract sub-components when >3-4 levels)
+- **Extract complex conditionals**: Are complex conditional renders extracted to variables or helper functions?
+- **Meaningful component names**: Do component names clearly indicate their purpose?
+- **Avoid inline callbacks**: Are complex event handlers extracted to named functions?
+
+**Red flags to watch for:**
+- Class components extending other class components (composition should be used instead)
+- Deeply nested ternaries in JSX
+- Components with >5 props that aren't structured as an object
+- Mixing business logic and presentation in the same component
+- Large inline callbacks that obscure JSX structure
+
 ## Review Output Format
 
 Structure your review as follows:
@@ -144,6 +216,9 @@ Focus on recently written or modified code unless explicitly asked to review the
 - Read the relevant source files
 - Check for project-specific style guides or conventions
 - Understand the broader context when needed
+
+**Excluded from reviews:**
+- `apps/desktop/src/components/ui` - Third-party UI library components (e.g., shadcn/ui) that are not user-written code
 
 ## Quality Assurance
 
