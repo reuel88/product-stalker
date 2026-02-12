@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import "@testing-library/jest-dom";
 import { beforeEach, vi } from "vitest";
+import { COMMANDS } from "@/constants/api";
+import { createMockSettings } from "./mocks/data";
+import { getMockedInvoke } from "./mocks/tauri";
 
 // Mock ResizeObserver for Radix UI compatibility
 class ResizeObserverMock {
@@ -74,4 +77,15 @@ vi.mock("@tanstack/react-router", async () => {
 // Clear all mocks between tests
 beforeEach(() => {
 	vi.clearAllMocks();
+
+	// Provide default mock for GET_SETTINGS to prevent React Query warnings
+	// Tests can override this by calling mockInvokeMultiple/mockInvoke
+	const invoke = getMockedInvoke();
+	invoke.mockImplementation((cmd: string) => {
+		if (cmd === COMMANDS.GET_SETTINGS) {
+			return Promise.resolve(createMockSettings());
+		}
+		// For unmocked commands, return rejected promise to fail tests fast
+		return Promise.reject(new Error(`Unmocked command: ${cmd}`));
+	});
 });

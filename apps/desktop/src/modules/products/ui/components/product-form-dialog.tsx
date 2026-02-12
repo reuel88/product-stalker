@@ -60,6 +60,7 @@ export function ProductFormDialog({
 						<Label htmlFor={`${mode}-name`}>Name</Label>
 						<Input
 							id={`${mode}-name`}
+							data-testid="product-name-input"
 							value={formData.name}
 							onChange={(e) =>
 								onFormChange({ ...formData, name: e.target.value })
@@ -71,6 +72,7 @@ export function ProductFormDialog({
 						<Label htmlFor={`${mode}-url`}>URL</Label>
 						<Input
 							id={`${mode}-url`}
+							data-testid="product-url-input"
 							value={formData.url}
 							onChange={(e) =>
 								onFormChange({ ...formData, url: e.target.value })
@@ -82,6 +84,7 @@ export function ProductFormDialog({
 						<Label htmlFor={`${mode}-description`}>Description</Label>
 						<Textarea
 							id={`${mode}-description`}
+							data-testid="product-description-input"
 							value={formData.description || ""}
 							onChange={(e) =>
 								onFormChange({ ...formData, description: e.target.value })
@@ -93,6 +96,7 @@ export function ProductFormDialog({
 						<Label htmlFor={`${mode}-notes`}>Notes</Label>
 						<Textarea
 							id={`${mode}-notes`}
+							data-testid="product-notes-input"
 							value={formData.notes || ""}
 							onChange={(e) =>
 								onFormChange({ ...formData, notes: e.target.value })
