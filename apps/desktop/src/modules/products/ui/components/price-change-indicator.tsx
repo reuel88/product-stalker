@@ -43,6 +43,7 @@ export function PriceChangeIndicator({
 		direction,
 		percentChange,
 		hasComparison,
+		isRoundedZero,
 	} = usePriceFormatting({
 		currentPriceMinorUnits,
 		todayAverageMinorUnits,
@@ -70,6 +71,7 @@ export function PriceChangeIndicator({
 				currentPrice={formattedCurrentPrice}
 				direction={direction as "up" | "down"}
 				formattedPercent={formattedPercentChange}
+				isRoundedZero={isRoundedZero}
 			/>
 		);
 	}
@@ -80,6 +82,7 @@ export function PriceChangeIndicator({
 			yesterdayPrice={formattedPreviousPrice}
 			direction={direction as "up" | "down"}
 			percent={percentChange}
+			isRoundedZero={isRoundedZero}
 		/>
 	);
 }
@@ -93,12 +96,14 @@ interface CompactIndicatorProps {
 	currentPrice: string;
 	direction: "up" | "down";
 	formattedPercent: string;
+	isRoundedZero: boolean;
 }
 
 function CompactIndicator({
 	currentPrice,
 	direction,
 	formattedPercent,
+	isRoundedZero,
 }: CompactIndicatorProps) {
 	const isDown = direction === "down";
 	const Icon = isDown ? TrendingDown : TrendingUp;
@@ -113,7 +118,7 @@ function CompactIndicator({
 				)}
 			>
 				<Icon className="size-3" />
-				{formattedPercent}
+				{!isRoundedZero && formattedPercent}
 			</span>
 		</span>
 	);
@@ -124,6 +129,7 @@ interface DetailedIndicatorProps {
 	yesterdayPrice: string;
 	direction: "up" | "down";
 	percent: number | null;
+	isRoundedZero: boolean;
 }
 
 function DetailedIndicator({
@@ -131,6 +137,7 @@ function DetailedIndicator({
 	yesterdayPrice,
 	direction,
 	percent,
+	isRoundedZero,
 }: DetailedIndicatorProps) {
 	const isDown = direction === "down";
 	const Icon = isDown ? TrendingDown : TrendingUp;
@@ -147,7 +154,9 @@ function DetailedIndicator({
 				)}
 			>
 				<Icon className="size-3" />
-				{directionLabel} {percentValue}% from {yesterdayPrice}
+				{isRoundedZero
+					? `Minimal ${directionLabel.toLowerCase()} from ${yesterdayPrice}`
+					: `${directionLabel} ${percentValue}% from ${yesterdayPrice}`}
 			</p>
 		</div>
 	);

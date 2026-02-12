@@ -11,9 +11,19 @@ vi.mock("next-themes", () => ({
 	}),
 }));
 
+// Mock useSettings
+const mockUpdateSettings = vi.fn();
+vi.mock("@/modules/settings/hooks/useSettings", () => ({
+	useSettings: () => ({
+		updateSettings: mockUpdateSettings,
+	}),
+}));
+
 describe("ModeToggle", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mockSetTheme.mockClear();
+		mockUpdateSettings.mockClear();
 	});
 
 	it("should render the toggle button", () => {
@@ -99,5 +109,47 @@ describe("ModeToggle", () => {
 		const button = screen.getByRole("button");
 		// The button should have the outline variant styling
 		expect(button).toBeInTheDocument();
+	});
+
+	it("should persist theme change to backend when selecting Light", async () => {
+		const { user } = render(<ModeToggle />);
+
+		await user.click(screen.getByRole("button"));
+
+		await waitFor(() => {
+			expect(screen.getByText("Light")).toBeInTheDocument();
+		});
+
+		await user.click(screen.getByText("Light"));
+
+		expect(mockUpdateSettings).toHaveBeenCalledWith({ theme: "light" });
+	});
+
+	it("should persist theme change to backend when selecting Dark", async () => {
+		const { user } = render(<ModeToggle />);
+
+		await user.click(screen.getByRole("button"));
+
+		await waitFor(() => {
+			expect(screen.getByText("Dark")).toBeInTheDocument();
+		});
+
+		await user.click(screen.getByText("Dark"));
+
+		expect(mockUpdateSettings).toHaveBeenCalledWith({ theme: "dark" });
+	});
+
+	it("should persist theme change to backend when selecting System", async () => {
+		const { user } = render(<ModeToggle />);
+
+		await user.click(screen.getByRole("button"));
+
+		await waitFor(() => {
+			expect(screen.getByText("System")).toBeInTheDocument();
+		});
+
+		await user.click(screen.getByText("System"));
+
+		expect(mockUpdateSettings).toHaveBeenCalledWith({ theme: "system" });
 	});
 });

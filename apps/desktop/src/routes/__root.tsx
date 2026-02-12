@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { useSettings } from "@/modules/settings/hooks/useSettings";
 import { PaletteProvider } from "@/modules/shared/providers/palette-provider";
 import { ThemeProvider } from "@/modules/shared/providers/theme-provider";
+import { ThemeSync } from "@/modules/shared/providers/theme-sync";
 import Header from "@/modules/shared/ui/components/header";
 
 import "../index.css";
@@ -67,6 +68,7 @@ export function RootComponent() {
 				disableTransitionOnChange
 				storageKey="vite-ui-theme"
 			>
+				<ThemeSync />
 				<PaletteProviderWithSettings>
 					<div className="grid h-svh grid-rows-[auto_1fr]">
 						<Header />
