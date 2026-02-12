@@ -8,7 +8,7 @@ import {
 	YAxis,
 } from "recharts";
 
-import { formatPrice } from "@/lib/utils";
+import { formatPrice } from "@/modules/products/price-utils";
 import type { PriceDataPoint } from "@/modules/products/types";
 
 const CHART_COLORS = {

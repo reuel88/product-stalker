@@ -5,7 +5,6 @@ use uuid::Uuid;
 
 use crate::repositories::ProductRepository;
 use product_stalker_core::services::notification_helpers::NotificationData;
-use product_stalker_core::services::Settings;
 use product_stalker_core::AppError;
 
 use super::availability_service::BulkCheckResult;
@@ -29,14 +28,14 @@ impl NotificationService {
     pub async fn build_single_notification(
         conn: &DatabaseConnection,
         product_id: Uuid,
-        settings: &Settings,
+        enable_notifications: bool,
         is_back_in_stock: bool,
     ) -> Result<Option<NotificationData>, AppError> {
         if !is_back_in_stock {
             return Ok(None);
         }
 
-        if !settings.enable_notifications {
+        if !enable_notifications {
             return Ok(None);
         }
 
@@ -66,7 +65,7 @@ impl NotificationService {
     /// This is the preferred method when settings have already been fetched
     /// by the orchestrator, avoiding duplicate database queries.
     pub fn build_bulk_notification(
-        settings: &Settings,
+        enable_notifications: bool,
         back_in_stock_count: usize,
         price_drop_count: usize,
         results: &[BulkCheckResult],
@@ -75,7 +74,7 @@ impl NotificationService {
             return None;
         }
 
-        if !settings.enable_notifications {
+        if !enable_notifications {
             return None;
         }
 
@@ -291,27 +290,17 @@ mod tests {
     mod build_bulk_notification_tests {
         use super::*;
 
-        fn create_test_settings(enable_notifications: bool) -> Settings {
-            Settings {
-                enable_notifications,
-                ..Default::default()
-            }
-        }
-
         #[test]
         fn test_no_notification_when_no_events() {
-            let settings = create_test_settings(true);
             let results: Vec<BulkCheckResult> = vec![];
 
-            let notification =
-                NotificationService::build_bulk_notification(&settings, 0, 0, &results);
+            let notification = NotificationService::build_bulk_notification(true, 0, 0, &results);
 
             assert!(notification.is_none());
         }
 
         #[test]
         fn test_no_notification_when_disabled() {
-            let settings = create_test_settings(false);
             let results = vec![BulkCheckResult {
                 product_id: "1".to_string(),
                 product_name: "Product A".to_string(),
@@ -319,15 +308,13 @@ mod tests {
                 ..Default::default()
             }];
 
-            let notification =
-                NotificationService::build_bulk_notification(&settings, 1, 0, &results);
+            let notification = NotificationService::build_bulk_notification(false, 1, 0, &results);
 
             assert!(notification.is_none());
         }
 
         #[test]
         fn test_notification_with_back_in_stock() {
-            let settings = create_test_settings(true);
             let results = vec![BulkCheckResult {
                 product_id: "1".to_string(),
                 product_name: "Product A".to_string(),
@@ -335,8 +322,7 @@ mod tests {
                 ..Default::default()
             }];
 
-            let notification =
-                NotificationService::build_bulk_notification(&settings, 1, 0, &results);
+            let notification = NotificationService::build_bulk_notification(true, 1, 0, &results);
 
             assert!(notification.is_some());
             let notification = notification.unwrap();
@@ -346,7 +332,6 @@ mod tests {
 
         #[test]
         fn test_notification_with_price_drop() {
-            let settings = create_test_settings(true);
             let results = vec![BulkCheckResult {
                 product_id: "1".to_string(),
                 product_name: "Product A".to_string(),
@@ -354,8 +339,7 @@ mod tests {
                 ..Default::default()
             }];
 
-            let notification =
-                NotificationService::build_bulk_notification(&settings, 0, 1, &results);
+            let notification = NotificationService::build_bulk_notification(true, 0, 1, &results);
 
             assert!(notification.is_some());
             let notification = notification.unwrap();
@@ -365,7 +349,6 @@ mod tests {
 
         #[test]
         fn test_notification_with_both_events() {
-            let settings = create_test_settings(true);
             let results = vec![
                 BulkCheckResult {
                     product_id: "1".to_string(),
@@ -381,8 +364,7 @@ mod tests {
                 },
             ];
 
-            let notification =
-                NotificationService::build_bulk_notification(&settings, 1, 1, &results);
+            let notification = NotificationService::build_bulk_notification(true, 1, 1, &results);
 
             assert!(notification.is_some());
             let notification = notification.unwrap();

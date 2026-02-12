@@ -4,7 +4,9 @@ import {
 	Outlet,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { useCallback } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { useSettings } from "@/modules/settings/hooks/useSettings";
 import { PaletteProvider } from "@/modules/shared/providers/palette-provider";
 import { ThemeProvider } from "@/modules/shared/providers/theme-provider";
 import Header from "@/modules/shared/ui/components/header";
@@ -34,6 +36,30 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 	}),
 });
 
+function PaletteProviderWithSettings({
+	children,
+}: {
+	children: React.ReactNode;
+}) {
+	const { settings, updateSettings } = useSettings();
+
+	const handlePaletteChange = useCallback(
+		(id: string) => {
+			updateSettings({ color_palette: id });
+		},
+		[updateSettings],
+	);
+
+	return (
+		<PaletteProvider
+			backendColorPalette={settings?.color_palette}
+			onPaletteChange={handlePaletteChange}
+		>
+			{children}
+		</PaletteProvider>
+	);
+}
+
 export function RootComponent() {
 	return (
 		<>
@@ -44,13 +70,13 @@ export function RootComponent() {
 				disableTransitionOnChange
 				storageKey="vite-ui-theme"
 			>
-				<PaletteProvider>
+				<PaletteProviderWithSettings>
 					<div className="grid h-svh grid-rows-[auto_1fr]">
 						<Header />
 						<Outlet />
 					</div>
 					<Toaster richColors />
-				</PaletteProvider>
+				</PaletteProviderWithSettings>
 			</ThemeProvider>
 			{import.meta.env.DEV && <TanStackRouterDevtools position="bottom-left" />}
 		</>

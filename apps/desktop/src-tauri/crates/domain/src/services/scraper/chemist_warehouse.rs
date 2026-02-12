@@ -35,12 +35,12 @@ pub fn is_chemist_warehouse_url(url: &str) -> bool {
 pub fn parse_chemist_warehouse_data(page_props: &Value) -> Result<ScrapingResult, AppError> {
     // Try different possible paths where product data might be located
     let product = find_product_data(page_props).ok_or_else(|| {
-        AppError::Scraping("No product data found in Chemist Warehouse page props".to_string())
+        AppError::External("No product data found in Chemist Warehouse page props".to_string())
     })?;
 
     // Extract availability
     let availability_str = extract_availability(product).ok_or_else(|| {
-        AppError::Scraping("No availability found in Chemist Warehouse product data".to_string())
+        AppError::External("No availability found in Chemist Warehouse product data".to_string())
     })?;
 
     let status = map_availability_status(&availability_str);
@@ -465,7 +465,7 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            AppError::Scraping(msg) => {
+            AppError::External(msg) => {
                 assert!(msg.contains("No product data found"));
             }
             _ => panic!("Expected Scraping error"),
@@ -485,7 +485,7 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            AppError::Scraping(msg) => {
+            AppError::External(msg) => {
                 assert!(msg.contains("No availability found"));
             }
             _ => panic!("Expected Scraping error"),

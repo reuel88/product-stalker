@@ -11,14 +11,14 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-	filterByTimeRange,
-	transformToPriceDataPoints,
-} from "@/lib/price-utils";
-import {
 	useAvailability,
 	useAvailabilityHistory,
 } from "@/modules/products/hooks/useAvailability";
 import { useProduct } from "@/modules/products/hooks/useProduct";
+import {
+	filterByTimeRange,
+	transformToPriceDataPoints,
+} from "@/modules/products/price-utils";
 import type { TimeRange } from "@/modules/products/types";
 import { PriceHistoryChart } from "@/modules/products/ui/components/price-history-chart";
 import { ProductInfoCard } from "@/modules/products/ui/components/product-info-card";
@@ -32,8 +32,8 @@ function LoadingSkeleton() {
 	return (
 		<div className="space-y-6">
 			<Skeleton className="h-8 w-48" />
-			<Skeleton className="h-[200px] w-full" />
-			<Skeleton className="h-[300px] w-full" />
+			<Skeleton className="h-50 w-full" />
+			<Skeleton className="h-75 w-full" />
 		</div>
 	);
 }
@@ -106,7 +106,7 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 				</CardHeader>
 				<CardContent>
 					{isLoadingHistory ? (
-						<Skeleton className="h-[200px] w-full" />
+						<Skeleton className="h-50 w-full" />
 					) : (
 						<PriceHistoryChart data={priceDataPoints} />
 					)}

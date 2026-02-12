@@ -39,6 +39,14 @@ vi.mock("@/modules/shared/providers/palette-provider", () => ({
 	),
 }));
 
+// Mock useSettings (used by PaletteProviderWithSettings in __root)
+vi.mock("@/modules/settings/hooks/useSettings", () => ({
+	useSettings: () => ({
+		settings: { color_palette: "default" },
+		updateSettings: vi.fn(),
+	}),
+}));
+
 // Mock sonner
 vi.mock("@/components/ui/sonner", () => ({
 	Toaster: () => <div data-testid="toaster" />,

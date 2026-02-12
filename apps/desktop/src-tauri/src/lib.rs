@@ -109,7 +109,7 @@ pub fn run() {
             #[cfg(desktop)]
             configure_autostart(app, settings.launch_at_login);
 
-            // Spawn background availability checker
+            // === DOMAIN === Spawn background availability checker
             let conn_arc = Arc::new(conn);
             background::spawn_background_checker(app.handle().clone(), conn_arc);
             log::info!("Background availability checker spawned");
@@ -128,26 +128,22 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            // Product commands
+            // === DOMAIN ===
             commands::get_products,
             commands::get_product,
             commands::create_product,
             commands::update_product,
             commands::delete_product,
-            // Availability commands
             commands::check_availability,
             commands::get_latest_availability,
             commands::get_availability_history,
             commands::check_all_availability,
-            // Settings commands
+            // === INFRASTRUCTURE ===
             commands::get_settings,
             commands::update_settings,
-            // Notification commands
             commands::are_notifications_enabled,
             commands::send_notification,
-            // Window commands
             commands::close_splashscreen,
-            // Updater commands
             commands::check_for_update,
             commands::download_and_install_update,
             commands::get_current_version,

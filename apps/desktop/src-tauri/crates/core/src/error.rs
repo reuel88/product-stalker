@@ -4,6 +4,7 @@ use thiserror::Error;
 /// Application error types
 ///
 /// Provides structured error handling with error codes for frontend consumption.
+/// Domain-specific errors should use the `External` variant with a descriptive message.
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("Database error: {0}")]
@@ -18,19 +19,9 @@ pub enum AppError {
     #[error("Internal error: {0}")]
     Internal(String),
 
-    /// Client-level HTTP errors (connection refused, timeout, DNS failure, TLS errors)
-    #[error("HTTP error: {0}")]
-    Http(#[from] reqwest::Error),
-
-    #[error("Scraping error: {0}")]
-    Scraping(String),
-
-    #[error("Bot protection: {0}")]
-    BotProtection(String),
-
-    /// HTTP response status code errors (e.g., 403 Forbidden, 404 Not Found, 503 Service Unavailable)
-    #[error("HTTP {status} for URL: {url}")]
-    HttpStatus { status: u16, url: String },
+    /// Errors from external systems (HTTP, scraping, third-party services, etc.)
+    #[error("External error: {0}")]
+    External(String),
 }
 
 impl AppError {
@@ -41,10 +32,7 @@ impl AppError {
             AppError::NotFound(_) => "NOT_FOUND",
             AppError::Validation(_) => "VALIDATION_ERROR",
             AppError::Internal(_) => "INTERNAL_ERROR",
-            AppError::Http(_) => "HTTP_ERROR",
-            AppError::Scraping(_) => "SCRAPING_ERROR",
-            AppError::BotProtection(_) => "BOT_PROTECTION",
-            AppError::HttpStatus { .. } => "HTTP_STATUS_ERROR",
+            AppError::External(_) => "EXTERNAL_ERROR",
         }
     }
 }
@@ -73,13 +61,10 @@ impl ErrorResponse {
     pub fn from_app_error(err: &AppError) -> Self {
         let message = match err {
             AppError::Database(db_err) => db_err.to_string(),
-            AppError::NotFound(msg) => msg.clone(),
-            AppError::Validation(msg) => msg.clone(),
-            AppError::Internal(msg) => msg.clone(),
-            AppError::Http(http_err) => http_err.to_string(),
-            AppError::Scraping(msg) => msg.clone(),
-            AppError::BotProtection(msg) => msg.clone(),
-            AppError::HttpStatus { status, url } => format!("HTTP {} for URL: {}", status, url),
+            AppError::NotFound(msg)
+            | AppError::Validation(msg)
+            | AppError::Internal(msg)
+            | AppError::External(msg) => msg.clone(),
         };
 
         Self::new(message, err.code())
@@ -273,12 +258,7 @@ mod tests {
             AppError::NotFound("test".to_string()),
             AppError::Validation("test".to_string()),
             AppError::Internal("test".to_string()),
-            AppError::Scraping("test".to_string()),
-            AppError::BotProtection("test".to_string()),
-            AppError::HttpStatus {
-                status: 404,
-                url: "test".to_string(),
-            },
+            AppError::External("test".to_string()),
         ];
 
         let codes: Vec<&str> = errors.iter().map(|e| e.code()).collect();
@@ -291,116 +271,25 @@ mod tests {
         );
     }
 
-    // Http and Scraping error tests
+    // External error tests
 
     #[test]
-    fn test_scraping_error_display() {
-        let err = AppError::Scraping("Failed to parse HTML".to_string());
-        assert_eq!(err.to_string(), "Scraping error: Failed to parse HTML");
+    fn test_external_error_display() {
+        let err = AppError::External("HTTP request failed".to_string());
+        assert_eq!(err.to_string(), "External error: HTTP request failed");
     }
 
     #[test]
-    fn test_scraping_code() {
-        let err = AppError::Scraping("test".to_string());
-        assert_eq!(err.code(), "SCRAPING_ERROR");
+    fn test_external_code() {
+        let err = AppError::External("test".to_string());
+        assert_eq!(err.code(), "EXTERNAL_ERROR");
     }
 
     #[test]
-    fn test_error_response_from_scraping() {
-        let err = AppError::Scraping("No JSON-LD found".to_string());
+    fn test_error_response_from_external() {
+        let err = AppError::External("Service unavailable".to_string());
         let response = ErrorResponse::from_app_error(&err);
-        assert_eq!(response.error, "No JSON-LD found");
-        assert_eq!(response.code, "SCRAPING_ERROR");
-    }
-
-    // Bot protection error tests
-
-    #[test]
-    fn test_bot_protection_error_display() {
-        let err = AppError::BotProtection("Cloudflare challenge detected".to_string());
-        assert_eq!(
-            err.to_string(),
-            "Bot protection: Cloudflare challenge detected"
-        );
-    }
-
-    #[test]
-    fn test_bot_protection_code() {
-        let err = AppError::BotProtection("test".to_string());
-        assert_eq!(err.code(), "BOT_PROTECTION");
-    }
-
-    #[test]
-    fn test_error_response_from_bot_protection() {
-        let err = AppError::BotProtection("Chrome required".to_string());
-        let response = ErrorResponse::from_app_error(&err);
-        assert_eq!(response.error, "Chrome required");
-        assert_eq!(response.code, "BOT_PROTECTION");
-    }
-
-    // HTTP status error tests
-
-    #[test]
-    fn test_http_status_error_display() {
-        let err = AppError::HttpStatus {
-            status: 403,
-            url: "https://example.com/product".to_string(),
-        };
-        assert_eq!(
-            err.to_string(),
-            "HTTP 403 for URL: https://example.com/product"
-        );
-    }
-
-    #[test]
-    fn test_http_status_error_display_503() {
-        let err = AppError::HttpStatus {
-            status: 503,
-            url: "https://example.com/api".to_string(),
-        };
-        assert_eq!(err.to_string(), "HTTP 503 for URL: https://example.com/api");
-    }
-
-    #[test]
-    fn test_http_status_code() {
-        let err = AppError::HttpStatus {
-            status: 404,
-            url: "test".to_string(),
-        };
-        assert_eq!(err.code(), "HTTP_STATUS_ERROR");
-    }
-
-    #[test]
-    fn test_error_response_from_http_status() {
-        let err = AppError::HttpStatus {
-            status: 403,
-            url: "https://example.com/blocked".to_string(),
-        };
-        let response = ErrorResponse::from_app_error(&err);
-        assert_eq!(
-            response.error,
-            "HTTP 403 for URL: https://example.com/blocked"
-        );
-        assert_eq!(response.code, "HTTP_STATUS_ERROR");
-    }
-
-    #[test]
-    fn test_http_status_url_with_numbers_not_confused() {
-        // This test verifies that a URL containing "403" doesn't cause issues
-        // The status should be checked via the discrete field, not string matching
-        let err = AppError::HttpStatus {
-            status: 404, // Different status than what's in the URL
-            url: "https://example.com/product-403-special".to_string(),
-        };
-        // The error message will contain "403" in the URL but the status is 404
-        assert_eq!(
-            err.to_string(),
-            "HTTP 404 for URL: https://example.com/product-403-special"
-        );
-        // The actual status field is what matters for bot protection detection
-        if let AppError::HttpStatus { status, .. } = err {
-            assert_eq!(status, 404);
-            assert!(status != 403); // This is the key check - status is deterministic
-        }
+        assert_eq!(response.error, "Service unavailable");
+        assert_eq!(response.code, "EXTERNAL_ERROR");
     }
 }

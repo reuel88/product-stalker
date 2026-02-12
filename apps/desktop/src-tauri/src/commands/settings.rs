@@ -1,15 +1,16 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
 use crate::core::services::{SettingService, Settings, UpdateSettingsParams};
 use crate::db::DbState;
+use crate::domain::services::{DomainSettingService, DomainSettings, UpdateDomainSettingsParams};
 use crate::tauri_error::CommandError;
 use crate::TrayState;
 
 /// Response DTO for settings.
 ///
-/// Mirrors `Settings` fields but converts `updated_at` from `DateTime<Utc>` to an
-/// RFC 3339 `String` for JSON serialization. Keep fields in sync with `Settings`.
+/// Merges core `Settings` and domain `DomainSettings` into a single flat response
+/// for the frontend. Converts `updated_at` from `DateTime<Utc>` to RFC 3339 `String`.
 #[derive(Debug, Serialize)]
 pub struct SettingsResponse {
     pub theme: String,
@@ -26,8 +27,8 @@ pub struct SettingsResponse {
     pub updated_at: String,
 }
 
-impl From<Settings> for SettingsResponse {
-    fn from(settings: Settings) -> Self {
+impl SettingsResponse {
+    pub fn from_merged(settings: Settings, domain: DomainSettings) -> Self {
         Self {
             theme: settings.theme,
             show_in_tray: settings.show_in_tray,
@@ -36,20 +37,40 @@ impl From<Settings> for SettingsResponse {
             log_level: settings.log_level,
             enable_notifications: settings.enable_notifications,
             sidebar_expanded: settings.sidebar_expanded,
-            background_check_enabled: settings.background_check_enabled,
-            background_check_interval_minutes: settings.background_check_interval_minutes,
-            enable_headless_browser: settings.enable_headless_browser,
+            background_check_enabled: domain.background_check_enabled,
+            background_check_interval_minutes: domain.background_check_interval_minutes,
+            enable_headless_browser: domain.enable_headless_browser,
             color_palette: settings.color_palette,
             updated_at: settings.updated_at.to_rfc3339(),
         }
     }
 }
 
+/// Combined update params from the frontend.
+///
+/// The frontend sends a flat object with all settings fields. This struct
+/// captures them all and splits them for the appropriate service.
+#[derive(Default, Deserialize)]
+pub struct CombinedUpdateParams {
+    pub theme: Option<String>,
+    pub show_in_tray: Option<bool>,
+    pub launch_at_login: Option<bool>,
+    pub enable_logging: Option<bool>,
+    pub log_level: Option<String>,
+    pub enable_notifications: Option<bool>,
+    pub sidebar_expanded: Option<bool>,
+    pub background_check_enabled: Option<bool>,
+    pub background_check_interval_minutes: Option<i32>,
+    pub enable_headless_browser: Option<bool>,
+    pub color_palette: Option<String>,
+}
+
 /// Get current settings
 #[tauri::command]
 pub async fn get_settings(db: State<'_, DbState>) -> Result<SettingsResponse, CommandError> {
     let settings = SettingService::get(db.conn()).await?;
-    Ok(SettingsResponse::from(settings))
+    let domain = DomainSettingService::get(db.conn()).await?;
+    Ok(SettingsResponse::from_merged(settings, domain))
 }
 
 fn update_tray_visibility(app: &AppHandle, visible: bool) {
@@ -75,18 +96,37 @@ fn update_tray_visibility(app: &AppHandle, visible: bool) {
 #[tauri::command]
 pub async fn update_settings(
     app: AppHandle,
-    input: UpdateSettingsParams,
+    input: CombinedUpdateParams,
     db: State<'_, DbState>,
 ) -> Result<SettingsResponse, CommandError> {
     let show_in_tray_value = input.show_in_tray;
 
-    let settings = SettingService::update(db.conn(), input).await?;
+    // Split into core and domain params
+    let core_params = UpdateSettingsParams {
+        theme: input.theme,
+        show_in_tray: input.show_in_tray,
+        launch_at_login: input.launch_at_login,
+        enable_logging: input.enable_logging,
+        log_level: input.log_level,
+        enable_notifications: input.enable_notifications,
+        sidebar_expanded: input.sidebar_expanded,
+        color_palette: input.color_palette,
+    };
+
+    let domain_params = UpdateDomainSettingsParams {
+        background_check_enabled: input.background_check_enabled,
+        background_check_interval_minutes: input.background_check_interval_minutes,
+        enable_headless_browser: input.enable_headless_browser,
+    };
+
+    let settings = SettingService::update(db.conn(), core_params).await?;
+    let domain = DomainSettingService::update(db.conn(), domain_params).await?;
 
     if let Some(show_in_tray) = show_in_tray_value {
         update_tray_visibility(&app, show_in_tray);
     }
 
-    Ok(SettingsResponse::from(settings))
+    Ok(SettingsResponse::from_merged(settings, domain))
 }
 
 #[cfg(test)]
@@ -94,10 +134,8 @@ mod tests {
     use super::*;
     use chrono::Utc;
 
-    #[test]
-    fn test_settings_response_from_settings() {
-        let now = Utc::now();
-        let settings = Settings {
+    fn test_core_settings() -> Settings {
+        Settings {
             theme: "dark".to_string(),
             show_in_tray: true,
             launch_at_login: false,
@@ -105,14 +143,22 @@ mod tests {
             log_level: "info".to_string(),
             enable_notifications: true,
             sidebar_expanded: false,
+            color_palette: "default".to_string(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    fn test_domain_settings() -> DomainSettings {
+        DomainSettings {
             background_check_enabled: false,
             background_check_interval_minutes: 60,
             enable_headless_browser: true,
-            color_palette: "default".to_string(),
-            updated_at: now,
-        };
+        }
+    }
 
-        let response = SettingsResponse::from(settings);
+    #[test]
+    fn test_settings_response_from_merged() {
+        let response = SettingsResponse::from_merged(test_core_settings(), test_domain_settings());
 
         assert_eq!(response.theme, "dark");
         assert!(response.show_in_tray);
@@ -128,8 +174,7 @@ mod tests {
     }
 
     #[test]
-    fn test_settings_response_from_settings_light_theme() {
-        let now = Utc::now();
+    fn test_settings_response_from_merged_light_theme() {
         let settings = Settings {
             theme: "light".to_string(),
             show_in_tray: false,
@@ -138,14 +183,16 @@ mod tests {
             log_level: "error".to_string(),
             enable_notifications: false,
             sidebar_expanded: true,
+            color_palette: "ocean".to_string(),
+            updated_at: Utc::now(),
+        };
+        let domain = DomainSettings {
             background_check_enabled: true,
             background_check_interval_minutes: 30,
             enable_headless_browser: false,
-            color_palette: "ocean".to_string(),
-            updated_at: now,
         };
 
-        let response = SettingsResponse::from(settings);
+        let response = SettingsResponse::from_merged(settings, domain);
 
         assert_eq!(response.theme, "light");
         assert!(!response.show_in_tray);
@@ -161,24 +208,15 @@ mod tests {
     }
 
     #[test]
-    fn test_settings_response_from_settings_system_theme() {
-        let now = Utc::now();
+    fn test_settings_response_from_merged_system_theme() {
         let settings = Settings {
             theme: "system".to_string(),
-            show_in_tray: true,
-            launch_at_login: true,
-            enable_logging: true,
             log_level: "debug".to_string(),
-            enable_notifications: true,
-            sidebar_expanded: true,
-            background_check_enabled: false,
-            background_check_interval_minutes: 60,
-            enable_headless_browser: true,
             color_palette: "rose".to_string(),
-            updated_at: now,
+            ..Settings::default()
         };
 
-        let response = SettingsResponse::from(settings);
+        let response = SettingsResponse::from_merged(settings, test_domain_settings());
 
         assert_eq!(response.theme, "system");
         assert_eq!(response.log_level, "debug");
@@ -187,23 +225,7 @@ mod tests {
 
     #[test]
     fn test_settings_response_serializes_to_json() {
-        let now = Utc::now();
-        let settings = Settings {
-            theme: "dark".to_string(),
-            show_in_tray: true,
-            launch_at_login: false,
-            enable_logging: true,
-            log_level: "info".to_string(),
-            enable_notifications: true,
-            sidebar_expanded: false,
-            background_check_enabled: false,
-            background_check_interval_minutes: 60,
-            enable_headless_browser: true,
-            color_palette: "default".to_string(),
-            updated_at: now,
-        };
-
-        let response = SettingsResponse::from(settings);
+        let response = SettingsResponse::from_merged(test_core_settings(), test_domain_settings());
         let json = serde_json::to_string(&response).unwrap();
 
         assert!(json.contains("\"theme\":\"dark\""));
@@ -217,32 +239,16 @@ mod tests {
 
     #[test]
     fn test_settings_response_timestamp_is_rfc3339() {
-        let now = Utc::now();
-        let settings = Settings {
-            theme: "dark".to_string(),
-            show_in_tray: true,
-            launch_at_login: false,
-            enable_logging: true,
-            log_level: "info".to_string(),
-            enable_notifications: true,
-            sidebar_expanded: false,
-            background_check_enabled: false,
-            background_check_interval_minutes: 60,
-            enable_headless_browser: true,
-            color_palette: "default".to_string(),
-            updated_at: now,
-        };
-
-        let response = SettingsResponse::from(settings);
+        let response = SettingsResponse::from_merged(test_core_settings(), test_domain_settings());
 
         // RFC3339 format includes 'T' separator
         assert!(response.updated_at.contains('T'));
     }
 
     #[test]
-    fn test_update_settings_input_deserializes_partial() {
+    fn test_combined_update_params_deserializes_partial() {
         let json = r#"{"theme":"light"}"#;
-        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
+        let input: CombinedUpdateParams = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.theme, Some("light".to_string()));
         assert!(input.show_in_tray.is_none());
@@ -258,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_settings_input_deserializes_all_fields() {
+    fn test_combined_update_params_deserializes_all_fields() {
         let json = r#"{
             "theme": "dark",
             "show_in_tray": true,
@@ -272,7 +278,7 @@ mod tests {
             "enable_headless_browser": false,
             "color_palette": "ocean"
         }"#;
-        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
+        let input: CombinedUpdateParams = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.theme, Some("dark".to_string()));
         assert_eq!(input.show_in_tray, Some(true));
@@ -288,9 +294,9 @@ mod tests {
     }
 
     #[test]
-    fn test_update_settings_input_deserializes_empty() {
+    fn test_combined_update_params_deserializes_empty() {
         let json = r#"{}"#;
-        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
+        let input: CombinedUpdateParams = serde_json::from_str(json).unwrap();
 
         assert!(input.theme.is_none());
         assert!(input.show_in_tray.is_none());
@@ -306,9 +312,9 @@ mod tests {
     }
 
     #[test]
-    fn test_update_settings_input_deserializes_booleans_only() {
+    fn test_combined_update_params_deserializes_booleans_only() {
         let json = r#"{"show_in_tray":false,"launch_at_login":true}"#;
-        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
+        let input: CombinedUpdateParams = serde_json::from_str(json).unwrap();
 
         assert!(input.theme.is_none());
         assert_eq!(input.show_in_tray, Some(false));
@@ -316,18 +322,18 @@ mod tests {
     }
 
     #[test]
-    fn test_update_settings_input_deserializes_log_level_only() {
+    fn test_combined_update_params_deserializes_log_level_only() {
         let json = r#"{"log_level":"trace"}"#;
-        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
+        let input: CombinedUpdateParams = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.log_level, Some("trace".to_string()));
         assert!(input.theme.is_none());
     }
 
     #[test]
-    fn test_update_settings_input_deserializes_background_check_only() {
+    fn test_combined_update_params_deserializes_background_check_only() {
         let json = r#"{"background_check_enabled":true,"background_check_interval_minutes":15}"#;
-        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
+        let input: CombinedUpdateParams = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.background_check_enabled, Some(true));
         assert_eq!(input.background_check_interval_minutes, Some(15));
@@ -335,9 +341,9 @@ mod tests {
     }
 
     #[test]
-    fn test_update_settings_input_deserializes_headless_browser_only() {
+    fn test_combined_update_params_deserializes_headless_browser_only() {
         let json = r#"{"enable_headless_browser":false}"#;
-        let input: UpdateSettingsParams = serde_json::from_str(json).unwrap();
+        let input: CombinedUpdateParams = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.enable_headless_browser, Some(false));
         assert!(input.theme.is_none());

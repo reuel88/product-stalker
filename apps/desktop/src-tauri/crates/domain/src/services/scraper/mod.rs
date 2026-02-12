@@ -132,7 +132,7 @@ impl ScraperService {
             }
         }
 
-        Err(AppError::Scraping(
+        Err(AppError::External(
             "No availability information found in Schema.org data".to_string(),
         ))
     }
@@ -145,7 +145,7 @@ impl ScraperService {
         }
 
         // No site-specific parser matched
-        Err(AppError::Scraping(
+        Err(AppError::External(
             "No availability information found. Site does not use Schema.org or a supported data format.".to_string(),
         ))
     }
@@ -154,7 +154,7 @@ impl ScraperService {
     fn try_chemist_warehouse_extraction(html: &str) -> Result<ScrapingResult, AppError> {
         let next_data = nextjs_data::extract_next_data(html)?;
         let page_props = nextjs_data::get_page_props(&next_data)
-            .ok_or_else(|| AppError::Scraping("No pageProps found in Next.js data".to_string()))?;
+            .ok_or_else(|| AppError::External("No pageProps found in Next.js data".to_string()))?;
         chemist_warehouse::parse_chemist_warehouse_data(page_props)
     }
 

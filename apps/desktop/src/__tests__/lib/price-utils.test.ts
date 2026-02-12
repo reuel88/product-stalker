@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
 	calculatePriceChangePercent,
 	filterByTimeRange,
+	formatPrice,
 	formatPriceChangePercent,
 	getDateRangeLabel,
 	getPriceChangeDirection,
 	transformToPriceDataPoints,
-} from "@/lib/price-utils";
+} from "@/modules/products/price-utils";
 import type { AvailabilityCheckResponse } from "@/modules/products/types";
 
 function createCheck(
@@ -317,5 +318,35 @@ describe("formatPriceChangePercent", () => {
 
 	it("should return empty string for null", () => {
 		expect(formatPriceChangePercent(null)).toBe("");
+	});
+});
+
+describe("formatPrice", () => {
+	it("should format USD price with default exponent (2)", () => {
+		expect(formatPrice(9999, "USD")).toBe("$99.99");
+	});
+
+	it("should format price with explicit exponent 2", () => {
+		expect(formatPrice(78900, "USD", 2)).toBe("$789.00");
+	});
+
+	it("should format JPY price with exponent 0", () => {
+		expect(formatPrice(1500, "JPY", 0)).toBe("\u00a51,500");
+	});
+
+	it("should format KWD price with exponent 3", () => {
+		expect(formatPrice(29990, "KWD", 3)).toBe("KWD\u00a029.990");
+	});
+
+	it("should return dash when minor units is null", () => {
+		expect(formatPrice(null, "USD")).toBe("-");
+	});
+
+	it("should return dash when currency is null", () => {
+		expect(formatPrice(9999, null)).toBe("-");
+	});
+
+	it("should return dash when both are null", () => {
+		expect(formatPrice(null, null)).toBe("-");
 	});
 });

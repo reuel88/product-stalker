@@ -1,13 +1,19 @@
+// === DOMAIN ===
 mod availability;
-mod notifications;
 mod products;
+
+// === INFRASTRUCTURE ===
+mod notifications;
 mod settings;
 mod updater;
 mod window;
 
+// === DOMAIN ===
 pub use availability::*;
-pub use notifications::*;
 pub use products::*;
+
+// === INFRASTRUCTURE ===
+pub use notifications::*;
 pub use settings::*;
 pub use updater::*;
 pub use window::*;

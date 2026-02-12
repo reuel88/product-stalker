@@ -15,7 +15,7 @@ use uuid::Uuid;
 use crate::core::services::SettingService;
 use crate::core::AppError;
 use crate::domain::services::{
-    AvailabilityService, BulkCheckSummary, NotificationData, ProductService,
+    AvailabilityService, BulkCheckSummary, DomainSettingService, NotificationData, ProductService,
 };
 
 /// Delay in milliseconds between consecutive product checks during bulk operations.
@@ -52,7 +52,14 @@ impl TauriAvailabilityService {
         product_id: Uuid,
     ) -> Result<CheckResultWithNotification, AppError> {
         let settings = SettingService::get(conn).await?;
-        AvailabilityService::check_product_with_notification(conn, product_id, &settings).await
+        let domain_settings = DomainSettingService::get(conn).await?;
+        AvailabilityService::check_product_with_notification(
+            conn,
+            product_id,
+            domain_settings.enable_headless_browser,
+            settings.enable_notifications,
+        )
+        .await
     }
 
     /// Check all products with progress events and bulk notification.
@@ -64,7 +71,8 @@ impl TauriAvailabilityService {
         app: &AppHandle,
     ) -> Result<TauriBulkCheckResult, AppError> {
         let settings = SettingService::get(conn).await?;
-        let enable_headless = settings.enable_headless_browser;
+        let domain_settings = DomainSettingService::get(conn).await?;
+        let enable_headless = domain_settings.enable_headless_browser;
 
         let products = ProductService::get_all(conn).await?;
         let total = products.len();
@@ -108,8 +116,10 @@ impl TauriAvailabilityService {
 
         let summary = AvailabilityService::build_summary_from_results(total, paired_results);
 
-        let notification =
-            AvailabilityService::build_bulk_notification_with_settings(&settings, &summary);
+        let notification = AvailabilityService::build_bulk_notification_with_settings(
+            settings.enable_notifications,
+            &summary,
+        );
 
         Ok(TauriBulkCheckResult {
             summary,

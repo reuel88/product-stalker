@@ -11,7 +11,7 @@ use super::price_parser::{get_price_from_offer, PriceInfo};
 pub fn extract_json_ld_blocks(html: &str) -> Result<Vec<serde_json::Value>, AppError> {
     let document = Html::parse_document(html);
     let selector = Selector::parse("script[type=\"application/ld+json\"]")
-        .map_err(|e| AppError::Scraping(format!("Invalid selector: {:?}", e)))?;
+        .map_err(|e| AppError::External(format!("Invalid selector: {:?}", e)))?;
 
     Ok(document
         .select(&selector)

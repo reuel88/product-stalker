@@ -54,7 +54,7 @@ pub fn extract_from_datalayer(html: &str) -> Result<ScrapingResult, AppError> {
     let push_objects = extract_datalayer_push_strings(html)?;
 
     if push_objects.is_empty() {
-        return Err(AppError::Scraping(
+        return Err(AppError::External(
             "No dataLayer.push() calls found".to_string(),
         ));
     }
@@ -68,7 +68,7 @@ pub fn extract_from_datalayer(html: &str) -> Result<ScrapingResult, AppError> {
         .collect();
 
     if parsed.is_empty() {
-        return Err(AppError::Scraping(
+        return Err(AppError::External(
             "No parseable dataLayer.push() objects found".to_string(),
         ));
     }
@@ -88,7 +88,7 @@ pub fn extract_from_datalayer(html: &str) -> Result<ScrapingResult, AppError> {
         return Ok(build_result(html, price));
     }
 
-    Err(AppError::Scraping(
+    Err(AppError::External(
         "No ecommerce data found in dataLayer pushes".to_string(),
     ))
 }
@@ -108,7 +108,7 @@ fn build_result(html: &str, price: PriceInfo) -> ScrapingResult {
 fn extract_datalayer_push_strings(html: &str) -> Result<Vec<String>, AppError> {
     let document = Html::parse_document(html);
     let selector = Selector::parse("script:not([src])")
-        .map_err(|e| AppError::Scraping(format!("Invalid selector: {:?}", e)))?;
+        .map_err(|e| AppError::External(format!("Invalid selector: {:?}", e)))?;
 
     let mut results = Vec::new();
 

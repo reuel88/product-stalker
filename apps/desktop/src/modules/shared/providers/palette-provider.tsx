@@ -6,7 +6,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useSettings } from "@/modules/settings/hooks/useSettings";
 import {
 	applyPalette,
 	clearPaletteStyles,
@@ -38,27 +37,36 @@ interface PaletteContextValue {
 
 const PaletteContext = createContext<PaletteContextValue | null>(null);
 
-export function PaletteProvider({ children }: { children: React.ReactNode }) {
+interface PaletteProviderProps {
+	children: React.ReactNode;
+	/** Backend color palette value to sync from on first load */
+	backendColorPalette?: string;
+	/** Callback to persist palette changes to the backend */
+	onPaletteChange?: (id: PaletteId) => void;
+}
+
+export function PaletteProvider({
+	children,
+	backendColorPalette,
+	onPaletteChange,
+}: PaletteProviderProps) {
 	const [paletteId, setPaletteId] = useState<PaletteId>(getStoredPaletteId);
 	const { resolvedTheme } = useTheme();
-	const { settings, updateSettings } = useSettings();
 	const initializedFromBackend = useRef(false);
 
 	// Sync palette from backend settings on first load
 	useEffect(() => {
-		if (initializedFromBackend.current || !settings) return;
+		if (initializedFromBackend.current || !backendColorPalette) return;
 		initializedFromBackend.current = true;
 
-		const backendPalette = settings.color_palette;
 		if (
-			backendPalette &&
-			isValidPaletteId(backendPalette) &&
-			backendPalette !== paletteId
+			isValidPaletteId(backendColorPalette) &&
+			backendColorPalette !== paletteId
 		) {
-			setPaletteId(backendPalette);
-			storePaletteId(backendPalette);
+			setPaletteId(backendColorPalette);
+			storePaletteId(backendColorPalette);
 		}
-	}, [settings, paletteId]);
+	}, [backendColorPalette, paletteId]);
 
 	// Apply palette whenever paletteId or resolved theme changes
 	useEffect(() => {
@@ -85,9 +93,9 @@ export function PaletteProvider({ children }: { children: React.ReactNode }) {
 			setPaletteId(id);
 			storePaletteId(id);
 			applyOrClearPalette(id, detectCurrentMode());
-			updateSettings({ color_palette: id });
+			onPaletteChange?.(id);
 		},
-		[updateSettings],
+		[onPaletteChange],
 	);
 
 	return (
