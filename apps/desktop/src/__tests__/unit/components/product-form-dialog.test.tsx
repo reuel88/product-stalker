@@ -132,7 +132,7 @@ describe("ProductFormDialog", () => {
 				<ProductFormDialog {...defaultProps} onFormChange={onFormChange} />,
 			);
 
-			const notesInput = await screen.findByLabelText("Notes");
+			const notesInput = await screen.findByTestId("product-notes-input");
 			await user.click(notesInput);
 			await user.type(notesInput, "N");
 
