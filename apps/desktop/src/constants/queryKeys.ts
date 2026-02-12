@@ -2,9 +2,8 @@ const AVAILABILITY_PREFIX = "availability";
 
 // UPPER_CASE = static query keys, camelCase = factory functions that accept parameters
 export const QUERY_KEYS = {
+	// === DOMAIN ===
 	PRODUCTS: ["products"],
-	SETTINGS: ["settings"],
-	CURRENT_VERSION: ["currentVersion"],
 	AVAILABILITY_PREFIX,
 	product: (id: string) => ["product", id] as const,
 	availability: (productId: string) =>
@@ -13,4 +12,7 @@ export const QUERY_KEYS = {
 		limit !== undefined
 			? ([AVAILABILITY_PREFIX, productId, "history", limit] as const)
 			: ([AVAILABILITY_PREFIX, productId, "history"] as const),
+	// === INFRASTRUCTURE ===
+	SETTINGS: ["settings"],
+	CURRENT_VERSION: ["currentVersion"],
 } as const;

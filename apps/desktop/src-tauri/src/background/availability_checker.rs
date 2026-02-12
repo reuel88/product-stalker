@@ -4,7 +4,7 @@ use std::time::Duration;
 use sea_orm::DatabaseConnection;
 use tauri::AppHandle;
 
-use crate::core::services::SettingService;
+use crate::domain::services::DomainSettingService;
 use crate::tauri_services::{send_desktop_notification, TauriAvailabilityService};
 
 /// Delay in seconds before retrying after a settings fetch error.
@@ -43,8 +43,8 @@ async fn background_checker_loop(app: AppHandle, conn: Arc<DatabaseConnection>) 
     log::info!("Background availability checker started");
 
     loop {
-        // Get current settings
-        let settings = match SettingService::get(&conn).await {
+        // Get current domain settings
+        let domain_settings = match DomainSettingService::get(&conn).await {
             Ok(s) => s,
             Err(e) => {
                 log::error!("Failed to get settings in background checker: {}", e);
@@ -54,7 +54,7 @@ async fn background_checker_loop(app: AppHandle, conn: Arc<DatabaseConnection>) 
         };
 
         // Check if background checking is enabled
-        if !settings.background_check_enabled {
+        if !domain_settings.background_check_enabled {
             log::debug!(
                 "Background checking disabled, sleeping for {} seconds",
                 DISABLED_POLL_INTERVAL_SECS
@@ -85,10 +85,10 @@ async fn background_checker_loop(app: AppHandle, conn: Arc<DatabaseConnection>) 
         }
 
         // Sleep for the configured interval
-        let interval_secs = (settings.background_check_interval_minutes as u64) * 60;
+        let interval_secs = (domain_settings.background_check_interval_minutes as u64) * 60;
         log::debug!(
             "Background checker sleeping for {} minutes",
-            settings.background_check_interval_minutes
+            domain_settings.background_check_interval_minutes
         );
         tokio::time::sleep(Duration::from_secs(interval_secs)).await;
     }

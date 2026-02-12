@@ -103,10 +103,10 @@ impl ShopifyContext {
     /// Parse a Shopify product URL into its components
     fn from_url(url: &str) -> Result<Self, AppError> {
         let base_url = get_base_url(url)
-            .ok_or_else(|| AppError::Scraping("Could not parse base URL".to_string()))?;
+            .ok_or_else(|| AppError::External("Could not parse base URL".to_string()))?;
 
         let handle = extract_product_handle(url).ok_or_else(|| {
-            AppError::Scraping("Could not extract product handle from URL".to_string())
+            AppError::External("Could not extract product handle from URL".to_string())
         })?;
 
         let variant_id = extract_variant_id(url);
@@ -216,7 +216,7 @@ fn build_http_client() -> Result<reqwest::Client, AppError> {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(TIMEOUT_SECS))
         .build()
-        .map_err(AppError::from)
+        .map_err(|e| AppError::External(e.to_string()))
 }
 
 /// Infer currency from a store's domain TLD
@@ -265,7 +265,7 @@ fn build_product_json_result(
 /// 2. cart/add.js - to verify availability
 pub async fn check_shopify_availability(url: &str, html: &str) -> Result<ScrapingResult, AppError> {
     if !is_shopify_store(html) {
-        return Err(AppError::Scraping("Not a Shopify store".to_string()));
+        return Err(AppError::External("Not a Shopify store".to_string()));
     }
 
     let client = build_http_client()?;
@@ -307,10 +307,11 @@ async fn fetch_product_json(
         .header("User-Agent", USER_AGENT)
         .header("Accept", "application/json")
         .send()
-        .await?;
+        .await
+        .map_err(|e| AppError::External(e.to_string()))?;
 
     if !response.status().is_success() {
-        return Err(AppError::Scraping(format!(
+        return Err(AppError::External(format!(
             "Failed to fetch product.json: HTTP {}",
             response.status()
         )));
@@ -319,7 +320,7 @@ async fn fetch_product_json(
     let product_response: ShopifyProductResponse = response
         .json()
         .await
-        .map_err(|e| AppError::Scraping(format!("Failed to parse product.json: {}", e)))?;
+        .map_err(|e| AppError::External(format!("Failed to parse product.json: {}", e)))?;
 
     Ok(product_response.product)
 }
@@ -330,14 +331,14 @@ fn find_target_variant(
     variant_id: Option<i64>,
 ) -> Result<&ShopifyVariant, AppError> {
     if variants.is_empty() {
-        return Err(AppError::Scraping(
+        return Err(AppError::External(
             "No variants found in product.json".to_string(),
         ));
     }
 
     if let Some(vid) = variant_id {
         variants.iter().find(|v| v.id == vid).ok_or_else(|| {
-            AppError::Scraping(format!(
+            AppError::External(format!(
                 "Variant {} not found. Available: {:?}",
                 vid,
                 variants.iter().map(|v| v.id).collect::<Vec<_>>()
@@ -410,7 +411,7 @@ async fn send_cart_add_request(
         .json(&payload)
         .send()
         .await
-        .map_err(AppError::from)
+        .map_err(|e| AppError::External(e.to_string()))
 }
 
 /// Parse an error body from the cart API to determine if out of stock
@@ -434,7 +435,7 @@ fn parse_cart_error_body(
     }
 
     // Unknown error - could be rate limiting, etc.
-    Err(AppError::Scraping(format!(
+    Err(AppError::External(format!(
         "Cart API returned unexpected response: HTTP {} - {}",
         status_code,
         &body[..body.len().min(100)]

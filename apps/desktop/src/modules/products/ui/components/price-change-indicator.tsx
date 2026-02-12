@@ -1,10 +1,11 @@
 import { TrendingDown, TrendingUp } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
 	calculatePriceChangePercent,
+	formatPrice,
 	formatPriceChangePercent,
 	getPriceChangeDirection,
-} from "@/lib/price-utils";
-import { cn, formatPrice } from "@/lib/utils";
+} from "@/modules/products/price-utils";
 
 interface PriceChangeIndicatorProps {
 	currentPriceMinorUnits: number | null;

@@ -15,9 +15,6 @@ pub mod keys {
     pub const LOG_LEVEL: &str = "log_level";
     pub const ENABLE_NOTIFICATIONS: &str = "enable_notifications";
     pub const SIDEBAR_EXPANDED: &str = "sidebar_expanded";
-    pub const BACKGROUND_CHECK_ENABLED: &str = "background_check_enabled";
-    pub const BACKGROUND_CHECK_INTERVAL_MINUTES: &str = "background_check_interval_minutes";
-    pub const ENABLE_HEADLESS_BROWSER: &str = "enable_headless_browser";
     pub const COLOR_PALETTE: &str = "color_palette";
 }
 
@@ -30,9 +27,6 @@ pub mod defaults {
     pub const LOG_LEVEL: &str = "info";
     pub const ENABLE_NOTIFICATIONS: bool = true;
     pub const SIDEBAR_EXPANDED: bool = true;
-    pub const BACKGROUND_CHECK_ENABLED: bool = false;
-    pub const BACKGROUND_CHECK_INTERVAL_MINUTES: i32 = 60;
-    pub const ENABLE_HEADLESS_BROWSER: bool = true;
     pub const COLOR_PALETTE: &str = "default";
 }
 
@@ -49,9 +43,6 @@ pub struct Settings {
     pub log_level: String,
     pub enable_notifications: bool,
     pub sidebar_expanded: bool,
-    pub background_check_enabled: bool,
-    pub background_check_interval_minutes: i32,
-    pub enable_headless_browser: bool,
     pub color_palette: String,
     pub updated_at: DateTime<Utc>,
 }
@@ -66,9 +57,6 @@ impl Default for Settings {
             log_level: defaults::LOG_LEVEL.to_string(),
             enable_notifications: defaults::ENABLE_NOTIFICATIONS,
             sidebar_expanded: defaults::SIDEBAR_EXPANDED,
-            background_check_enabled: defaults::BACKGROUND_CHECK_ENABLED,
-            background_check_interval_minutes: defaults::BACKGROUND_CHECK_INTERVAL_MINUTES,
-            enable_headless_browser: defaults::ENABLE_HEADLESS_BROWSER,
             color_palette: defaults::COLOR_PALETTE.to_string(),
             updated_at: Utc::now(),
         }
@@ -85,9 +73,6 @@ pub struct UpdateSettingsParams {
     pub log_level: Option<String>,
     pub enable_notifications: Option<bool>,
     pub sidebar_expanded: Option<bool>,
-    pub background_check_enabled: Option<bool>,
-    pub background_check_interval_minutes: Option<i32>,
-    pub enable_headless_browser: Option<bool>,
     pub color_palette: Option<String>,
 }
 
@@ -118,24 +103,6 @@ impl SettingService {
             sidebar_expanded: r
                 .bool(keys::SIDEBAR_EXPANDED, defaults::SIDEBAR_EXPANDED)
                 .await?,
-            background_check_enabled: r
-                .bool(
-                    keys::BACKGROUND_CHECK_ENABLED,
-                    defaults::BACKGROUND_CHECK_ENABLED,
-                )
-                .await?,
-            background_check_interval_minutes: r
-                .i32(
-                    keys::BACKGROUND_CHECK_INTERVAL_MINUTES,
-                    defaults::BACKGROUND_CHECK_INTERVAL_MINUTES,
-                )
-                .await?,
-            enable_headless_browser: r
-                .bool(
-                    keys::ENABLE_HEADLESS_BROWSER,
-                    defaults::ENABLE_HEADLESS_BROWSER,
-                )
-                .await?,
             color_palette: r
                 .string(keys::COLOR_PALETTE, defaults::COLOR_PALETTE)
                 .await?,
@@ -157,9 +124,6 @@ impl SettingService {
         }
         if let Some(ref level) = params.log_level {
             Self::validate_log_level(level)?;
-        }
-        if let Some(interval) = params.background_check_interval_minutes {
-            Self::validate_background_check_interval(interval)?;
         }
         if let Some(ref palette) = params.color_palette {
             Self::validate_color_palette(palette)?;
@@ -197,27 +161,6 @@ impl SettingService {
             params.enable_notifications,
         )
         .await?;
-        Self::persist_optional_bool(
-            conn,
-            &scope,
-            keys::ENABLE_HEADLESS_BROWSER,
-            params.enable_headless_browser,
-        )
-        .await?;
-        Self::persist_optional_bool(
-            conn,
-            &scope,
-            keys::BACKGROUND_CHECK_ENABLED,
-            params.background_check_enabled,
-        )
-        .await?;
-        Self::persist_optional_i32(
-            conn,
-            &scope,
-            keys::BACKGROUND_CHECK_INTERVAL_MINUTES,
-            params.background_check_interval_minutes,
-        )
-        .await?;
 
         Self::get(conn).await
     }
@@ -248,19 +191,6 @@ impl SettingService {
         Ok(())
     }
 
-    /// Persist an optional i32 setting (no-op if `None`)
-    async fn persist_optional_i32(
-        conn: &DatabaseConnection,
-        scope: &SettingScope,
-        key: &str,
-        value: Option<i32>,
-    ) -> Result<(), AppError> {
-        if let Some(v) = value {
-            SettingsHelpers::set_i32(conn, scope, key, v).await?;
-        }
-        Ok(())
-    }
-
     fn validate_theme(theme: &str) -> Result<(), AppError> {
         match theme {
             "light" | "dark" | "system" => Ok(()),
@@ -281,9 +211,6 @@ impl SettingService {
         }
     }
 
-    /// Maximum background check interval: 1 week (10080 minutes)
-    const MAX_BACKGROUND_CHECK_INTERVAL_MINUTES: i32 = 10080;
-
     fn validate_color_palette(palette: &str) -> Result<(), AppError> {
         match palette {
             "default" | "ocean" | "rose" => Ok(()),
@@ -292,21 +219,6 @@ impl SettingService {
                 palette
             ))),
         }
-    }
-
-    fn validate_background_check_interval(interval: i32) -> Result<(), AppError> {
-        if interval <= 0 {
-            return Err(AppError::Validation(
-                "Background check interval must be a positive number of minutes".to_string(),
-            ));
-        }
-        if interval > Self::MAX_BACKGROUND_CHECK_INTERVAL_MINUTES {
-            return Err(AppError::Validation(format!(
-                "Background check interval cannot exceed {} minutes (1 week)",
-                Self::MAX_BACKGROUND_CHECK_INTERVAL_MINUTES
-            )));
-        }
-        Ok(())
     }
 }
 
@@ -351,39 +263,6 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_background_check_interval_accepts_positive_values() {
-        assert!(SettingService::validate_background_check_interval(15).is_ok());
-        assert!(SettingService::validate_background_check_interval(30).is_ok());
-        assert!(SettingService::validate_background_check_interval(60).is_ok());
-        assert!(SettingService::validate_background_check_interval(1440).is_ok());
-    }
-
-    #[test]
-    fn test_validate_background_check_interval_rejects_zero() {
-        let result = SettingService::validate_background_check_interval(0);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_validate_background_check_interval_rejects_negative_values() {
-        let result = SettingService::validate_background_check_interval(-1);
-        assert!(result.is_err());
-        let result = SettingService::validate_background_check_interval(-100);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_validate_background_check_interval_rejects_exceeding_max() {
-        let result = SettingService::validate_background_check_interval(10081);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_validate_background_check_interval_accepts_max_value() {
-        assert!(SettingService::validate_background_check_interval(10080).is_ok());
-    }
-
-    #[test]
     fn test_default_settings() {
         let settings = Settings::default();
         assert_eq!(settings.theme, "system");
@@ -393,9 +272,6 @@ mod tests {
         assert_eq!(settings.log_level, "info");
         assert!(settings.enable_notifications);
         assert!(settings.sidebar_expanded);
-        assert!(!settings.background_check_enabled);
-        assert_eq!(settings.background_check_interval_minutes, 60);
-        assert!(settings.enable_headless_browser);
         assert_eq!(settings.color_palette, "default");
     }
 
@@ -410,9 +286,6 @@ mod tests {
         assert!(json.contains("\"log_level\":\"info\""));
         assert!(json.contains("\"enable_notifications\":true"));
         assert!(json.contains("\"sidebar_expanded\":true"));
-        assert!(json.contains("\"background_check_enabled\":false"));
-        assert!(json.contains("\"background_check_interval_minutes\":60"));
-        assert!(json.contains("\"enable_headless_browser\":true"));
         assert!(json.contains("\"color_palette\":\"default\""));
     }
 
@@ -457,9 +330,6 @@ mod integration_tests {
         assert_eq!(settings.log_level, "info");
         assert!(settings.enable_notifications);
         assert!(settings.sidebar_expanded);
-        assert!(!settings.background_check_enabled);
-        assert_eq!(settings.background_check_interval_minutes, 60);
-        assert!(settings.enable_headless_browser);
         assert_eq!(settings.color_palette, "default");
     }
 
@@ -548,9 +418,6 @@ mod integration_tests {
             log_level: Some("trace".to_string()),
             enable_notifications: Some(true),
             sidebar_expanded: Some(true),
-            background_check_enabled: Some(true),
-            background_check_interval_minutes: Some(30),
-            enable_headless_browser: Some(false),
             color_palette: Some("ocean".to_string()),
         };
 
@@ -564,9 +431,6 @@ mod integration_tests {
         assert_eq!(settings.log_level, "trace");
         assert!(settings.enable_notifications);
         assert!(settings.sidebar_expanded);
-        assert!(settings.background_check_enabled);
-        assert_eq!(settings.background_check_interval_minutes, 30);
-        assert!(!settings.enable_headless_browser);
         assert_eq!(settings.color_palette, "ocean");
     }
 

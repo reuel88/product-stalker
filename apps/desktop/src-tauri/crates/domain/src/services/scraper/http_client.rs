@@ -23,6 +23,18 @@ const SEC_CH_UA: &str = r#""Not_A Brand";v="8", "Chromium";v="120", "Google Chro
 const BOT_PROTECTION_MESSAGE: &str =
     "This site has bot protection. Enable headless browser in settings to check this site.";
 
+/// Internal error type for HTTP fetch operations.
+///
+/// Used within the scraper module to preserve structured error data
+/// (e.g., HTTP status codes) for control flow decisions before
+/// converting to the generic `AppError::External` at the boundary.
+enum FetchPageError {
+    /// HTTP client or network error (connection refused, timeout, DNS, TLS)
+    Http(String),
+    /// HTTP response returned a non-success status code
+    HttpStatus { status: u16, url: String },
+}
+
 /// Fetch HTML content, falling back to headless browser if bot protection is detected
 ///
 /// Tries HTTP first (fast path). If bot protection is detected (Cloudflare challenge,
@@ -37,13 +49,18 @@ pub async fn fetch_html_with_fallback(
             log::info!("Detected bot protection challenge for {}", url);
             true
         }
-        Err(AppError::HttpStatus { status, .. }) if status == 403 || status == 503 => {
+        Err(FetchPageError::HttpStatus { status, .. }) if status == 403 || status == 503 => {
             log::info!("HTTP request blocked ({}) for {}", status, url);
             true
         }
-        Err(e) => {
-            log::error!("HTTP fetch failed for {}: {}", url, e);
-            return Err(e);
+        Err(FetchPageError::HttpStatus { status, url }) => {
+            let msg = format!("HTTP {} for URL: {}", status, url);
+            log::error!("HTTP fetch failed for {}: {}", url, msg);
+            return Err(AppError::External(msg));
+        }
+        Err(FetchPageError::Http(msg)) => {
+            log::error!("HTTP fetch failed for {}: {}", url, msg);
+            return Err(AppError::External(msg));
         }
     };
 
@@ -52,7 +69,7 @@ pub async fn fetch_html_with_fallback(
         return fetch_with_headless(url).await;
     }
 
-    Err(AppError::BotProtection(BOT_PROTECTION_MESSAGE.to_string()))
+    Err(AppError::External(BOT_PROTECTION_MESSAGE.to_string()))
 }
 
 /// Fetch page HTML using headless browser
@@ -70,10 +87,11 @@ async fn fetch_with_headless(url: &str) -> Result<String, AppError> {
 }
 
 /// Fetch a page's HTML content using HTTP
-async fn fetch_page(url: &str) -> Result<String, AppError> {
+async fn fetch_page(url: &str) -> Result<String, FetchPageError> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(TIMEOUT_SECS))
-        .build()?;
+        .build()
+        .map_err(|e| FetchPageError::Http(e.to_string()))?;
 
     let response = client
         .get(url)
@@ -92,15 +110,19 @@ async fn fetch_page(url: &str) -> Result<String, AppError> {
         .header("Sec-Fetch-User", "?1")
         .header("Upgrade-Insecure-Requests", "1")
         .send()
-        .await?;
+        .await
+        .map_err(|e| FetchPageError::Http(e.to_string()))?;
 
     if !response.status().is_success() {
-        return Err(AppError::HttpStatus {
+        return Err(FetchPageError::HttpStatus {
             status: response.status().as_u16(),
             url: url.to_string(),
         });
     }
 
-    let html = response.text().await?;
+    let html = response
+        .text()
+        .await
+        .map_err(|e| FetchPageError::Http(e.to_string()))?;
     Ok(html)
 }

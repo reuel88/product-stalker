@@ -66,12 +66,12 @@ impl HeadlessService {
         // Navigate to the URL
         log::debug!("Headless: navigating to {}", url);
         tab.navigate_to(url)
-            .map_err(|e| AppError::Scraping(format!("Failed to navigate to URL: {}", e)))?;
+            .map_err(|e| AppError::External(format!("Failed to navigate to URL: {}", e)))?;
 
         // Wait for page to load (DOMContentLoaded + network idle)
         log::debug!("Headless: waiting for navigation to complete");
         tab.wait_until_navigated()
-            .map_err(|e| AppError::Scraping(format!("Page load timeout: {}", e)))?;
+            .map_err(|e| AppError::External(format!("Page load timeout: {}", e)))?;
 
         // Re-inject script after navigation in case page reset it
         if let Err(e) = tab.evaluate(WEBDRIVER_OVERRIDE_SCRIPT, false) {
@@ -86,7 +86,7 @@ impl HeadlessService {
         log::debug!("Headless: getting page content");
         let html = tab
             .get_content()
-            .map_err(|e| AppError::Scraping(format!("Failed to get page content: {}", e)))?;
+            .map_err(|e| AppError::External(format!("Failed to get page content: {}", e)))?;
 
         log::info!(
             "Headless: successfully fetched {} bytes from {}",
@@ -97,7 +97,7 @@ impl HeadlessService {
         // Check if we hit a CAPTCHA
         if Self::is_captcha_challenge(&html) {
             log::warn!("Headless: CAPTCHA detected for {}", url);
-            return Err(AppError::BotProtection(
+            return Err(AppError::External(
                 "This site requires manual verification (CAPTCHA). Please check the product page directly.".to_string()
             ));
         }
@@ -108,7 +108,7 @@ impl HeadlessService {
     /// Launch Chrome browser with appropriate options
     fn launch_browser(&self) -> Result<Arc<Browser>, AppError> {
         let chrome_path = Self::find_chrome_binary().ok_or_else(|| {
-            AppError::BotProtection(
+            AppError::External(
                 "Chrome/Chromium not found. This site has bot protection and requires Chrome to check availability. \
                 Please install Chrome from https://www.google.com/chrome/".to_string()
             )

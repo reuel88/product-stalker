@@ -18,17 +18,17 @@ use product_stalker_core::AppError;
 pub fn extract_next_data(html: &str) -> Result<Value, AppError> {
     let document = Html::parse_document(html);
     let selector = Selector::parse(r#"script#__NEXT_DATA__"#)
-        .map_err(|e| AppError::Scraping(format!("Invalid selector: {:?}", e)))?;
+        .map_err(|e| AppError::External(format!("Invalid selector: {:?}", e)))?;
 
     let script = document
         .select(&selector)
         .next()
-        .ok_or_else(|| AppError::Scraping("No __NEXT_DATA__ script found".to_string()))?;
+        .ok_or_else(|| AppError::External("No __NEXT_DATA__ script found".to_string()))?;
 
     let json_text = script.text().collect::<String>();
 
     serde_json::from_str(&json_text)
-        .map_err(|e| AppError::Scraping(format!("Failed to parse __NEXT_DATA__ JSON: {}", e)))
+        .map_err(|e| AppError::External(format!("Failed to parse __NEXT_DATA__ JSON: {}", e)))
 }
 
 /// Get the pageProps from Next.js data.
@@ -87,7 +87,7 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            AppError::Scraping(msg) => {
+            AppError::External(msg) => {
                 assert!(msg.contains("No __NEXT_DATA__ script found"));
             }
             _ => panic!("Expected Scraping error"),
@@ -112,7 +112,7 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            AppError::Scraping(msg) => {
+            AppError::External(msg) => {
                 assert!(msg.contains("Failed to parse __NEXT_DATA__ JSON"));
             }
             _ => panic!("Expected Scraping error"),

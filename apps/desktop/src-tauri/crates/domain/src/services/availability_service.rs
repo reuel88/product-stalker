@@ -7,7 +7,6 @@ use uuid::Uuid;
 use crate::entities::availability_check::AvailabilityStatus;
 use crate::entities::prelude::{AvailabilityCheckModel, ProductModel};
 use crate::repositories::{AvailabilityCheckRepository, CreateCheckParams, ProductRepository};
-use product_stalker_core::services::Settings;
 use product_stalker_core::AppError;
 
 use product_stalker_core::services::notification_helpers::NotificationData;
@@ -477,14 +476,15 @@ impl AvailabilityService {
     pub async fn check_product_with_notification(
         conn: &DatabaseConnection,
         product_id: Uuid,
-        settings: &Settings,
+        enable_headless: bool,
+        enable_notifications: bool,
     ) -> Result<CheckResultWithNotification, AppError> {
         // Step 1: Get previous status before checking
         let previous_check = Self::get_latest(conn, product_id).await?;
         let previous_status = previous_check.map(|c| c.status_enum());
 
         // Step 2: Perform the check
-        let check = Self::check_product(conn, product_id, settings.enable_headless_browser).await?;
+        let check = Self::check_product(conn, product_id, enable_headless).await?;
 
         // Step 3: Get daily price comparison (includes the new check in today's average)
         let daily_comparison = Self::get_daily_price_comparison(conn, product_id).await?;
@@ -496,7 +496,7 @@ impl AvailabilityService {
         let notification = NotificationService::build_single_notification(
             conn,
             product_id,
-            settings,
+            enable_notifications,
             is_back_in_stock,
         )
         .await?;
@@ -512,11 +512,11 @@ impl AvailabilityService {
     ///
     /// Delegates to NotificationService for actual notification composition.
     pub fn build_bulk_notification_with_settings(
-        settings: &Settings,
+        enable_notifications: bool,
         summary: &BulkCheckSummary,
     ) -> Option<NotificationData> {
         NotificationService::build_bulk_notification(
-            settings,
+            enable_notifications,
             summary.back_in_stock_count,
             summary.price_drop_count,
             &summary.results,

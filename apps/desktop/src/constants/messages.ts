@@ -1,4 +1,5 @@
 export const MESSAGES = {
+	// === DOMAIN ===
 	PRODUCT: {
 		CREATED: "Product created",
 		UPDATED: "Product updated",
@@ -28,12 +29,13 @@ export const MESSAGES = {
 		NO_PRICE: "-",
 		PRICE_DROP: "Price drop!",
 	},
+	VALIDATION: {
+		NAME_URL_REQUIRED: "Name and URL are required",
+	},
+	// === INFRASTRUCTURE ===
 	SETTINGS: {
 		SAVED: "Settings saved",
 		SAVE_FAILED: "Failed to save settings",
-	},
-	VALIDATION: {
-		NAME_URL_REQUIRED: "Name and URL are required",
 	},
 	UPDATE: {
 		AVAILABLE: (version: string) => `Update available: v${version}`,

@@ -1,4 +1,5 @@
 export const COMMANDS = {
+	// === DOMAIN ===
 	GET_PRODUCTS: "get_products",
 	GET_PRODUCT: "get_product",
 	CREATE_PRODUCT: "create_product",
@@ -8,6 +9,7 @@ export const COMMANDS = {
 	GET_LATEST_AVAILABILITY: "get_latest_availability",
 	GET_AVAILABILITY_HISTORY: "get_availability_history",
 	CHECK_ALL_AVAILABILITY: "check_all_availability",
+	// === INFRASTRUCTURE ===
 	GET_SETTINGS: "get_settings",
 	UPDATE_SETTINGS: "update_settings",
 	SEND_NOTIFICATION: "send_notification",
@@ -18,5 +20,6 @@ export const COMMANDS = {
 } as const;
 
 export const EVENTS = {
+	// === DOMAIN ===
 	AVAILABILITY_CHECK_PROGRESS: "availability:check-progress",
 } as const;
