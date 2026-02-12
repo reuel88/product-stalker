@@ -30,6 +30,7 @@ import type {
 	AvailabilityCheckResponse,
 	ProductResponse,
 } from "@/modules/products/types";
+import { useDateFormat } from "@/modules/shared/hooks/useDateFormat";
 import { AvailabilityBadge } from "./availability-badge";
 import { PriceChangeIndicator } from "./price-change-indicator";
 import { createProductColumns } from "./products-table-columns";
@@ -128,6 +129,8 @@ export function ProductsTable({
 	onEdit,
 	onDelete,
 }: ProductsTableProps) {
+	const { formatDate } = useDateFormat();
+
 	const columns = useMemo(
 		() =>
 			createProductColumns({
@@ -135,8 +138,9 @@ export function ProductsTable({
 				onDelete,
 				AvailabilityCell,
 				PriceCell,
+				formatDate,
 			}),
-		[onEdit, onDelete],
+		[onEdit, onDelete, formatDate],
 	);
 
 	const table = useReactTable({

@@ -355,8 +355,8 @@ describe("SettingsView", () => {
 
 			await waitFor(() => {
 				const logLevelTriggers = screen.getAllByRole("combobox");
-				// Log level select should be the second combobox (after theme)
-				const logLevelSelect = logLevelTriggers[1];
+				// Log level select should be the fourth combobox (after theme, timezone, date format)
+				const logLevelSelect = logLevelTriggers[3];
 				expect(logLevelSelect).toBeDisabled();
 			});
 		});
@@ -415,8 +415,8 @@ describe("SettingsView", () => {
 
 			await waitFor(() => {
 				const selects = screen.getAllByRole("combobox");
-				// Check interval is the third combobox (theme, log level, interval)
-				const intervalSelect = selects[2];
+				// Check interval is the fifth combobox (theme, timezone, date format, log level, interval)
+				const intervalSelect = selects[4];
 				expect(intervalSelect).toBeDisabled();
 			});
 		});

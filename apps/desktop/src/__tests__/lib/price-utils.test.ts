@@ -195,8 +195,11 @@ describe("transformToPriceDataPoints", () => {
 });
 
 describe("getDateRangeLabel", () => {
+	const mockFormatDate = (dateString: string) =>
+		new Date(dateString).toLocaleDateString("en-US");
+
 	it("should return empty string for empty array", () => {
-		const result = getDateRangeLabel([]);
+		const result = getDateRangeLabel([], mockFormatDate);
 
 		expect(result).toBe("");
 	});
@@ -211,9 +214,9 @@ describe("getDateRangeLabel", () => {
 			},
 		];
 
-		const result = getDateRangeLabel(dataPoints);
+		const result = getDateRangeLabel(dataPoints, mockFormatDate);
 
-		expect(result).toBe(new Date("2024-01-15T10:00:00Z").toLocaleDateString());
+		expect(result).toBe(mockFormatDate("2024-01-15T10:00:00Z"));
 	});
 
 	it("should return date range for multiple data points", () => {
@@ -238,10 +241,10 @@ describe("getDateRangeLabel", () => {
 			},
 		];
 
-		const result = getDateRangeLabel(dataPoints);
+		const result = getDateRangeLabel(dataPoints, mockFormatDate);
 
-		const firstDate = new Date("2024-01-01T10:00:00Z").toLocaleDateString();
-		const lastDate = new Date("2024-01-30T10:00:00Z").toLocaleDateString();
+		const firstDate = mockFormatDate("2024-01-01T10:00:00Z");
+		const lastDate = mockFormatDate("2024-01-30T10:00:00Z");
 		expect(result).toBe(`${firstDate} - ${lastDate}`);
 	});
 });

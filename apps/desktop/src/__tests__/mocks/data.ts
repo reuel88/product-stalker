@@ -57,6 +57,8 @@ export function createMockSettings(
 		background_check_interval_minutes: 60,
 		enable_headless_browser: true,
 		color_palette: "default",
+		display_timezone: "auto",
+		date_format: "system",
 		updated_at: new Date().toISOString(),
 		...overrides,
 	};
