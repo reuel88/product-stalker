@@ -10,6 +10,7 @@ import {
 
 import { formatPrice } from "@/modules/products/price-utils";
 import type { PriceDataPoint } from "@/modules/products/types";
+import { useDateFormat } from "@/modules/shared/hooks/useDateFormat";
 
 const CHART_COLORS = {
 	line: "var(--chart-3)",
@@ -25,23 +26,7 @@ interface CustomTooltipProps {
 	payload?: Array<{
 		payload: PriceDataPoint;
 	}>;
-}
-
-type DateFormat = "axis" | "tooltip";
-
-function formatChartDate(dateString: string, format: DateFormat): string {
-	const options: Intl.DateTimeFormatOptions =
-		format === "axis"
-			? { month: "short", day: "numeric" }
-			: {
-					year: "numeric",
-					month: "short",
-					day: "numeric",
-					hour: "2-digit",
-					minute: "2-digit",
-				};
-
-	return new Date(dateString).toLocaleDateString(undefined, options);
+	formatTooltipDate: (dateString: string) => string;
 }
 
 function calculateYAxisDomain(prices: number[]): [number, number] {
@@ -52,7 +37,11 @@ function calculateYAxisDomain(prices: number[]): [number, number] {
 	return [minPrice - padding, maxPrice + padding];
 }
 
-function CustomTooltip({ active, payload }: CustomTooltipProps) {
+function CustomTooltip({
+	active,
+	payload,
+	formatTooltipDate,
+}: CustomTooltipProps) {
 	if (!active || !payload || payload.length === 0) {
 		return null;
 	}
@@ -68,13 +57,15 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 		<div className="rounded-none border bg-background px-3 py-2 shadow-sm">
 			<p className="font-medium text-sm">{formattedPrice}</p>
 			<p className="text-muted-foreground text-xs">
-				{formatChartDate(data.date, "tooltip")}
+				{formatTooltipDate(data.date)}
 			</p>
 		</div>
 	);
 }
 
 export function PriceHistoryChart({ data }: PriceHistoryChartProps) {
+	const { formatChartAxisDate, formatChartTooltipDate } = useDateFormat();
+
 	if (data.length === 0) {
 		return (
 			<div className="flex h-[200px] items-center justify-center text-muted-foreground">
@@ -91,7 +82,7 @@ export function PriceHistoryChart({ data }: PriceHistoryChartProps) {
 					{formatPrice(point.price, point.currency, point.currencyExponent)}
 				</p>
 				<p className="text-muted-foreground text-sm">
-					Recorded on {formatChartDate(point.date, "tooltip")}
+					Recorded on {formatChartTooltipDate(point.date)}
 				</p>
 				<p className="text-muted-foreground text-xs">
 					More data points needed to show price trend
@@ -115,7 +106,7 @@ export function PriceHistoryChart({ data }: PriceHistoryChartProps) {
 				/>
 				<XAxis
 					dataKey="date"
-					tickFormatter={(date) => formatChartDate(date, "axis")}
+					tickFormatter={formatChartAxisDate}
 					tick={{ fontSize: 10 }}
 					tickLine={false}
 					axisLine={false}
@@ -132,7 +123,9 @@ export function PriceHistoryChart({ data }: PriceHistoryChartProps) {
 					width={70}
 					className="fill-muted-foreground"
 				/>
-				<Tooltip content={<CustomTooltip />} />
+				<Tooltip
+					content={<CustomTooltip formatTooltipDate={formatChartTooltipDate} />}
+				/>
 				<Line
 					type="monotone"
 					dataKey="price"

@@ -16,6 +16,8 @@ pub mod keys {
     pub const ENABLE_NOTIFICATIONS: &str = "enable_notifications";
     pub const SIDEBAR_EXPANDED: &str = "sidebar_expanded";
     pub const COLOR_PALETTE: &str = "color_palette";
+    pub const DISPLAY_TIMEZONE: &str = "display_timezone";
+    pub const DATE_FORMAT: &str = "date_format";
 }
 
 /// Default values for settings
@@ -28,6 +30,8 @@ pub mod defaults {
     pub const ENABLE_NOTIFICATIONS: bool = true;
     pub const SIDEBAR_EXPANDED: bool = true;
     pub const COLOR_PALETTE: &str = "default";
+    pub const DISPLAY_TIMEZONE: &str = "auto";
+    pub const DATE_FORMAT: &str = "system";
 }
 
 /// Settings model returned by the service
@@ -44,6 +48,8 @@ pub struct Settings {
     pub enable_notifications: bool,
     pub sidebar_expanded: bool,
     pub color_palette: String,
+    pub display_timezone: String,
+    pub date_format: String,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -58,6 +64,8 @@ impl Default for Settings {
             enable_notifications: defaults::ENABLE_NOTIFICATIONS,
             sidebar_expanded: defaults::SIDEBAR_EXPANDED,
             color_palette: defaults::COLOR_PALETTE.to_string(),
+            display_timezone: defaults::DISPLAY_TIMEZONE.to_string(),
+            date_format: defaults::DATE_FORMAT.to_string(),
             updated_at: Utc::now(),
         }
     }
@@ -74,6 +82,8 @@ pub struct UpdateSettingsParams {
     pub enable_notifications: Option<bool>,
     pub sidebar_expanded: Option<bool>,
     pub color_palette: Option<String>,
+    pub display_timezone: Option<String>,
+    pub date_format: Option<String>,
 }
 
 /// Cached settings for bulk operations.
@@ -177,6 +187,10 @@ impl SettingService {
             color_palette: r
                 .string(keys::COLOR_PALETTE, defaults::COLOR_PALETTE)
                 .await?,
+            display_timezone: r
+                .string(keys::DISPLAY_TIMEZONE, defaults::DISPLAY_TIMEZONE)
+                .await?,
+            date_format: r.string(keys::DATE_FORMAT, defaults::DATE_FORMAT).await?,
             updated_at: Utc::now(),
         })
     }
@@ -198,6 +212,12 @@ impl SettingService {
         }
         if let Some(ref palette) = params.color_palette {
             Self::validate_color_palette(palette)?;
+        }
+        if let Some(ref timezone) = params.display_timezone {
+            Self::validate_display_timezone(timezone)?;
+        }
+        if let Some(ref format) = params.date_format {
+            Self::validate_date_format(format)?;
         }
 
         let scope = SettingScope::Global;
@@ -232,6 +252,16 @@ impl SettingService {
             params.enable_notifications,
         )
         .await?;
+
+        // Display
+        Self::persist_optional_string(
+            conn,
+            &scope,
+            keys::DISPLAY_TIMEZONE,
+            params.display_timezone,
+        )
+        .await?;
+        Self::persist_optional_string(conn, &scope, keys::DATE_FORMAT, params.date_format).await?;
 
         Self::get(conn).await
     }
@@ -291,6 +321,28 @@ impl SettingService {
             ))),
         }
     }
+
+    fn validate_display_timezone(timezone: &str) -> Result<(), AppError> {
+        // Accept "auto" or IANA timezone format (contains '/')
+        if timezone == "auto" || timezone.contains('/') {
+            Ok(())
+        } else {
+            Err(AppError::Validation(format!(
+                "Invalid timezone: {}. Must be 'auto' or an IANA timezone (e.g., 'America/New_York')",
+                timezone
+            )))
+        }
+    }
+
+    fn validate_date_format(format: &str) -> Result<(), AppError> {
+        match format {
+            "system" | "MM/DD/YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD" => Ok(()),
+            _ => Err(AppError::Validation(format!(
+                "Invalid date format: {}. Must be 'system', 'MM/DD/YYYY', 'DD/MM/YYYY', or 'YYYY-MM-DD'",
+                format
+            ))),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -344,6 +396,8 @@ mod tests {
         assert!(settings.enable_notifications);
         assert!(settings.sidebar_expanded);
         assert_eq!(settings.color_palette, "default");
+        assert_eq!(settings.display_timezone, "auto");
+        assert_eq!(settings.date_format, "system");
     }
 
     #[test]
@@ -358,6 +412,8 @@ mod tests {
         assert!(json.contains("\"enable_notifications\":true"));
         assert!(json.contains("\"sidebar_expanded\":true"));
         assert!(json.contains("\"color_palette\":\"default\""));
+        assert!(json.contains("\"display_timezone\":\"auto\""));
+        assert!(json.contains("\"date_format\":\"system\""));
     }
 
     #[test]
@@ -378,6 +434,42 @@ mod tests {
     #[test]
     fn test_validate_color_palette_rejects_invalid_value() {
         let result = SettingService::validate_color_palette("neon");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_display_timezone_accepts_auto() {
+        assert!(SettingService::validate_display_timezone("auto").is_ok());
+    }
+
+    #[test]
+    fn test_validate_display_timezone_accepts_iana_format() {
+        assert!(SettingService::validate_display_timezone("America/New_York").is_ok());
+        assert!(SettingService::validate_display_timezone("Europe/London").is_ok());
+        assert!(SettingService::validate_display_timezone("Asia/Tokyo").is_ok());
+    }
+
+    #[test]
+    fn test_validate_display_timezone_rejects_invalid_format() {
+        let result = SettingService::validate_display_timezone("EST");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_date_format_accepts_system() {
+        assert!(SettingService::validate_date_format("system").is_ok());
+    }
+
+    #[test]
+    fn test_validate_date_format_accepts_all_formats() {
+        assert!(SettingService::validate_date_format("MM/DD/YYYY").is_ok());
+        assert!(SettingService::validate_date_format("DD/MM/YYYY").is_ok());
+        assert!(SettingService::validate_date_format("YYYY-MM-DD").is_ok());
+    }
+
+    #[test]
+    fn test_validate_date_format_rejects_invalid_format() {
+        let result = SettingService::validate_date_format("DD-MM-YYYY");
         assert!(result.is_err());
     }
 }
@@ -402,6 +494,8 @@ mod integration_tests {
         assert!(settings.enable_notifications);
         assert!(settings.sidebar_expanded);
         assert_eq!(settings.color_palette, "default");
+        assert_eq!(settings.display_timezone, "auto");
+        assert_eq!(settings.date_format, "system");
     }
 
     #[tokio::test]
@@ -490,6 +584,8 @@ mod integration_tests {
             enable_notifications: Some(true),
             sidebar_expanded: Some(true),
             color_palette: Some("ocean".to_string()),
+            display_timezone: Some("Asia/Tokyo".to_string()),
+            date_format: Some("YYYY-MM-DD".to_string()),
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -503,6 +599,8 @@ mod integration_tests {
         assert!(settings.enable_notifications);
         assert!(settings.sidebar_expanded);
         assert_eq!(settings.color_palette, "ocean");
+        assert_eq!(settings.display_timezone, "Asia/Tokyo");
+        assert_eq!(settings.date_format, "YYYY-MM-DD");
     }
 
     #[tokio::test]
@@ -616,5 +714,71 @@ mod integration_tests {
         let loaded_at = cache.loaded_at();
         assert!(loaded_at >= before);
         assert!(loaded_at <= after);
+    }
+
+    #[tokio::test]
+    async fn test_update_validates_display_timezone() {
+        let conn = setup_app_settings_db().await;
+        let params = UpdateSettingsParams {
+            display_timezone: Some("EST".to_string()),
+            ..Default::default()
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_update_validates_date_format() {
+        let conn = setup_app_settings_db().await;
+        let params = UpdateSettingsParams {
+            date_format: Some("invalid_format".to_string()),
+            ..Default::default()
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_update_display_timezone_success() {
+        let conn = setup_app_settings_db().await;
+        let params = UpdateSettingsParams {
+            display_timezone: Some("America/New_York".to_string()),
+            ..Default::default()
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().display_timezone, "America/New_York");
+    }
+
+    #[tokio::test]
+    async fn test_update_date_format_success() {
+        let conn = setup_app_settings_db().await;
+        let params = UpdateSettingsParams {
+            date_format: Some("MM/DD/YYYY".to_string()),
+            ..Default::default()
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().date_format, "MM/DD/YYYY");
+    }
+
+    #[tokio::test]
+    async fn test_display_settings_persist_across_calls() {
+        let conn = setup_app_settings_db().await;
+
+        let params = UpdateSettingsParams {
+            display_timezone: Some("Europe/London".to_string()),
+            date_format: Some("DD/MM/YYYY".to_string()),
+            ..Default::default()
+        };
+        SettingService::update(&conn, params).await.unwrap();
+
+        let settings = SettingService::get(&conn).await.unwrap();
+        assert_eq!(settings.display_timezone, "Europe/London");
+        assert_eq!(settings.date_format, "DD/MM/YYYY");
     }
 }

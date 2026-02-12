@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { UI } from "@/constants";
+import { COMMANDS, UI } from "@/constants";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
-import { createMockProduct, createMockProducts } from "../../mocks/data";
+import {
+	createMockProduct,
+	createMockProducts,
+	createMockSettings,
+} from "../../mocks/data";
+import { getMockedInvoke, mockInvokeMultiple } from "../../mocks/tauri";
 import { render, screen, waitFor } from "../../test-utils";
 
 describe("ProductsTable", () => {
@@ -11,6 +16,11 @@ describe("ProductsTable", () => {
 	beforeEach(() => {
 		mockOnEdit.mockClear();
 		mockOnDelete.mockClear();
+		getMockedInvoke().mockReset();
+		// Mock settings query for useDateFormat hook
+		mockInvokeMultiple({
+			[COMMANDS.GET_SETTINGS]: createMockSettings(),
+		});
 	});
 
 	describe("rendering", () => {

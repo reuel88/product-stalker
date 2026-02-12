@@ -38,12 +38,13 @@ interface ColumnOptions {
 	onDelete?: (product: ProductResponse) => void;
 	AvailabilityCell: React.ComponentType<Record<string, never>>;
 	PriceCell: React.ComponentType<{ productId: string }>;
+	formatDate: (dateString: string) => string;
 }
 
 export function createProductColumns(
 	options: ColumnOptions,
 ): ColumnDef<ProductResponse>[] {
-	const { onEdit, onDelete, AvailabilityCell, PriceCell } = options;
+	const { onEdit, onDelete, AvailabilityCell, PriceCell, formatDate } = options;
 
 	return [
 		{
@@ -112,10 +113,7 @@ export function createProductColumns(
 		{
 			accessorKey: "created_at",
 			header: "Created",
-			cell: ({ row }) => {
-				const date = new Date(row.original.created_at);
-				return <span>{date.toLocaleDateString()}</span>;
-			},
+			cell: ({ row }) => <span>{formatDate(row.original.created_at)}</span>,
 		},
 		{
 			id: "actions",

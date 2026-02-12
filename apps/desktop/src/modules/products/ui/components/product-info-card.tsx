@@ -15,6 +15,7 @@ import type {
 	AvailabilityStatus,
 	ProductResponse,
 } from "@/modules/products/types";
+import { useDateFormat } from "@/modules/shared/hooks/useDateFormat";
 import { PriceChangeIndicator } from "./price-change-indicator";
 import { STATUS_BADGE_CONFIG } from "./status-config";
 
@@ -46,6 +47,7 @@ export function ProductInfoCard({
 	isChecking,
 	onCheck,
 }: ProductInfoCardProps) {
+	const { formatDate } = useDateFormat();
 	const hasPrice = latestCheck?.price_minor_units != null;
 
 	return (
@@ -117,10 +119,8 @@ export function ProductInfoCard({
 			</CardContent>
 
 			<CardFooter className="justify-between text-muted-foreground text-xs">
-				<span>Added: {new Date(product.created_at).toLocaleDateString()}</span>
-				<span>
-					Updated: {new Date(product.updated_at).toLocaleDateString()}
-				</span>
+				<span>Added: {formatDate(product.created_at)}</span>
+				<span>Updated: {formatDate(product.updated_at)}</span>
 			</CardFooter>
 		</Card>
 	);

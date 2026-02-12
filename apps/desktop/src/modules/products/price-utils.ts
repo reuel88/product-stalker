@@ -63,21 +63,23 @@ export function transformToPriceDataPoints(
 /**
  * Get the date range string for display.
  * @param dataPoints - Array of price data points
+ * @param formatDate - Function to format dates
  * @returns Formatted date range string or empty string if no data
  */
-export function getDateRangeLabel(dataPoints: PriceDataPoint[]): string {
+export function getDateRangeLabel(
+	dataPoints: PriceDataPoint[],
+	formatDate: (dateString: string) => string,
+): string {
 	if (dataPoints.length === 0) {
 		return "";
 	}
 
 	if (dataPoints.length === 1) {
-		return new Date(dataPoints[0].date).toLocaleDateString();
+		return formatDate(dataPoints[0].date);
 	}
 
-	const first = new Date(dataPoints[0].date).toLocaleDateString();
-	const last = new Date(
-		dataPoints[dataPoints.length - 1].date,
-	).toLocaleDateString();
+	const first = formatDate(dataPoints[0].date);
+	const last = formatDate(dataPoints[dataPoints.length - 1].date);
 
 	return `${first} - ${last}`;
 }

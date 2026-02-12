@@ -24,6 +24,8 @@ pub struct SettingsResponse {
     pub background_check_interval_minutes: i32,
     pub enable_headless_browser: bool,
     pub color_palette: String,
+    pub display_timezone: String,
+    pub date_format: String,
     pub updated_at: String,
 }
 
@@ -41,6 +43,8 @@ impl SettingsResponse {
             background_check_interval_minutes: domain.background_check_interval_minutes,
             enable_headless_browser: domain.enable_headless_browser,
             color_palette: settings.color_palette,
+            display_timezone: settings.display_timezone,
+            date_format: settings.date_format,
             updated_at: settings.updated_at.to_rfc3339(),
         }
     }
@@ -63,6 +67,8 @@ pub struct CombinedUpdateParams {
     pub background_check_interval_minutes: Option<i32>,
     pub enable_headless_browser: Option<bool>,
     pub color_palette: Option<String>,
+    pub display_timezone: Option<String>,
+    pub date_format: Option<String>,
 }
 
 /// Get current settings
@@ -111,6 +117,8 @@ pub async fn update_settings(
         enable_notifications: input.enable_notifications,
         sidebar_expanded: input.sidebar_expanded,
         color_palette: input.color_palette,
+        display_timezone: input.display_timezone,
+        date_format: input.date_format,
     };
 
     let domain_params = UpdateDomainSettingsParams {
@@ -144,6 +152,8 @@ mod tests {
             enable_notifications: true,
             sidebar_expanded: false,
             color_palette: "default".to_string(),
+            display_timezone: "auto".to_string(),
+            date_format: "system".to_string(),
             updated_at: Utc::now(),
         }
     }
@@ -171,6 +181,8 @@ mod tests {
         assert_eq!(response.background_check_interval_minutes, 60);
         assert!(response.enable_headless_browser);
         assert_eq!(response.color_palette, "default");
+        assert_eq!(response.display_timezone, "auto");
+        assert_eq!(response.date_format, "system");
     }
 
     #[test]
@@ -184,6 +196,8 @@ mod tests {
             enable_notifications: false,
             sidebar_expanded: true,
             color_palette: "ocean".to_string(),
+            display_timezone: "America/New_York".to_string(),
+            date_format: "MM/DD/YYYY".to_string(),
             updated_at: Utc::now(),
         };
         let domain = DomainSettings {
@@ -205,6 +219,8 @@ mod tests {
         assert_eq!(response.background_check_interval_minutes, 30);
         assert!(!response.enable_headless_browser);
         assert_eq!(response.color_palette, "ocean");
+        assert_eq!(response.display_timezone, "America/New_York");
+        assert_eq!(response.date_format, "MM/DD/YYYY");
     }
 
     #[test]
@@ -235,6 +251,8 @@ mod tests {
         assert!(json.contains("\"background_check_interval_minutes\":60"));
         assert!(json.contains("\"enable_headless_browser\":true"));
         assert!(json.contains("\"color_palette\":\"default\""));
+        assert!(json.contains("\"display_timezone\":\"auto\""));
+        assert!(json.contains("\"date_format\":\"system\""));
     }
 
     #[test]
@@ -261,6 +279,8 @@ mod tests {
         assert!(input.background_check_interval_minutes.is_none());
         assert!(input.enable_headless_browser.is_none());
         assert!(input.color_palette.is_none());
+        assert!(input.display_timezone.is_none());
+        assert!(input.date_format.is_none());
     }
 
     #[test]
@@ -276,7 +296,9 @@ mod tests {
             "background_check_enabled": true,
             "background_check_interval_minutes": 30,
             "enable_headless_browser": false,
-            "color_palette": "ocean"
+            "color_palette": "ocean",
+            "display_timezone": "Europe/London",
+            "date_format": "DD/MM/YYYY"
         }"#;
         let input: CombinedUpdateParams = serde_json::from_str(json).unwrap();
 
@@ -291,6 +313,8 @@ mod tests {
         assert_eq!(input.background_check_interval_minutes, Some(30));
         assert_eq!(input.enable_headless_browser, Some(false));
         assert_eq!(input.color_palette, Some("ocean".to_string()));
+        assert_eq!(input.display_timezone, Some("Europe/London".to_string()));
+        assert_eq!(input.date_format, Some("DD/MM/YYYY".to_string()));
     }
 
     #[test]
@@ -309,6 +333,8 @@ mod tests {
         assert!(input.background_check_interval_minutes.is_none());
         assert!(input.enable_headless_browser.is_none());
         assert!(input.color_palette.is_none());
+        assert!(input.display_timezone.is_none());
+        assert!(input.date_format.is_none());
     }
 
     #[test]
