@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
 	Card,
 	CardContent,
@@ -12,7 +13,7 @@ interface SettingsCardProps {
 	/** The card description displayed in the header */
 	description: string;
 	/** The content to display inside the card */
-	children: React.ReactNode;
+	children: ReactNode;
 	/** Optional className for the CardContent (e.g., "space-y-4" for vertical spacing) */
 	contentClassName?: string;
 }

@@ -10,6 +10,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { createContext, useContext, useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -69,7 +70,7 @@ function ProductAvailabilityProvider({
 	children,
 }: {
 	productId: string;
-	children: React.ReactNode;
+	children: ReactNode;
 }) {
 	const { latestCheck, isChecking, checkWithToast } =
 		useAvailability(productId);

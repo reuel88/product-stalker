@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { RootComponent } from "@/routes/__root";
 import { render, screen } from "../../test-utils";
@@ -9,7 +10,7 @@ vi.mock("@tanstack/react-router", () => ({
 	}),
 	HeadContent: () => <div data-testid="head-content" />,
 	Outlet: () => <div data-testid="outlet">Outlet Content</div>,
-	Link: ({ to, children }: { to: string; children: React.ReactNode }) => (
+	Link: ({ to, children }: { to: string; children: ReactNode }) => (
 		<a href={to} data-testid={`link-${to}`}>
 			{children}
 		</a>
@@ -23,7 +24,7 @@ vi.mock("@tanstack/react-router-devtools", () => ({
 
 // Mock next-themes
 vi.mock("next-themes", () => ({
-	ThemeProvider: ({ children }: { children: React.ReactNode }) => (
+	ThemeProvider: ({ children }: { children: ReactNode }) => (
 		<div data-testid="next-themes-provider">{children}</div>
 	),
 	useTheme: () => ({
@@ -34,7 +35,7 @@ vi.mock("next-themes", () => ({
 
 // Mock the palette provider
 vi.mock("@/modules/shared/providers/palette-provider", () => ({
-	PaletteProvider: ({ children }: { children: React.ReactNode }) => (
+	PaletteProvider: ({ children }: { children: ReactNode }) => (
 		<div data-testid="palette-provider">{children}</div>
 	),
 }));

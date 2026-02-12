@@ -60,11 +60,12 @@ pub struct UpdateDomainSettingsParams {
 ///
 /// # Example
 /// ```rust
-/// # use product_stalker_domain::services::domain_setting_service::DomainSettingsCache;
+/// # use product_stalker_domain::services::DomainSettingsCache;
 /// # use product_stalker_core::AppError;
 /// # use sea_orm::DatabaseConnection;
 /// async fn check_all_products(conn: &DatabaseConnection) -> Result<(), AppError> {
 ///     let cache = DomainSettingsCache::load(conn).await?;
+///     # let products: Vec<()> = vec![];
 ///
 ///     // Settings are loaded once and can be accessed multiple times
 ///     for product in products {

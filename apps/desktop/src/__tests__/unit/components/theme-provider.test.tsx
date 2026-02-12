@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
 	ThemeProvider,
@@ -10,7 +11,7 @@ vi.mock("next-themes", () => ({
 	ThemeProvider: ({
 		children,
 		...props
-	}: { children: React.ReactNode } & Record<string, unknown>) => (
+	}: { children: ReactNode } & Record<string, unknown>) => (
 		<div data-testid="theme-provider" data-props={JSON.stringify(props)}>
 			{children}
 		</div>

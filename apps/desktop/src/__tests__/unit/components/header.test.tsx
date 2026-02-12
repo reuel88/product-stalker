@@ -1,10 +1,11 @@
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import Header from "@/modules/shared/ui/components/header";
 import { render, screen } from "../../test-utils";
 
 // Mock @tanstack/react-router
 vi.mock("@tanstack/react-router", () => ({
-	Link: ({ to, children }: { to: string; children: React.ReactNode }) => (
+	Link: ({ to, children }: { to: string; children: ReactNode }) => (
 		<a href={to} data-testid={`link-${to}`}>
 			{children}
 		</a>

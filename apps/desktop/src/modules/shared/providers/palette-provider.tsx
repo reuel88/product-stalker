@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
 	createContext,
 	useCallback,
@@ -38,7 +39,7 @@ interface PaletteContextValue {
 const PaletteContext = createContext<PaletteContextValue | null>(null);
 
 interface PaletteProviderProps {
-	children: React.ReactNode;
+	children: ReactNode;
 	/** Backend color palette value to sync from on first load */
 	backendColorPalette?: string;
 	/** Callback to persist palette changes to the backend */
