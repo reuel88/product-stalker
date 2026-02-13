@@ -1,6 +1,6 @@
 //! Domain services
 
-mod availability_service;
+mod availability;
 pub mod currency;
 mod domain_setting_service;
 mod headless_service;
@@ -9,7 +9,7 @@ mod notification_service;
 mod product_service;
 pub mod scraper;
 
-pub use availability_service::{
+pub use availability::{
     AvailabilityService, BulkCheckResult, BulkCheckSummary, CheckProcessingResult,
     CheckResultWithNotification, DailyPriceComparison, ProductCheckContext,
 };

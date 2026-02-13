@@ -7,7 +7,7 @@ use crate::repositories::ProductRepository;
 use product_stalker_core::services::notification_helpers::NotificationData;
 use product_stalker_core::AppError;
 
-use super::availability_service::BulkCheckResult;
+use super::availability::BulkCheckResult;
 
 /// Service layer for notification building business logic
 ///

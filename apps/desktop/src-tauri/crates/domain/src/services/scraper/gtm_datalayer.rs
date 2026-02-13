@@ -138,44 +138,59 @@ fn extract_datalayer_push_strings(html: &str) -> Result<Vec<String>, AppError> {
     Ok(results)
 }
 
+/// Tracks whether the parser is inside a JS string literal.
+///
+/// Makes it impossible to simultaneously be in both single-quoted and
+/// double-quoted strings — a state that boolean flags could allow.
+#[derive(Clone, Copy, PartialEq)]
+enum StringContext {
+    /// Not inside any string literal
+    None,
+    /// Inside a `'...'` string
+    SingleQuoted,
+    /// Inside a `"..."` string
+    DoubleQuoted,
+}
+
 /// Extract a balanced `{...}` substring, handling nested braces and string literals.
 fn extract_balanced_braces(s: &str) -> Option<String> {
     let mut depth = 0i32;
     let mut result = String::new();
-    let mut in_single_quote = false;
-    let mut in_double_quote = false;
-    let mut prev_was_escape = false;
+    let mut string_ctx = StringContext::None;
+    let mut escaped = false;
 
     for ch in s.chars() {
         result.push(ch);
 
-        if prev_was_escape {
-            prev_was_escape = false;
+        if escaped {
+            escaped = false;
             continue;
         }
 
         if ch == '\\' {
-            prev_was_escape = true;
+            escaped = true;
             continue;
         }
 
-        if in_single_quote {
-            if ch == '\'' {
-                in_single_quote = false;
+        match string_ctx {
+            StringContext::SingleQuoted => {
+                if ch == '\'' {
+                    string_ctx = StringContext::None;
+                }
+                continue;
             }
-            continue;
-        }
-
-        if in_double_quote {
-            if ch == '"' {
-                in_double_quote = false;
+            StringContext::DoubleQuoted => {
+                if ch == '"' {
+                    string_ctx = StringContext::None;
+                }
+                continue;
             }
-            continue;
+            StringContext::None => {}
         }
 
         match ch {
-            '\'' => in_single_quote = true,
-            '"' => in_double_quote = true,
+            '\'' => string_ctx = StringContext::SingleQuoted,
+            '"' => string_ctx = StringContext::DoubleQuoted,
             '{' => depth += 1,
             '}' => {
                 depth -= 1;
@@ -197,52 +212,53 @@ fn extract_balanced_braces(s: &str) -> Option<String> {
 fn normalize_js_to_json(js: &str) -> String {
     let mut result = String::with_capacity(js.len());
     let mut chars = js.chars().peekable();
-    let mut in_double_quote = false;
-    let mut in_single_quote = false;
-    let mut prev_was_escape = false;
+    let mut string_ctx = StringContext::None;
+    let mut escaped = false;
 
     while let Some(ch) = chars.next() {
-        if prev_was_escape {
-            prev_was_escape = false;
+        if escaped {
+            escaped = false;
             result.push(ch);
             continue;
         }
 
         if ch == '\\' {
-            prev_was_escape = true;
+            escaped = true;
             result.push(ch);
             continue;
         }
 
-        if in_double_quote {
-            if ch == '"' {
-                in_double_quote = false;
-            }
-            result.push(ch);
-            continue;
-        }
-
-        if in_single_quote {
-            if ch == '\'' {
-                in_single_quote = false;
-                result.push('"');
-            } else if ch == '"' {
-                // Escape double quotes inside what was a single-quoted string
-                result.push('\\');
-                result.push('"');
-            } else {
+        match string_ctx {
+            StringContext::DoubleQuoted => {
+                if ch == '"' {
+                    string_ctx = StringContext::None;
+                }
                 result.push(ch);
+                continue;
             }
-            continue;
+            StringContext::SingleQuoted => {
+                if ch == '\'' {
+                    string_ctx = StringContext::None;
+                    result.push('"');
+                } else if ch == '"' {
+                    // Escape double quotes inside what was a single-quoted string
+                    result.push('\\');
+                    result.push('"');
+                } else {
+                    result.push(ch);
+                }
+                continue;
+            }
+            StringContext::None => {}
         }
 
         match ch {
             '\'' => {
-                in_single_quote = true;
+                string_ctx = StringContext::SingleQuoted;
                 result.push('"');
             }
             '"' => {
-                in_double_quote = true;
+                string_ctx = StringContext::DoubleQuoted;
                 result.push('"');
             }
             // Remove trailing commas before } or ]

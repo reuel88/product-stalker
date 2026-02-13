@@ -1,6 +1,35 @@
 //! Scraper service for extracting product availability from web pages.
 //!
-//! This module is organized into focused submodules:
+//! # Strategy Priority Order
+//!
+//! When scraping a URL, strategies are tried in order until one succeeds:
+//!
+//! 1. **Schema.org JSON-LD** (`schema_org`) — Most reliable. Parses structured
+//!    `<script type="application/ld+json">` data for Product/ProductGroup types.
+//!    Handles variant matching via URL query parameters.
+//!
+//! 2. **GTM dataLayer** (`gtm_datalayer`) — Extracts price from `dataLayer.push()`
+//!    calls injected by Google Tag Manager. Supports GA4 ecommerce events,
+//!    Enhanced Ecommerce, and legacy `ecomm_totalvalue`. Availability is inferred
+//!    from add-to-cart button text in the HTML.
+//!
+//! 3. **Shopify Cart API** (`shopify`) — For URLs matching Shopify's `/products/`
+//!    pattern. Uses the store's cart API (`/cart/add.js`) to check variant
+//!    availability, since Shopify pages often lack Schema.org data.
+//!
+//! 4. **Site-specific parsers** — Fallback for sites that don't use any standard
+//!    format. Currently supports Chemist Warehouse (via `nextjs_data`).
+//!
+//! # Adding a New Strategy
+//!
+//! To add a new extraction strategy:
+//! 1. Create a new submodule (e.g., `my_strategy.rs`)
+//! 2. Implement a function returning `Result<ScrapingResult, AppError>`
+//! 3. Add the attempt in `check_availability_with_headless()` at the appropriate
+//!    priority level (prefer earlier = more reliable)
+//!
+//! # Submodules
+//!
 //! - `bot_detection`: Cloudflare and bot protection detection
 //! - `chemist_warehouse`: Site-specific adapter for Chemist Warehouse
 //! - `gtm_datalayer`: GTM dataLayer.push() ecommerce data extraction
@@ -522,7 +551,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_availability_rejects_file_scheme() {
-        let result = ScraperService::check_availability("file:///etc/passwd").await;
+        let conn = crate::test_utils::setup_availability_db().await;
+        let result = ScraperService::check_availability("file:///etc/passwd", &conn).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
@@ -536,7 +566,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_availability_rejects_data_scheme() {
-        let result = ScraperService::check_availability("data:text/html,<h1>Hello</h1>").await;
+        let conn = crate::test_utils::setup_availability_db().await;
+        let result =
+            ScraperService::check_availability("data:text/html,<h1>Hello</h1>", &conn).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
@@ -550,7 +582,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_availability_rejects_invalid_url() {
-        let result = ScraperService::check_availability("not a valid url").await;
+        let conn = crate::test_utils::setup_availability_db().await;
+        let result = ScraperService::check_availability("not a valid url", &conn).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
