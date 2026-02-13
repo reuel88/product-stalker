@@ -22,4 +22,5 @@ export const COMMANDS = {
 export const EVENTS = {
 	// === DOMAIN ===
 	AVAILABILITY_CHECK_PROGRESS: "availability:check-progress",
+	MANUAL_VERIFICATION_REQUESTED: "availability:manual-verification-requested",
 } as const;

@@ -17,6 +17,8 @@ pub mod keys {
     pub const BACKGROUND_CHECK_ENABLED: &str = "background_check_enabled";
     pub const BACKGROUND_CHECK_INTERVAL_MINUTES: &str = "background_check_interval_minutes";
     pub const ENABLE_HEADLESS_BROWSER: &str = "enable_headless_browser";
+    pub const ALLOW_MANUAL_VERIFICATION: &str = "allow_manual_verification";
+    pub const SESSION_CACHE_DURATION_DAYS: &str = "session_cache_duration_days";
 }
 
 /// Default values for domain-specific settings
@@ -24,6 +26,8 @@ pub mod defaults {
     pub const BACKGROUND_CHECK_ENABLED: bool = false;
     pub const BACKGROUND_CHECK_INTERVAL_MINUTES: i32 = 60;
     pub const ENABLE_HEADLESS_BROWSER: bool = true;
+    pub const ALLOW_MANUAL_VERIFICATION: bool = false;
+    pub const SESSION_CACHE_DURATION_DAYS: i32 = 14;
 }
 
 /// Domain-specific settings
@@ -32,6 +36,8 @@ pub struct DomainSettings {
     pub background_check_enabled: bool,
     pub background_check_interval_minutes: i32,
     pub enable_headless_browser: bool,
+    pub allow_manual_verification: bool,
+    pub session_cache_duration_days: i32,
 }
 
 impl Default for DomainSettings {
@@ -40,6 +46,8 @@ impl Default for DomainSettings {
             background_check_enabled: defaults::BACKGROUND_CHECK_ENABLED,
             background_check_interval_minutes: defaults::BACKGROUND_CHECK_INTERVAL_MINUTES,
             enable_headless_browser: defaults::ENABLE_HEADLESS_BROWSER,
+            allow_manual_verification: defaults::ALLOW_MANUAL_VERIFICATION,
+            session_cache_duration_days: defaults::SESSION_CACHE_DURATION_DAYS,
         }
     }
 }
@@ -50,6 +58,8 @@ pub struct UpdateDomainSettingsParams {
     pub background_check_enabled: Option<bool>,
     pub background_check_interval_minutes: Option<i32>,
     pub enable_headless_browser: Option<bool>,
+    pub allow_manual_verification: Option<bool>,
+    pub session_cache_duration_days: Option<i32>,
 }
 
 /// Cached domain settings for bulk operations.
@@ -107,6 +117,16 @@ impl DomainSettingsCache {
         self.settings.enable_headless_browser
     }
 
+    /// Check if manual verification is allowed
+    pub fn allow_manual_verification(&self) -> bool {
+        self.settings.allow_manual_verification
+    }
+
+    /// Get session cache duration in days
+    pub fn session_cache_duration_days(&self) -> i32 {
+        self.settings.session_cache_duration_days
+    }
+
     /// Get when these settings were loaded
     pub fn loaded_at(&self) -> DateTime<Utc> {
         self.loaded_at
@@ -146,12 +166,30 @@ impl DomainSettingService {
                     defaults::ENABLE_HEADLESS_BROWSER,
                 )
                 .await?,
+            allow_manual_verification: r
+                .bool(
+                    keys::ALLOW_MANUAL_VERIFICATION,
+                    defaults::ALLOW_MANUAL_VERIFICATION,
+                )
+                .await?,
+            session_cache_duration_days: r
+                .i32(
+                    keys::SESSION_CACHE_DURATION_DAYS,
+                    defaults::SESSION_CACHE_DURATION_DAYS,
+                )
+                .await?,
         };
 
         // Clamp interval to valid range in case of direct DB manipulation
         settings.background_check_interval_minutes = settings
             .background_check_interval_minutes
             .clamp(1, Self::MAX_BACKGROUND_CHECK_INTERVAL_MINUTES);
+
+        // Clamp session cache duration to valid range
+        settings.session_cache_duration_days = settings.session_cache_duration_days.clamp(
+            Self::MIN_SESSION_CACHE_DURATION_DAYS,
+            Self::MAX_SESSION_CACHE_DURATION_DAYS,
+        );
 
         Ok(settings)
     }
@@ -163,6 +201,10 @@ impl DomainSettingService {
     ) -> Result<DomainSettings, AppError> {
         if let Some(interval) = params.background_check_interval_minutes {
             Self::validate_background_check_interval(interval)?;
+        }
+
+        if let Some(duration) = params.session_cache_duration_days {
+            Self::validate_session_cache_duration(duration)?;
         }
 
         let scope = SettingScope::Global;
@@ -177,12 +219,24 @@ impl DomainSettingService {
         if let Some(v) = params.enable_headless_browser {
             SettingsHelpers::set_bool(conn, &scope, keys::ENABLE_HEADLESS_BROWSER, v).await?;
         }
+        if let Some(v) = params.allow_manual_verification {
+            SettingsHelpers::set_bool(conn, &scope, keys::ALLOW_MANUAL_VERIFICATION, v).await?;
+        }
+        if let Some(v) = params.session_cache_duration_days {
+            SettingsHelpers::set_i32(conn, &scope, keys::SESSION_CACHE_DURATION_DAYS, v).await?;
+        }
 
         Self::get(conn).await
     }
 
     /// Maximum background check interval: 1 week (10080 minutes)
     const MAX_BACKGROUND_CHECK_INTERVAL_MINUTES: i32 = 10080;
+
+    /// Minimum session cache duration: 1 day
+    const MIN_SESSION_CACHE_DURATION_DAYS: i32 = 1;
+
+    /// Maximum session cache duration: 90 days
+    const MAX_SESSION_CACHE_DURATION_DAYS: i32 = 90;
 
     fn validate_background_check_interval(interval: i32) -> Result<(), AppError> {
         if interval <= 0 {
@@ -194,6 +248,22 @@ impl DomainSettingService {
             return Err(AppError::Validation(format!(
                 "Background check interval cannot exceed {} minutes (1 week)",
                 Self::MAX_BACKGROUND_CHECK_INTERVAL_MINUTES
+            )));
+        }
+        Ok(())
+    }
+
+    fn validate_session_cache_duration(duration: i32) -> Result<(), AppError> {
+        if duration < Self::MIN_SESSION_CACHE_DURATION_DAYS {
+            return Err(AppError::Validation(format!(
+                "Session cache duration must be at least {} day",
+                Self::MIN_SESSION_CACHE_DURATION_DAYS
+            )));
+        }
+        if duration > Self::MAX_SESSION_CACHE_DURATION_DAYS {
+            return Err(AppError::Validation(format!(
+                "Session cache duration cannot exceed {} days",
+                Self::MAX_SESSION_CACHE_DURATION_DAYS
             )));
         }
         Ok(())
@@ -210,6 +280,8 @@ mod tests {
         assert!(!settings.background_check_enabled);
         assert_eq!(settings.background_check_interval_minutes, 60);
         assert!(settings.enable_headless_browser);
+        assert!(!settings.allow_manual_verification);
+        assert_eq!(settings.session_cache_duration_days, 14);
     }
 
     #[test]
@@ -240,12 +312,37 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_session_cache_duration_accepts_valid_values() {
+        assert!(DomainSettingService::validate_session_cache_duration(1).is_ok());
+        assert!(DomainSettingService::validate_session_cache_duration(14).is_ok());
+        assert!(DomainSettingService::validate_session_cache_duration(30).is_ok());
+        assert!(DomainSettingService::validate_session_cache_duration(90).is_ok());
+    }
+
+    #[test]
+    fn test_validate_session_cache_duration_rejects_zero() {
+        assert!(DomainSettingService::validate_session_cache_duration(0).is_err());
+    }
+
+    #[test]
+    fn test_validate_session_cache_duration_rejects_negative() {
+        assert!(DomainSettingService::validate_session_cache_duration(-1).is_err());
+    }
+
+    #[test]
+    fn test_validate_session_cache_duration_rejects_exceeding_max() {
+        assert!(DomainSettingService::validate_session_cache_duration(91).is_err());
+    }
+
+    #[test]
     fn test_domain_settings_serialize() {
         let settings = DomainSettings::default();
         let json = serde_json::to_string(&settings).unwrap();
         assert!(json.contains("\"background_check_enabled\":false"));
         assert!(json.contains("\"background_check_interval_minutes\":60"));
         assert!(json.contains("\"enable_headless_browser\":true"));
+        assert!(json.contains("\"allow_manual_verification\":false"));
+        assert!(json.contains("\"session_cache_duration_days\":14"));
     }
 }
 
@@ -264,6 +361,8 @@ mod integration_tests {
         assert!(!settings.background_check_enabled);
         assert_eq!(settings.background_check_interval_minutes, 60);
         assert!(settings.enable_headless_browser);
+        assert!(!settings.allow_manual_verification);
+        assert_eq!(settings.session_cache_duration_days, 14);
     }
 
     #[tokio::test]
@@ -364,6 +463,8 @@ mod integration_tests {
         assert!(!cache.background_check_enabled());
         assert_eq!(cache.background_check_interval_minutes(), 60);
         assert!(cache.enable_headless_browser());
+        assert!(!cache.allow_manual_verification());
+        assert_eq!(cache.session_cache_duration_days(), 14);
     }
 
     #[tokio::test]
@@ -396,5 +497,79 @@ mod integration_tests {
         let loaded_at = cache.loaded_at();
         assert!(loaded_at >= before);
         assert!(loaded_at <= after);
+    }
+
+    #[tokio::test]
+    async fn test_update_manual_verification_settings() {
+        let conn = setup_app_settings_db().await;
+
+        let params = UpdateDomainSettingsParams {
+            allow_manual_verification: Some(true),
+            session_cache_duration_days: Some(30),
+            ..Default::default()
+        };
+
+        let updated = DomainSettingService::update(&conn, params).await.unwrap();
+        assert!(updated.allow_manual_verification);
+        assert_eq!(updated.session_cache_duration_days, 30);
+    }
+
+    #[tokio::test]
+    async fn test_validate_session_cache_duration_min() {
+        let conn = setup_app_settings_db().await;
+
+        let params = UpdateDomainSettingsParams {
+            session_cache_duration_days: Some(0),
+            ..Default::default()
+        };
+
+        let result = DomainSettingService::update(&conn, params).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_session_cache_duration_max() {
+        let conn = setup_app_settings_db().await;
+
+        let params = UpdateDomainSettingsParams {
+            session_cache_duration_days: Some(91),
+            ..Default::default()
+        };
+
+        let result = DomainSettingService::update(&conn, params).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_clamps_invalid_session_cache_duration_from_database() {
+        let conn = setup_app_settings_db().await;
+        let scope = SettingScope::Global;
+
+        // Test zero value - should be clamped to minimum of 1
+        SettingsHelpers::set_i32(&conn, &scope, keys::SESSION_CACHE_DURATION_DAYS, 0)
+            .await
+            .unwrap();
+
+        let settings = DomainSettingService::get(&conn).await.unwrap();
+        assert_eq!(settings.session_cache_duration_days, 1);
+
+        // Test negative value - should be clamped to minimum of 1
+        SettingsHelpers::set_i32(&conn, &scope, keys::SESSION_CACHE_DURATION_DAYS, -5)
+            .await
+            .unwrap();
+
+        let settings = DomainSettingService::get(&conn).await.unwrap();
+        assert_eq!(settings.session_cache_duration_days, 1);
+
+        // Test value above maximum - should be clamped to MAX
+        SettingsHelpers::set_i32(&conn, &scope, keys::SESSION_CACHE_DURATION_DAYS, 999)
+            .await
+            .unwrap();
+
+        let settings = DomainSettingService::get(&conn).await.unwrap();
+        assert_eq!(
+            settings.session_cache_duration_days,
+            DomainSettingService::MAX_SESSION_CACHE_DURATION_DAYS
+        );
     }
 }

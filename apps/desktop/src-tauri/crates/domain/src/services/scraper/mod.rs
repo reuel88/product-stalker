@@ -19,6 +19,7 @@ mod price_parser;
 mod schema_org;
 mod shopify;
 
+use sea_orm::DatabaseConnection;
 use url::Url;
 
 use crate::entities::availability_check::AvailabilityStatus;
@@ -50,11 +51,14 @@ impl ScraperService {
     /// Uses HTTP as the fast path. Falls back to headless browser if bot
     /// protection (Cloudflare, etc.) is detected and headless is enabled.
     #[cfg(test)]
-    pub async fn check_availability(url: &str) -> Result<ScrapingResult, AppError> {
-        Self::check_availability_with_headless(url, true).await
+    pub async fn check_availability(
+        url: &str,
+        conn: &DatabaseConnection,
+    ) -> Result<ScrapingResult, AppError> {
+        Self::check_availability_with_headless(url, true, false, conn, 14).await
     }
 
-    /// Check availability with control over headless fallback
+    /// Check availability with control over headless fallback and manual verification
     ///
     /// This is the main orchestrator function that coordinates the scraping workflow:
     /// 1. Validate URL scheme
@@ -66,12 +70,22 @@ impl ScraperService {
     pub async fn check_availability_with_headless(
         url: &str,
         enable_headless: bool,
+        allow_manual_verification: bool,
+        conn: &DatabaseConnection,
+        session_cache_duration_days: i32,
     ) -> Result<ScrapingResult, AppError> {
         // Step 1: Validate URL scheme
         Self::validate_url_scheme(url)?;
 
         // Step 2: Fetch HTML (tries HTTP first, falls back to headless if needed)
-        let html = http_client::fetch_html_with_fallback(url, enable_headless).await?;
+        let html = http_client::fetch_html_with_fallback(
+            url,
+            enable_headless,
+            allow_manual_verification,
+            conn,
+            session_cache_duration_days,
+        )
+        .await?;
 
         // Step 3: Try Schema.org extraction first
         if let Ok(result) = Self::try_schema_org_extraction(&html, url) {

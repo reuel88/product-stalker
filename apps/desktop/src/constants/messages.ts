@@ -24,6 +24,8 @@ export const MESSAGES = {
 			"Chrome/Chromium not found. Please install Chrome to check this site.",
 		CAPTCHA_REQUIRED:
 			"This site requires manual verification. Please check the product page directly.",
+		MANUAL_VERIFICATION_STARTED:
+			"Please complete CAPTCHA verification in the browser window that just opened",
 	},
 	PRICE: {
 		NO_PRICE: "-",

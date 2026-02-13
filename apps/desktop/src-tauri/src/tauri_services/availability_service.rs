@@ -59,6 +59,8 @@ impl TauriAvailabilityService {
             product_id,
             domain_settings.enable_headless_browser,
             settings.enable_notifications,
+            domain_settings.allow_manual_verification,
+            domain_settings.session_cache_duration_days,
         )
         .await
     }
@@ -76,6 +78,8 @@ impl TauriAvailabilityService {
         let settings_cache = SettingsCache::load(conn).await?;
         let domain_cache = DomainSettingsCache::load(conn).await?;
         let enable_headless = domain_cache.enable_headless_browser();
+        let allow_manual_verification = domain_cache.allow_manual_verification();
+        let session_cache_duration = domain_cache.session_cache_duration_days();
 
         let products = ProductService::get_all(conn).await?;
         let total = products.len();
@@ -101,8 +105,14 @@ impl TauriAvailabilityService {
                 tokio::time::sleep(Duration::from_millis(RATE_LIMIT_BETWEEN_CHECKS_MS)).await;
             }
 
-            let (bulk_result, processing_result) =
-                AvailabilityService::check_single_product(conn, product, enable_headless).await;
+            let (bulk_result, processing_result) = AvailabilityService::check_single_product(
+                conn,
+                product,
+                enable_headless,
+                allow_manual_verification,
+                session_cache_duration,
+            )
+            .await;
 
             let _ = app.emit(
                 "availability:check-progress",

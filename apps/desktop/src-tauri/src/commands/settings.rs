@@ -23,6 +23,8 @@ pub struct SettingsResponse {
     pub background_check_enabled: bool,
     pub background_check_interval_minutes: i32,
     pub enable_headless_browser: bool,
+    pub allow_manual_verification: bool,
+    pub session_cache_duration_days: i32,
     pub color_palette: String,
     pub display_timezone: String,
     pub date_format: String,
@@ -42,6 +44,8 @@ impl SettingsResponse {
             background_check_enabled: domain.background_check_enabled,
             background_check_interval_minutes: domain.background_check_interval_minutes,
             enable_headless_browser: domain.enable_headless_browser,
+            allow_manual_verification: domain.allow_manual_verification,
+            session_cache_duration_days: domain.session_cache_duration_days,
             color_palette: settings.color_palette,
             display_timezone: settings.display_timezone,
             date_format: settings.date_format,
@@ -66,6 +70,8 @@ pub struct CombinedUpdateParams {
     pub background_check_enabled: Option<bool>,
     pub background_check_interval_minutes: Option<i32>,
     pub enable_headless_browser: Option<bool>,
+    pub allow_manual_verification: Option<bool>,
+    pub session_cache_duration_days: Option<i32>,
     pub color_palette: Option<String>,
     pub display_timezone: Option<String>,
     pub date_format: Option<String>,
@@ -125,6 +131,8 @@ pub async fn update_settings(
         background_check_enabled: input.background_check_enabled,
         background_check_interval_minutes: input.background_check_interval_minutes,
         enable_headless_browser: input.enable_headless_browser,
+        allow_manual_verification: input.allow_manual_verification,
+        session_cache_duration_days: input.session_cache_duration_days,
     };
 
     let settings = SettingService::update(db.conn(), core_params).await?;
@@ -163,6 +171,8 @@ mod tests {
             background_check_enabled: false,
             background_check_interval_minutes: 60,
             enable_headless_browser: true,
+            allow_manual_verification: false,
+            session_cache_duration_days: 14,
         }
     }
 
@@ -204,6 +214,8 @@ mod tests {
             background_check_enabled: true,
             background_check_interval_minutes: 30,
             enable_headless_browser: false,
+            allow_manual_verification: true,
+            session_cache_duration_days: 30,
         };
 
         let response = SettingsResponse::from_merged(settings, domain);

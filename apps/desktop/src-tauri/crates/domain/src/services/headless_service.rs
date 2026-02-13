@@ -5,14 +5,50 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use headless_chrome::{Browser, LaunchOptions};
+use rand::Rng;
 
 use product_stalker_core::AppError;
 
-/// JavaScript to hide the webdriver property, bypassing Cloudflare's navigator.webdriver detection
-const WEBDRIVER_OVERRIDE_SCRIPT: &str = r#"
+/// Comprehensive stealth script to evade fingerprinting
+const COMPREHENSIVE_STEALTH_SCRIPT: &str = r#"
+    // Hide webdriver
     Object.defineProperty(navigator, 'webdriver', {
         get: () => undefined
     });
+
+    // Spoof plugins (empty plugins array is suspicious)
+    Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5].map(() => ({
+            0: {type: "application/pdf", suffixes: "pdf", description: "Portable Document Format"},
+            description: "Portable Document Format",
+            filename: "internal-pdf-viewer",
+            length: 1,
+            name: "Chrome PDF Plugin"
+        }))
+    });
+
+    // Spoof permissions query
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters) => (
+        parameters.name === 'notifications' ?
+            Promise.resolve({ state: Notification.permission }) :
+            originalQuery(parameters)
+    );
+
+    // Add chrome object
+    if (!window.chrome) {
+        window.chrome = { runtime: {} };
+    }
+
+    // Canvas fingerprint noise (adds random 1px variations)
+    const getImageData = CanvasRenderingContext2D.prototype.getImageData;
+    CanvasRenderingContext2D.prototype.getImageData = function(...args) {
+        const imageData = getImageData.apply(this, args);
+        for (let i = 0; i < imageData.data.length; i += 4) {
+            imageData.data[i] += Math.floor(Math.random() * 3) - 1;
+        }
+        return imageData;
+    };
 "#;
 
 /// Service for headless browser automation
@@ -21,6 +57,7 @@ const WEBDRIVER_OVERRIDE_SCRIPT: &str = r#"
 /// (Cloudflare, etc.). Requires Chrome/Chromium to be installed.
 pub struct HeadlessService {
     browser: Option<Arc<Browser>>,
+    user_data_dir: PathBuf,
 }
 
 impl HeadlessService {
@@ -29,7 +66,51 @@ impl HeadlessService {
 
     /// Create a new headless service instance
     pub fn new() -> Self {
-        Self { browser: None }
+        let user_data_dir = Self::get_user_data_dir().unwrap_or_else(|e| {
+            log::warn!(
+                "Failed to create user data directory: {}. Using current directory.",
+                e
+            );
+            PathBuf::from(".")
+        });
+        Self {
+            browser: None,
+            user_data_dir,
+        }
+    }
+
+    /// Get the user data directory for Chrome profile persistence
+    ///
+    /// Creates a persistent profile directory for Chrome to store cookies,
+    /// cache, and other state across sessions. This helps avoid detection
+    /// by making the browser appear more like a real user's browser.
+    pub fn get_user_data_dir() -> Result<PathBuf, AppError> {
+        // Determine platform-specific app data directory
+        let app_data = if cfg!(target_os = "windows") {
+            std::env::var("LOCALAPPDATA").or_else(|_| std::env::var("APPDATA"))
+        } else if cfg!(target_os = "macos") {
+            std::env::var("HOME").map(|home| format!("{}/Library/Application Support", home))
+        } else {
+            // Linux and others
+            std::env::var("HOME").map(|home| format!("{}/.local/share", home))
+        };
+
+        let app_data = app_data
+            .map_err(|_| AppError::Internal("Cannot determine app data directory".to_string()))?;
+
+        let chrome_profile = PathBuf::from(app_data)
+            .join("product-stalker")
+            .join("chrome-profile");
+
+        std::fs::create_dir_all(&chrome_profile).map_err(|e| {
+            AppError::Internal(format!(
+                "Failed to create Chrome profile directory at {}: {}",
+                chrome_profile.display(),
+                e
+            ))
+        })?;
+
+        Ok(chrome_profile)
     }
 
     /// Fetch a page using headless Chrome
@@ -56,12 +137,18 @@ impl HeadlessService {
 
         // Inject script to hide webdriver property before navigation
         log::debug!("Headless: injecting anti-detection script");
-        if let Err(e) = tab.evaluate(WEBDRIVER_OVERRIDE_SCRIPT, false) {
+        if let Err(e) = tab.evaluate(COMPREHENSIVE_STEALTH_SCRIPT, false) {
             log::debug!(
-                "Headless: pre-navigation webdriver override failed (expected on about:blank): {}",
+                "Headless: pre-navigation stealth script failed (expected on about:blank): {}",
                 e
             );
         }
+
+        // Add human-like random delay before navigation (500-1500ms)
+        let mut rng = rand::thread_rng();
+        let delay_ms = rng.gen_range(500..1500);
+        std::thread::sleep(Duration::from_millis(delay_ms));
+        log::debug!("Headless: added human-like delay of {}ms", delay_ms);
 
         // Navigate to the URL
         log::debug!("Headless: navigating to {}", url);
@@ -74,9 +161,9 @@ impl HeadlessService {
             .map_err(|e| AppError::External(format!("Page load timeout: {}", e)))?;
 
         // Re-inject script after navigation in case page reset it
-        if let Err(e) = tab.evaluate(WEBDRIVER_OVERRIDE_SCRIPT, false) {
+        if let Err(e) = tab.evaluate(COMPREHENSIVE_STEALTH_SCRIPT, false) {
             log::warn!(
-                "Headless: post-navigation webdriver override failed for {}: {}",
+                "Headless: post-navigation stealth script failed for {}: {}",
                 url,
                 e
             );
@@ -117,6 +204,9 @@ impl HeadlessService {
         // Build user-agent arg from the shared constant in the scraper module
         let user_agent_arg = format!("--user-agent={}", super::scraper::USER_AGENT);
 
+        // Build user-data-dir arg for profile persistence
+        let user_data_arg = format!("--user-data-dir={}", self.user_data_dir.display());
+
         // Use headless: false and manually add --headless=new for Chrome's new headless mode
         // The new headless mode is much harder for bot detection to fingerprint
         let options = LaunchOptions::default_builder()
@@ -144,6 +234,15 @@ impl HeadlessService {
                 std::ffi::OsStr::new("--disable-popup-blocking"),
                 // Set a realistic user agent (shared with HTTP scraper)
                 std::ffi::OsStr::new(&user_agent_arg),
+                // Enhanced anti-detection arguments
+                std::ffi::OsStr::new("--exclude-switches=enable-automation"),
+                std::ffi::OsStr::new("--disable-dev-shm-usage"),
+                std::ffi::OsStr::new("--disable-background-timer-throttling"),
+                std::ffi::OsStr::new("--disable-backgrounding-occluded-windows"),
+                std::ffi::OsStr::new("--disable-renderer-backgrounding"),
+                std::ffi::OsStr::new("--disable-features=IsolateOrigins,site-per-process"),
+                // Profile persistence for cookies and state
+                std::ffi::OsStr::new(&user_data_arg),
             ])
             .build()
             .map_err(|e| AppError::Internal(format!("Failed to create browser options: {}", e)))?;
@@ -264,7 +363,7 @@ impl HeadlessService {
     ///
     /// Returns true if the page requires human verification that
     /// cannot be bypassed by headless browser.
-    fn is_captcha_challenge(html: &str) -> bool {
+    pub fn is_captcha_challenge(html: &str) -> bool {
         let captcha_indicators = [
             "g-recaptcha",
             "h-captcha",
@@ -295,12 +394,15 @@ mod tests {
     fn test_new_creates_instance() {
         let service = HeadlessService::new();
         assert!(service.browser.is_none());
+        // user_data_dir should be initialized (either from platform location or fallback to ".")
+        assert!(!service.user_data_dir.as_os_str().is_empty());
     }
 
     #[test]
     fn test_default_creates_instance() {
         let service = HeadlessService::default();
         assert!(service.browser.is_none());
+        assert!(!service.user_data_dir.as_os_str().is_empty());
     }
 
     #[test]

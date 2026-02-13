@@ -6,6 +6,7 @@ use super::m20240105_000001_add_headless_browser_setting;
 use super::m20250206_000001_create_app_settings_table;
 use super::m20250207_000001_backfill_app_settings;
 use super::m20250208_000001_drop_old_settings_table;
+use super::m20250214_000001_create_verified_sessions;
 
 pub fn migrations() -> Vec<Box<dyn MigrationTrait>> {
     vec![
@@ -15,5 +16,6 @@ pub fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         Box::new(m20250206_000001_create_app_settings_table::Migration),
         Box::new(m20250207_000001_backfill_app_settings::Migration),
         Box::new(m20250208_000001_drop_old_settings_table::Migration),
+        Box::new(m20250214_000001_create_verified_sessions::Migration),
     ]
 }

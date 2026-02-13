@@ -215,3 +215,31 @@ export function useCheckAllAvailability() {
 		progress,
 	};
 }
+
+/**
+ * Hook to listen for manual verification requests
+ */
+export function useManualVerificationListener() {
+	const handleManualVerificationRequested = useCallback(
+		(payload: { url: string; domain: string }) => {
+			toast.info(
+				`Please complete CAPTCHA verification for ${payload.domain} in the browser window`,
+				{
+					duration: 8000, // 8 seconds
+				},
+			);
+		},
+		[],
+	);
+
+	const { subscribe, unsubscribe } = useTauriEventSubscription(
+		EVENTS.MANUAL_VERIFICATION_REQUESTED,
+		handleManualVerificationRequested,
+	);
+
+	// Auto-subscribe on mount
+	useEffect(() => {
+		void subscribe();
+		return unsubscribe;
+	}, [subscribe, unsubscribe]);
+}

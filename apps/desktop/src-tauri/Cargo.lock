@@ -3929,6 +3929,7 @@ dependencies = [
  "headless_chrome",
  "log",
  "product-stalker-core",
+ "rand 0.8.5",
  "reqwest",
  "rust_decimal",
  "scraper",
