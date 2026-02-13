@@ -25,7 +25,7 @@ use crate::entities::availability_check::AvailabilityStatus;
 use product_stalker_core::AppError;
 
 // Re-export types that are part of the public API
-pub use price_parser::PriceInfo;
+pub use price_parser::{has_path_locale, PriceInfo};
 
 /// User-Agent header mimicking Chrome browser.
 ///

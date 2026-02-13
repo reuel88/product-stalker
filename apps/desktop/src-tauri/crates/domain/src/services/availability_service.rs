@@ -11,6 +11,7 @@ use product_stalker_core::AppError;
 
 use product_stalker_core::services::notification_helpers::NotificationData;
 
+use super::scraper::has_path_locale;
 use super::{currency, NotificationService, ScraperService};
 
 /// Result of a single product availability check in a bulk operation
@@ -174,18 +175,6 @@ impl AvailabilityService {
         AvailabilityCheckRepository::create(conn, Uuid::new_v4(), product_id, params).await
     }
 
-    /// Check if a URL contains a path-based locale pattern
-    fn url_has_path_locale(url: &str) -> bool {
-        const PATH_LOCALES: &[&str] = &[
-            "/en-au/", "/en-nz/", "/en-gb/", "/en-uk/", "/en-ca/", "/en-us/", "/fr-ca/", "/en-eu/",
-        ];
-
-        let url_lower = url.to_lowercase();
-        PATH_LOCALES.iter().any(|locale| {
-            url_lower.contains(locale) || url_lower.contains(&locale.replace('/', "-"))
-        })
-    }
-
     /// Auto-set product currency from scraped price data.
     ///
     /// If the product has no currency set and the scrape found one, saves it.
@@ -222,7 +211,7 @@ impl AvailabilityService {
                 // Special case: If the URL has a path locale pattern, the scraped
                 // currency (from new logic) is more reliable than the stored one
                 // (from old logic that didn't check path locales)
-                if Self::url_has_path_locale(&product.url) {
+                if has_path_locale(&product.url) {
                     log::info!(
                         "Correcting currency for product {} from {} to {} (path locale detected in URL)",
                         product.id,
@@ -962,83 +951,6 @@ mod tests {
             let json = serde_json::to_string(&result).unwrap();
             assert!(json.contains("out_of_stock"));
             assert!(json.contains("null") || !json.contains("notification"));
-        }
-    }
-
-    /// Tests for url_has_path_locale helper
-    mod url_has_path_locale_tests {
-        use super::*;
-
-        #[test]
-        fn test_en_au_with_slashes() {
-            assert!(AvailabilityService::url_has_path_locale(
-                "https://reyllen.com/en-au/products/backpack"
-            ));
-        }
-
-        #[test]
-        fn test_en_au_mixed_case() {
-            assert!(AvailabilityService::url_has_path_locale(
-                "https://example.com/EN-AU/products/item"
-            ));
-        }
-
-        #[test]
-        fn test_en_nz() {
-            assert!(AvailabilityService::url_has_path_locale(
-                "https://example.com/en-nz/products/item"
-            ));
-        }
-
-        #[test]
-        fn test_en_gb() {
-            assert!(AvailabilityService::url_has_path_locale(
-                "https://example.com/en-gb/products/item"
-            ));
-        }
-
-        #[test]
-        fn test_en_us() {
-            assert!(AvailabilityService::url_has_path_locale(
-                "https://example.com/en-us/products/item"
-            ));
-        }
-
-        #[test]
-        fn test_en_ca() {
-            assert!(AvailabilityService::url_has_path_locale(
-                "https://example.com/en-ca/products/item"
-            ));
-        }
-
-        #[test]
-        fn test_fr_ca() {
-            assert!(AvailabilityService::url_has_path_locale(
-                "https://example.com/fr-ca/products/item"
-            ));
-        }
-
-        #[test]
-        fn test_no_path_locale() {
-            assert!(!AvailabilityService::url_has_path_locale(
-                "https://example.com/products/item"
-            ));
-        }
-
-        #[test]
-        fn test_partial_match_no_slashes() {
-            // Should not match "en-au" without slashes in the right context
-            assert!(!AvailabilityService::url_has_path_locale(
-                "https://example-en-au.com/products/item"
-            ));
-        }
-
-        #[test]
-        fn test_query_param_locale() {
-            // Query params like ?locale=en-au should not match (needs path locale)
-            assert!(!AvailabilityService::url_has_path_locale(
-                "https://example.com/products/item?locale=en-au"
-            ));
         }
     }
 
