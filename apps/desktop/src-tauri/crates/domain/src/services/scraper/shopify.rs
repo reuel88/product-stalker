@@ -17,7 +17,9 @@ use url::Url;
 use crate::entities::availability_check::AvailabilityStatus;
 use product_stalker_core::AppError;
 
-use super::price_parser::{parse_price_to_minor_units, PriceInfo};
+use super::price_parser::{
+    infer_currency_from_domain, infer_currency_from_path, parse_price_to_minor_units, PriceInfo,
+};
 use super::ScrapingResult;
 
 /// HTTP request timeout for Shopify API calls
@@ -46,18 +48,6 @@ const RAW_AVAILABILITY_PRODUCT_JSON_UNAVAILABLE: &str = "product_json:unavailabl
 const RAW_AVAILABILITY_CART_API_IN_STOCK: &str = "cart_api:in_stock";
 /// Base value for out-of-stock; error message is appended after a colon
 const RAW_AVAILABILITY_CART_API_OUT_OF_STOCK: &str = "cart_api:out_of_stock";
-
-/// Domain suffix to currency code mappings
-/// Within each inner slice, more specific suffixes (e.g., ".com.au") must come before
-/// generic ones (e.g., ".au") so that `ends_with` matches the longest suffix first.
-const DOMAIN_CURRENCY_MAP: &[(&[&str], &str)] = &[
-    (&[".com.au", ".au"], "AUD"),
-    (&[".co.uk", ".uk"], "GBP"),
-    (&[".ca"], "CAD"),
-    (&[".co.nz", ".nz"], "NZD"),
-    (&[".eu"], "EUR"),
-    (&[".com", ".us"], "USD"),
-];
 
 /// Shopify product.json response structure
 #[derive(Debug, Deserialize)]
@@ -217,20 +207,6 @@ fn build_http_client() -> Result<reqwest::Client, AppError> {
         .timeout(Duration::from_secs(TIMEOUT_SECS))
         .build()
         .map_err(|e| AppError::External(e.to_string()))
-}
-
-/// Infer currency from a store's domain TLD
-///
-/// Returns a currency code based on the domain's top-level domain.
-/// Returns None if the domain doesn't match a known pattern.
-fn infer_currency_from_domain(url: &str) -> Option<String> {
-    let parsed = Url::parse(url).ok()?;
-    let host = parsed.host_str()?;
-
-    DOMAIN_CURRENCY_MAP
-        .iter()
-        .find(|(suffixes, _)| suffixes.iter().any(|s| host.ends_with(s)))
-        .map(|(_, currency)| (*currency).to_string())
 }
 
 /// Build a ScrapingResult from product.json availability data
@@ -466,9 +442,10 @@ async fn clear_cart(client: &reqwest::Client, base_url: &str) {
 /// Extract price info from a Shopify variant
 ///
 /// Currency is determined in order of precedence:
-/// 1. Currency from the variant data (if available)
-/// 2. Inferred from the store's domain TLD
-/// 3. None if neither is available
+/// 1. Path-based locale (e.g., /en-au/ → AUD) - most reliable for multi-locale stores
+/// 2. Inferred from the store's domain TLD (e.g., .com.au → AUD)
+/// 3. Currency from the variant data (API default, may not match locale)
+/// 4. None if none of the above are available
 fn extract_price_from_variant(variant: &ShopifyVariant, url: &str) -> PriceInfo {
     let raw_price = if variant.price.is_empty() {
         None
@@ -476,13 +453,14 @@ fn extract_price_from_variant(variant: &ShopifyVariant, url: &str) -> PriceInfo 
         Some(variant.price.clone())
     };
 
-    let price_currency = variant.price_currency.clone().or_else(|| {
-        if raw_price.is_some() {
-            infer_currency_from_domain(url)
-        } else {
-            None
-        }
-    });
+    // New priority: path locale > domain TLD > API default
+    let price_currency = if raw_price.is_some() {
+        infer_currency_from_path(url) // 1. Path locale (NEW)
+            .or_else(|| infer_currency_from_domain(url)) // 2. Domain TLD
+            .or_else(|| variant.price_currency.clone()) // 3. API default
+    } else {
+        None
+    };
 
     let price_minor_units = raw_price
         .as_ref()
@@ -718,17 +696,17 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_price_variant_currency_takes_precedence() {
+    fn test_extract_price_domain_overrides_api_default() {
         let variant = ShopifyVariant {
             id: 123,
             price: "50.00".to_string(),
             available: Some(true),
-            price_currency: Some("EUR".to_string()), // Explicit currency
+            price_currency: Some("EUR".to_string()), // API default
         };
 
-        // Even though domain is .au, variant currency should take precedence
+        // Domain (.com.au) should now take precedence over API default (EUR)
         let price = extract_price_from_variant(&variant, "https://store.com.au/products/test");
-        assert_eq!(price.price_currency, Some("EUR".to_string()));
+        assert_eq!(price.price_currency, Some("AUD".to_string()));
     }
 
     #[test]
@@ -762,6 +740,82 @@ mod tests {
             infer_currency_from_domain("https://store.xyz/products/test"),
             None
         );
+    }
+
+    #[test]
+    fn test_infer_currency_from_path() {
+        // Australian locale
+        assert_eq!(
+            infer_currency_from_path("https://store.com/en-au/products/test"),
+            Some("AUD".to_string())
+        );
+
+        // UK locale
+        assert_eq!(
+            infer_currency_from_path("https://store.com/en-gb/products/test"),
+            Some("GBP".to_string())
+        );
+
+        // US locale
+        assert_eq!(
+            infer_currency_from_path("https://store.com/en-us/products/test"),
+            Some("USD".to_string())
+        );
+
+        // Canadian locale
+        assert_eq!(
+            infer_currency_from_path("https://store.com/en-ca/products/test"),
+            Some("CAD".to_string())
+        );
+
+        // No locale in path
+        assert_eq!(
+            infer_currency_from_path("https://store.com/products/test"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_extract_price_path_locale_takes_precedence() {
+        let variant = ShopifyVariant {
+            id: 123,
+            price: "50.00".to_string(),
+            available: Some(true),
+            price_currency: Some("GBP".to_string()), // API returns GBP default
+        };
+
+        // Path locale /en-au/ should override API's GBP and domain inference
+        let price = extract_price_from_variant(&variant, "https://reyllen.com/en-au/products/test");
+        assert_eq!(price.price_currency, Some("AUD".to_string()));
+    }
+
+    #[test]
+    fn test_extract_price_domain_precedence_without_path_locale() {
+        let variant = ShopifyVariant {
+            id: 123,
+            price: "50.00".to_string(),
+            available: Some(true),
+            price_currency: Some("GBP".to_string()),
+        };
+
+        // No path locale, so .com.au domain should take precedence over API default
+        let price = extract_price_from_variant(&variant, "https://store.com.au/products/test");
+        assert_eq!(price.price_currency, Some("AUD".to_string()));
+    }
+
+    #[test]
+    fn test_extract_price_api_currency_as_fallback() {
+        let variant = ShopifyVariant {
+            id: 123,
+            price: "50.00".to_string(),
+            available: Some(true),
+            price_currency: Some("EUR".to_string()),
+        };
+
+        // No path locale or recognizable domain, use API default
+        let price =
+            extract_price_from_variant(&variant, "https://some-random-store.example/products/test");
+        assert_eq!(price.price_currency, Some("EUR".to_string()));
     }
 
     #[test]
