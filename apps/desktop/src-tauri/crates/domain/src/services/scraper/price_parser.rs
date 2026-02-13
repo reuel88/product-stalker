@@ -105,6 +105,23 @@ pub fn infer_currency_from_path(url: &str) -> Option<String> {
         .map(|(_, currency)| (*currency).to_string())
 }
 
+/// Check if a URL contains a path-based locale pattern
+///
+/// This is a convenience wrapper around `infer_currency_from_path()` for callers
+/// that only need to know if a path locale exists, not which currency it maps to.
+///
+/// # Examples
+/// ```
+/// use product_stalker_domain::services::scraper::has_path_locale;
+///
+/// assert!(has_path_locale("https://reyllen.com/en-au/products/item"));
+/// assert!(has_path_locale("https://store.com/en-gb/collections/all"));
+/// assert!(!has_path_locale("https://example-en-au.com/products/item")); // domain, not path
+/// ```
+pub fn has_path_locale(url: &str) -> bool {
+    infer_currency_from_path(url).is_some()
+}
+
 /// Extract price info from an offer object
 ///
 /// Currency is determined in order of precedence:
@@ -310,25 +327,38 @@ mod tests {
 
     #[test]
     fn test_infer_currency_from_path() {
+        // Test all 8 locales defined in PATH_LOCALE_CURRENCY_MAP
         assert_eq!(
             infer_currency_from_path("https://store.com/en-au/products/test"),
             Some("AUD".to_string())
+        );
+        assert_eq!(
+            infer_currency_from_path("https://shop.com/en-nz/products/test"),
+            Some("NZD".to_string())
         );
         assert_eq!(
             infer_currency_from_path("https://shop.com/en-gb/products/test"),
             Some("GBP".to_string())
         );
         assert_eq!(
-            infer_currency_from_path("https://example.com/en-us/products/test"),
-            Some("USD".to_string())
+            infer_currency_from_path("https://example.com/en-uk/products/test"),
+            Some("GBP".to_string())
         );
         assert_eq!(
             infer_currency_from_path("https://store.com/en-ca/products/test"),
             Some("CAD".to_string())
         );
         assert_eq!(
-            infer_currency_from_path("https://shop.com/en-nz/products/test"),
-            Some("NZD".to_string())
+            infer_currency_from_path("https://example.com/en-us/products/test"),
+            Some("USD".to_string())
+        );
+        assert_eq!(
+            infer_currency_from_path("https://shop.com/fr-ca/products/test"),
+            Some("CAD".to_string())
+        );
+        assert_eq!(
+            infer_currency_from_path("https://example.com/en-eu/products/test"),
+            Some("EUR".to_string())
         );
         // No path locale
         assert_eq!(
@@ -372,5 +402,61 @@ mod tests {
         let price = get_price_from_offer(&offer, "https://unknown.xyz/products/test");
         assert_eq!(price.price_minor_units, Some(2999));
         assert_eq!(price.price_currency, Some("EUR".to_string())); // Should use API
+    }
+
+    #[test]
+    fn test_has_path_locale_en_au_with_slashes() {
+        assert!(has_path_locale(
+            "https://reyllen.com/en-au/products/backpack"
+        ));
+    }
+
+    #[test]
+    fn test_has_path_locale_en_au_mixed_case() {
+        assert!(has_path_locale("https://example.com/EN-AU/products/item"));
+    }
+
+    #[test]
+    fn test_has_path_locale_en_nz() {
+        assert!(has_path_locale("https://example.com/en-nz/products/item"));
+    }
+
+    #[test]
+    fn test_has_path_locale_en_gb() {
+        assert!(has_path_locale("https://example.com/en-gb/products/item"));
+    }
+
+    #[test]
+    fn test_has_path_locale_en_us() {
+        assert!(has_path_locale("https://example.com/en-us/products/item"));
+    }
+
+    #[test]
+    fn test_has_path_locale_en_ca() {
+        assert!(has_path_locale("https://example.com/en-ca/products/item"));
+    }
+
+    #[test]
+    fn test_has_path_locale_fr_ca() {
+        assert!(has_path_locale("https://example.com/fr-ca/products/item"));
+    }
+
+    #[test]
+    fn test_has_path_locale_no_path_locale() {
+        assert!(!has_path_locale("https://example.com/products/item"));
+    }
+
+    #[test]
+    fn test_has_path_locale_partial_match_no_slashes() {
+        // Should not match "en-au" without slashes in the right context
+        assert!(!has_path_locale("https://example-en-au.com/products/item"));
+    }
+
+    #[test]
+    fn test_has_path_locale_query_param_locale() {
+        // Query params like ?locale=en-au should not match (needs path locale)
+        assert!(!has_path_locale(
+            "https://example.com/products/item?locale=en-au"
+        ));
     }
 }
