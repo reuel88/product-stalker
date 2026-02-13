@@ -87,56 +87,51 @@ export function usePriceFormatting({
 	currency,
 	currencyExponent = 2,
 }: UsePriceFormattingProps): PriceFormattingResult {
-	const formattedCurrentPrice = useMemo(
-		() => formatPrice(currentPriceMinorUnits, currency, currencyExponent),
-		[currentPriceMinorUnits, currency, currencyExponent],
-	);
-
-	const formattedPreviousPrice = useMemo(
-		() =>
-			formatPrice(
+	// Price formatting (current + previous)
+	const { formattedCurrentPrice, formattedPreviousPrice } = useMemo(
+		() => ({
+			formattedCurrentPrice: formatPrice(
+				currentPriceMinorUnits,
+				currency,
+				currencyExponent,
+			),
+			formattedPreviousPrice: formatPrice(
 				yesterdayAverageMinorUnits ?? null,
 				currency,
 				currencyExponent,
 			),
-		[yesterdayAverageMinorUnits, currency, currencyExponent],
+		}),
+		[
+			currentPriceMinorUnits,
+			yesterdayAverageMinorUnits,
+			currency,
+			currencyExponent,
+		],
 	);
 
-	const direction = useMemo(
-		() =>
-			getPriceChangeDirection(
+	// Price comparison calculations (direction + percent + formatted)
+	const { direction, percentChange, formattedPercentChange } = useMemo(() => {
+		const today = todayAverageMinorUnits ?? null;
+		const yesterday = yesterdayAverageMinorUnits ?? null;
+		const dir = getPriceChangeDirection(today, yesterday);
+		const pct = calculatePriceChangePercent(today, yesterday);
+		return {
+			direction: dir,
+			percentChange: pct,
+			formattedPercentChange: formatPriceChangePercent(pct),
+		};
+	}, [todayAverageMinorUnits, yesterdayAverageMinorUnits]);
+
+	// Comparison flags (hasComparison + isRoundedZero)
+	const { hasComparison, isRoundedZero: isRoundedZeroValue } = useMemo(
+		() => ({
+			hasComparison: direction !== "unknown" && direction !== "unchanged",
+			isRoundedZero: isRoundedZero(
 				todayAverageMinorUnits ?? null,
 				yesterdayAverageMinorUnits ?? null,
 			),
-		[todayAverageMinorUnits, yesterdayAverageMinorUnits],
-	);
-
-	const percentChange = useMemo(
-		() =>
-			calculatePriceChangePercent(
-				todayAverageMinorUnits ?? null,
-				yesterdayAverageMinorUnits ?? null,
-			),
-		[todayAverageMinorUnits, yesterdayAverageMinorUnits],
-	);
-
-	const formattedPercentChange = useMemo(
-		() => formatPriceChangePercent(percentChange),
-		[percentChange],
-	);
-
-	const hasComparison = useMemo(
-		() => direction !== "unknown" && direction !== "unchanged",
-		[direction],
-	);
-
-	const isRoundedZeroValue = useMemo(
-		() =>
-			isRoundedZero(
-				todayAverageMinorUnits ?? null,
-				yesterdayAverageMinorUnits ?? null,
-			),
-		[todayAverageMinorUnits, yesterdayAverageMinorUnits],
+		}),
+		[direction, todayAverageMinorUnits, yesterdayAverageMinorUnits],
 	);
 
 	return {

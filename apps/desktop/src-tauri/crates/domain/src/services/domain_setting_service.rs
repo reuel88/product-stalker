@@ -372,6 +372,8 @@ mod integration_tests {
             background_check_enabled: Some(true),
             background_check_interval_minutes: Some(30),
             enable_headless_browser: Some(false),
+            allow_manual_verification: None,
+            session_cache_duration_days: None,
         };
 
         let result = DomainSettingService::update(&conn, params).await;
@@ -476,6 +478,8 @@ mod integration_tests {
             background_check_enabled: Some(true),
             background_check_interval_minutes: Some(30),
             enable_headless_browser: Some(false),
+            allow_manual_verification: None,
+            session_cache_duration_days: None,
         };
         DomainSettingService::update(&conn, params).await.unwrap();
 
