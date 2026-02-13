@@ -174,10 +174,24 @@ impl AvailabilityService {
         AvailabilityCheckRepository::create(conn, Uuid::new_v4(), product_id, params).await
     }
 
+    /// Check if a URL contains a path-based locale pattern
+    fn url_has_path_locale(url: &str) -> bool {
+        const PATH_LOCALES: &[&str] = &[
+            "/en-au/", "/en-nz/", "/en-gb/", "/en-uk/", "/en-ca/", "/en-us/", "/fr-ca/", "/en-eu/",
+        ];
+
+        let url_lower = url.to_lowercase();
+        PATH_LOCALES.iter().any(|locale| {
+            url_lower.contains(locale) || url_lower.contains(&locale.replace('/', "-"))
+        })
+    }
+
     /// Auto-set product currency from scraped price data.
     ///
     /// If the product has no currency set and the scrape found one, saves it.
-    /// If the product already has a different currency, logs a warning but keeps the existing one.
+    /// If the product already has a different currency, checks if the URL has a path locale:
+    /// - If path locale detected: Updates to the scraped currency (corrects old detection)
+    /// - If no path locale: Keeps existing currency (might be user-set or genuinely ambiguous)
     async fn auto_set_product_currency(
         conn: &DatabaseConnection,
         product: &ProductModel,
@@ -189,6 +203,7 @@ impl AvailabilityService {
 
         match &product.currency {
             None => {
+                // No currency set - always update (existing behavior)
                 let update = crate::repositories::ProductUpdateInput {
                     currency: Some(Some(scraped.to_string())),
                     ..Default::default()
@@ -202,12 +217,34 @@ impl AvailabilityService {
                 }
             }
             Some(existing) if !existing.eq_ignore_ascii_case(scraped) => {
-                log::warn!(
-                    "Product {} has currency {} but scraped {}; keeping existing",
-                    product.id,
-                    existing,
-                    scraped
-                );
+                // Currency mismatch detected
+
+                // Special case: If the URL has a path locale pattern, the scraped
+                // currency (from new logic) is more reliable than the stored one
+                // (from old logic that didn't check path locales)
+                if Self::url_has_path_locale(&product.url) {
+                    log::info!(
+                        "Correcting currency for product {} from {} to {} (path locale detected in URL)",
+                        product.id,
+                        existing,
+                        scraped
+                    );
+                    let update = crate::repositories::ProductUpdateInput {
+                        currency: Some(Some(scraped.to_string())),
+                        ..Default::default()
+                    };
+                    if let Err(e) = ProductRepository::update(conn, product.clone(), update).await {
+                        log::warn!("Failed to update currency: {}", e);
+                    }
+                } else {
+                    // No path locale - keep existing (might be user-set or genuinely ambiguous)
+                    log::warn!(
+                        "Product {} has currency {} but scraped {}; keeping existing (no path locale found)",
+                        product.id,
+                        existing,
+                        scraped
+                    );
+                }
             }
             _ => {} // Currency matches, nothing to do
         }
@@ -928,6 +965,83 @@ mod tests {
         }
     }
 
+    /// Tests for url_has_path_locale helper
+    mod url_has_path_locale_tests {
+        use super::*;
+
+        #[test]
+        fn test_en_au_with_slashes() {
+            assert!(AvailabilityService::url_has_path_locale(
+                "https://reyllen.com/en-au/products/backpack"
+            ));
+        }
+
+        #[test]
+        fn test_en_au_mixed_case() {
+            assert!(AvailabilityService::url_has_path_locale(
+                "https://example.com/EN-AU/products/item"
+            ));
+        }
+
+        #[test]
+        fn test_en_nz() {
+            assert!(AvailabilityService::url_has_path_locale(
+                "https://example.com/en-nz/products/item"
+            ));
+        }
+
+        #[test]
+        fn test_en_gb() {
+            assert!(AvailabilityService::url_has_path_locale(
+                "https://example.com/en-gb/products/item"
+            ));
+        }
+
+        #[test]
+        fn test_en_us() {
+            assert!(AvailabilityService::url_has_path_locale(
+                "https://example.com/en-us/products/item"
+            ));
+        }
+
+        #[test]
+        fn test_en_ca() {
+            assert!(AvailabilityService::url_has_path_locale(
+                "https://example.com/en-ca/products/item"
+            ));
+        }
+
+        #[test]
+        fn test_fr_ca() {
+            assert!(AvailabilityService::url_has_path_locale(
+                "https://example.com/fr-ca/products/item"
+            ));
+        }
+
+        #[test]
+        fn test_no_path_locale() {
+            assert!(!AvailabilityService::url_has_path_locale(
+                "https://example.com/products/item"
+            ));
+        }
+
+        #[test]
+        fn test_partial_match_no_slashes() {
+            // Should not match "en-au" without slashes in the right context
+            assert!(!AvailabilityService::url_has_path_locale(
+                "https://example-en-au.com/products/item"
+            ));
+        }
+
+        #[test]
+        fn test_query_param_locale() {
+            // Query params like ?locale=en-au should not match (needs path locale)
+            assert!(!AvailabilityService::url_has_path_locale(
+                "https://example.com/products/item?locale=en-au"
+            ));
+        }
+    }
+
     /// Tests for get_daily_price_comparison method
     mod daily_price_comparison_tests {
         use super::*;
@@ -1043,6 +1157,221 @@ mod tests {
 
             assert_eq!(comparison.today_average_minor_units, None);
             assert_eq!(comparison.yesterday_average_minor_units, None);
+        }
+    }
+
+    /// Tests for auto_set_product_currency method
+    mod auto_set_currency_tests {
+        use super::*;
+        use crate::repositories::{CreateProductRepoParams, ProductRepository};
+        use crate::test_utils::setup_availability_db;
+
+        async fn create_product_with_url(
+            conn: &DatabaseConnection,
+            name: &str,
+            url: &str,
+        ) -> ProductModel {
+            let id = Uuid::new_v4();
+            ProductRepository::create(
+                conn,
+                id,
+                CreateProductRepoParams {
+                    name: name.to_string(),
+                    url: url.to_string(),
+                    description: None,
+                    notes: None,
+                },
+            )
+            .await
+            .unwrap();
+            ProductRepository::find_by_id(conn, id)
+                .await
+                .unwrap()
+                .unwrap()
+        }
+
+        #[tokio::test]
+        async fn test_sets_currency_on_first_check() {
+            let conn = setup_availability_db().await;
+            let product = create_product_with_url(
+                &conn,
+                "Test Product",
+                "https://example.com/en-au/products/test",
+            )
+            .await;
+
+            assert_eq!(product.currency, None);
+
+            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD")).await;
+
+            let updated = ProductRepository::find_by_id(&conn, product.id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(updated.currency, Some("AUD".to_string()));
+        }
+
+        #[tokio::test]
+        async fn test_keeps_matching_currency() {
+            let conn = setup_availability_db().await;
+            let product = create_product_with_url(
+                &conn,
+                "Test Product",
+                "https://example.com/en-au/products/test",
+            )
+            .await;
+
+            // Set initial currency
+            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD")).await;
+
+            let product = ProductRepository::find_by_id(&conn, product.id)
+                .await
+                .unwrap()
+                .unwrap();
+
+            // Try to set the same currency again
+            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD")).await;
+
+            let updated = ProductRepository::find_by_id(&conn, product.id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(updated.currency, Some("AUD".to_string()));
+        }
+
+        #[tokio::test]
+        async fn test_corrects_wrong_currency_when_path_locale_present() {
+            let conn = setup_availability_db().await;
+
+            // Create product with /en-au/ path
+            let product = create_product_with_url(
+                &conn,
+                "Reyllen Backpack",
+                "https://reyllen.com/en-au/products/backpack",
+            )
+            .await;
+
+            // Simulate old scraper setting wrong currency (GBP instead of AUD)
+            let update = crate::repositories::ProductUpdateInput {
+                currency: Some(Some("GBP".to_string())),
+                ..Default::default()
+            };
+            ProductRepository::update(&conn, product.clone(), update)
+                .await
+                .unwrap();
+
+            let product = ProductRepository::find_by_id(&conn, product.id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(product.currency, Some("GBP".to_string()));
+
+            // New scraper detects AUD - should auto-correct because path locale is present
+            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD")).await;
+
+            let updated = ProductRepository::find_by_id(&conn, product.id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(updated.currency, Some("AUD".to_string()));
+        }
+
+        #[tokio::test]
+        async fn test_keeps_existing_currency_when_no_path_locale() {
+            let conn = setup_availability_db().await;
+
+            // Create product WITHOUT path locale
+            let product =
+                create_product_with_url(&conn, "Test Product", "https://example.com/products/test")
+                    .await;
+
+            // Set currency to USD
+            let update = crate::repositories::ProductUpdateInput {
+                currency: Some(Some("USD".to_string())),
+                ..Default::default()
+            };
+            ProductRepository::update(&conn, product.clone(), update)
+                .await
+                .unwrap();
+
+            let product = ProductRepository::find_by_id(&conn, product.id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(product.currency, Some("USD".to_string()));
+
+            // Scraper detects GBP - should NOT override (no path locale to guide us)
+            AvailabilityService::auto_set_product_currency(&conn, &product, Some("GBP")).await;
+
+            let updated = ProductRepository::find_by_id(&conn, product.id)
+                .await
+                .unwrap()
+                .unwrap();
+            // Should still be USD (not corrected)
+            assert_eq!(updated.currency, Some("USD".to_string()));
+        }
+
+        #[tokio::test]
+        async fn test_corrects_multiple_path_locales() {
+            let conn = setup_availability_db().await;
+
+            // Test /en-nz/ -> NZD correction
+            let product_nz = create_product_with_url(
+                &conn,
+                "NZ Product",
+                "https://example.com/en-nz/products/test",
+            )
+            .await;
+
+            let update = crate::repositories::ProductUpdateInput {
+                currency: Some(Some("GBP".to_string())),
+                ..Default::default()
+            };
+            ProductRepository::update(&conn, product_nz.clone(), update)
+                .await
+                .unwrap();
+
+            let product_nz = ProductRepository::find_by_id(&conn, product_nz.id)
+                .await
+                .unwrap()
+                .unwrap();
+
+            AvailabilityService::auto_set_product_currency(&conn, &product_nz, Some("NZD")).await;
+
+            let updated_nz = ProductRepository::find_by_id(&conn, product_nz.id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(updated_nz.currency, Some("NZD".to_string()));
+
+            // Test /en-gb/ -> GBP correction
+            let product_gb = create_product_with_url(
+                &conn,
+                "GB Product",
+                "https://example.com/en-gb/products/test",
+            )
+            .await;
+
+            let update = crate::repositories::ProductUpdateInput {
+                currency: Some(Some("USD".to_string())),
+                ..Default::default()
+            };
+            ProductRepository::update(&conn, product_gb.clone(), update)
+                .await
+                .unwrap();
+
+            let product_gb = ProductRepository::find_by_id(&conn, product_gb.id)
+                .await
+                .unwrap()
+                .unwrap();
+
+            AvailabilityService::auto_set_product_currency(&conn, &product_gb, Some("GBP")).await;
+
+            let updated_gb = ProductRepository::find_by_id(&conn, product_gb.id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(updated_gb.currency, Some("GBP".to_string()));
         }
     }
 }

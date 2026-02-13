@@ -42,31 +42,32 @@ pub fn extract_variant_id(url: &str) -> Option<String> {
 pub fn extract_availability_and_price(
     json: &serde_json::Value,
     variant_id: Option<&str>,
+    url: &str,
 ) -> Option<(String, PriceInfo)> {
     // 1. Direct Product with offers
     if is_product_type(json) {
-        if let Some(result) = get_availability_and_price_from_product(json) {
+        if let Some(result) = get_availability_and_price_from_product(json, url) {
             return Some(result);
         }
     }
 
     // 2. ProductGroup with hasVariant array
     if is_product_group_type(json) {
-        if let Some(result) = get_availability_and_price_from_product_group(json, variant_id) {
+        if let Some(result) = get_availability_and_price_from_product_group(json, variant_id, url) {
             return Some(result);
         }
     }
 
     // 3. @graph array containing Product or ProductGroup items
     if let Some(arr) = json.get("@graph").and_then(|g| g.as_array()) {
-        if let Some(result) = find_availability_and_price_in_items(arr, variant_id) {
+        if let Some(result) = find_availability_and_price_in_items(arr, variant_id, url) {
             return Some(result);
         }
     }
 
     // 4. Direct JSON array containing Product or ProductGroup items
     if let Some(arr) = json.as_array() {
-        if let Some(result) = find_availability_and_price_in_items(arr, variant_id) {
+        if let Some(result) = find_availability_and_price_in_items(arr, variant_id, url) {
             return Some(result);
         }
     }
@@ -78,15 +79,16 @@ pub fn extract_availability_and_price(
 fn find_availability_and_price_in_items(
     items: &[serde_json::Value],
     variant_id: Option<&str>,
+    url: &str,
 ) -> Option<(String, PriceInfo)> {
     items.iter().find_map(|item| {
         if is_product_type(item) {
-            if let Some(result) = get_availability_and_price_from_product(item) {
+            if let Some(result) = get_availability_and_price_from_product(item, url) {
                 return Some(result);
             }
         }
         if is_product_group_type(item) {
-            return get_availability_and_price_from_product_group(item, variant_id);
+            return get_availability_and_price_from_product_group(item, variant_id, url);
         }
         None
     })
@@ -119,26 +121,31 @@ fn is_product_group_type(json: &serde_json::Value) -> bool {
 fn get_availability_and_price_from_product_group(
     product_group: &serde_json::Value,
     variant_id: Option<&str>,
+    url: &str,
 ) -> Option<(String, PriceInfo)> {
     let variants = product_group.get("hasVariant")?.as_array()?;
 
     let Some(vid) = variant_id else {
         // No variant ID specified, return first variant's availability and price
-        return get_first_variant_availability(variants);
+        return get_first_variant_availability(variants, url);
     };
 
     // Try to find the matching variant by ID
-    let matched = find_variant_by_id(variants, vid);
+    let matched = find_variant_by_id(variants, vid, url);
     if matched.is_some() {
         return matched;
     }
 
     // Fallback: return first variant's availability and price
-    get_first_variant_availability(variants)
+    get_first_variant_availability(variants, url)
 }
 
 /// Find a variant by its ID in the URL query parameters
-fn find_variant_by_id(variants: &[serde_json::Value], vid: &str) -> Option<(String, PriceInfo)> {
+fn find_variant_by_id(
+    variants: &[serde_json::Value],
+    vid: &str,
+    url: &str,
+) -> Option<(String, PriceInfo)> {
     // Dummy base for resolving relative URLs (host is irrelevant)
     let base = Url::parse("http://localhost").unwrap();
 
@@ -158,7 +165,7 @@ fn find_variant_by_id(variants: &[serde_json::Value], vid: &str) -> Option<(Stri
             continue;
         }
 
-        if let Some(result) = get_availability_and_price_from_product(variant) {
+        if let Some(result) = get_availability_and_price_from_product(variant, url) {
             return Some(result);
         }
     }
@@ -167,21 +174,25 @@ fn find_variant_by_id(variants: &[serde_json::Value], vid: &str) -> Option<(Stri
 }
 
 /// Get the first variant's availability and price
-fn get_first_variant_availability(variants: &[serde_json::Value]) -> Option<(String, PriceInfo)> {
+fn get_first_variant_availability(
+    variants: &[serde_json::Value],
+    url: &str,
+) -> Option<(String, PriceInfo)> {
     variants
         .iter()
-        .find_map(get_availability_and_price_from_product)
+        .find_map(|v| get_availability_and_price_from_product(v, url))
 }
 
 /// Get availability and price from a Product JSON object
 fn get_availability_and_price_from_product(
     product: &serde_json::Value,
+    url: &str,
 ) -> Option<(String, PriceInfo)> {
     let offers = product.get("offers")?;
 
     // Single offer object
     if let Some(avail) = offers.get("availability").and_then(|a| a.as_str()) {
-        let price = get_price_from_offer(offers);
+        let price = get_price_from_offer(offers, url);
         return Some((avail.to_string(), price));
     }
 
@@ -189,7 +200,7 @@ fn get_availability_and_price_from_product(
     offers.as_array().and_then(|arr| {
         arr.iter().find_map(|offer| {
             let avail = offer.get("availability")?.as_str()?;
-            let price = get_price_from_offer(offer);
+            let price = get_price_from_offer(offer, url);
             Some((avail.to_string(), price))
         })
     })
@@ -244,7 +255,7 @@ mod tests {
                 "priceCurrency": "USD"
             }
         });
-        let result = extract_availability_and_price(&json, None);
+        let result = extract_availability_and_price(&json, None, "https://example.com/product");
         assert!(result.is_some());
         let (avail, price) = result.unwrap();
         assert_eq!(avail, "http://schema.org/InStock");
@@ -274,13 +285,14 @@ mod tests {
         });
 
         // With matching variant ID
-        let result = extract_availability_and_price(&json, Some("456"));
+        let result =
+            extract_availability_and_price(&json, Some("456"), "https://example.com/product");
         assert!(result.is_some());
         let (avail, _) = result.unwrap();
         assert_eq!(avail, "http://schema.org/InStock");
 
         // Without variant ID - gets first variant
-        let result = extract_availability_and_price(&json, None);
+        let result = extract_availability_and_price(&json, None, "https://example.com/product");
         assert!(result.is_some());
         let (avail, _) = result.unwrap();
         assert_eq!(avail, "http://schema.org/OutOfStock");
@@ -300,7 +312,7 @@ mod tests {
                 }
             ]
         });
-        let result = extract_availability_and_price(&json, None);
+        let result = extract_availability_and_price(&json, None, "https://example.com/product");
         assert!(result.is_some());
         let (avail, _) = result.unwrap();
         assert_eq!(avail, "http://schema.org/InStock");
@@ -318,7 +330,7 @@ mod tests {
                 }
             }
         ]);
-        let result = extract_availability_and_price(&json, None);
+        let result = extract_availability_and_price(&json, None, "https://example.com/product");
         assert!(result.is_some());
         let (avail, _) = result.unwrap();
         assert_eq!(avail, "http://schema.org/BackOrder");
@@ -333,7 +345,7 @@ mod tests {
                 {"availability": "http://schema.org/InStock", "price": "99.99"}
             ]
         });
-        let result = extract_availability_and_price(&json, None);
+        let result = extract_availability_and_price(&json, None, "https://example.com/product");
         assert!(result.is_some());
         let (avail, price) = result.unwrap();
         // Should use first offer's availability

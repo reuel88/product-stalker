@@ -117,7 +117,7 @@ impl ScraperService {
             log::debug!("JSON-LD block {}: @type = {}", i, block_type);
 
             if let Some((availability, price)) =
-                schema_org::extract_availability_and_price(block, variant_id.as_deref())
+                schema_org::extract_availability_and_price(block, variant_id.as_deref(), url)
             {
                 log::debug!(
                     "Extracted raw availability value: '{}' -> status: {:?}",
@@ -423,12 +423,33 @@ mod tests {
             currency: Some("AUD"),
         }]);
 
+        // Use .xyz domain (no currency mapping) to test API currency fallback
         let result = ScraperService::parse_schema_org_with_url(
             &html,
-            "https://example.com/products/test?variant=123",
+            "https://example.xyz/products/test?variant=123",
         )
         .unwrap();
         assert_eq!(result.price.price_minor_units, Some(129900));
+        assert_eq!(result.price.price_currency, Some("AUD".to_string()));
+    }
+
+    #[test]
+    fn test_schema_org_path_locale_overrides_api_currency() {
+        // Regression test for Reyllen bug: path locale (/en-au/) should override API currency (GBP)
+        let html = html_with_product_offer(
+            "http://schema.org/InStock",
+            Some("99.99"),
+            Some("GBP"), // API returns GBP
+        );
+
+        let result = ScraperService::parse_schema_org_with_url(
+            &html,
+            "https://reyllen.com/en-au/products/test", // Path locale indicates AUD
+        )
+        .unwrap();
+        assert_eq!(result.status, AvailabilityStatus::InStock);
+        assert_eq!(result.price.price_minor_units, Some(9999));
+        // Should use path locale (AUD), not API currency (GBP)
         assert_eq!(result.price.price_currency, Some("AUD".to_string()));
     }
 
