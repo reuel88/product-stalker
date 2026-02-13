@@ -154,13 +154,21 @@ impl AvailabilityService {
         conn: &DatabaseConnection,
         product_id: Uuid,
         enable_headless: bool,
+        allow_manual_verification: bool,
+        session_cache_duration_days: i32,
     ) -> Result<AvailabilityCheckModel, AppError> {
         let product = ProductRepository::find_by_id(conn, product_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Product not found: {}", product_id)))?;
 
-        let result =
-            ScraperService::check_availability_with_headless(&product.url, enable_headless).await;
+        let result = ScraperService::check_availability_with_headless(
+            &product.url,
+            enable_headless,
+            allow_manual_verification,
+            conn,
+            session_cache_duration_days,
+        )
+        .await;
 
         let params = match result {
             Ok(scraping_result) => {
@@ -309,6 +317,8 @@ impl AvailabilityService {
         conn: &DatabaseConnection,
         product: &ProductModel,
         enable_headless: bool,
+        allow_manual_verification: bool,
+        session_cache_duration_days: i32,
     ) -> (BulkCheckResult, CheckProcessingResult) {
         // Step 1: Get previous check context
         let context = match Self::get_product_check_context(conn, product.id).await {
@@ -317,7 +327,14 @@ impl AvailabilityService {
         };
 
         // Step 2: Perform the availability check
-        let check_result = Self::check_product(conn, product.id, enable_headless).await;
+        let check_result = Self::check_product(
+            conn,
+            product.id,
+            enable_headless,
+            allow_manual_verification,
+            session_cache_duration_days,
+        )
+        .await;
 
         // Step 3: Get daily price comparison (includes the new check in today's average)
         let daily_comparison = match Self::get_daily_price_comparison(conn, product.id).await {
@@ -504,13 +521,22 @@ impl AvailabilityService {
         product_id: Uuid,
         enable_headless: bool,
         enable_notifications: bool,
+        allow_manual_verification: bool,
+        session_cache_duration_days: i32,
     ) -> Result<CheckResultWithNotification, AppError> {
         // Step 1: Get previous status before checking
         let previous_check = Self::get_latest(conn, product_id).await?;
         let previous_status = previous_check.map(|c| c.status_enum());
 
         // Step 2: Perform the check
-        let check = Self::check_product(conn, product_id, enable_headless).await?;
+        let check = Self::check_product(
+            conn,
+            product_id,
+            enable_headless,
+            allow_manual_verification,
+            session_cache_duration_days,
+        )
+        .await?;
 
         // Step 3: Get daily price comparison (includes the new check in today's average)
         let daily_comparison = Self::get_daily_price_comparison(conn, product_id).await?;

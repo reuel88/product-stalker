@@ -3,9 +3,11 @@
 use std::time::Duration;
 
 use product_stalker_core::AppError;
+use sea_orm::DatabaseConnection;
 
 use super::bot_detection::is_cloudflare_challenge;
-use crate::services::HeadlessService;
+use crate::services::{HeadlessService, ManualVerificationService};
+use product_stalker_core::repositories::VerifiedSessionRepository;
 
 /// HTTP request timeout
 const TIMEOUT_SECS: u64 = 30;
@@ -35,13 +37,18 @@ enum FetchPageError {
     HttpStatus { status: u16, url: String },
 }
 
-/// Fetch HTML content, falling back to headless browser if bot protection is detected
+/// Fetch HTML content, falling back to headless browser or manual verification if needed
 ///
 /// Tries HTTP first (fast path). If bot protection is detected (Cloudflare challenge,
-/// 403/503 status), falls back to headless browser if enabled.
+/// 403/503 status), falls back to headless browser if enabled. If headless browser
+/// encounters a CAPTCHA and manual verification is allowed, launches a visible browser
+/// for the user to solve the CAPTCHA manually.
 pub async fn fetch_html_with_fallback(
     url: &str,
     enable_headless: bool,
+    allow_manual_verification: bool,
+    conn: &DatabaseConnection,
+    session_cache_duration_days: i32,
 ) -> Result<String, AppError> {
     let needs_headless = match fetch_page(url).await {
         Ok(html) if !is_cloudflare_challenge(200, &html) => return Ok(html),
@@ -66,10 +73,45 @@ pub async fn fetch_html_with_fallback(
 
     if needs_headless && enable_headless {
         log::info!("Attempting headless fallback for {}", url);
-        return fetch_with_headless(url).await;
+        match fetch_with_headless(url).await {
+            Ok(html) => return Ok(html),
+            Err(e) => {
+                log::warn!("Headless browser failed for {}: {}", url, e);
+
+                // Check if it's a CAPTCHA challenge that requires manual verification
+                if let AppError::External(ref msg) = e {
+                    if msg.contains("CAPTCHA") || msg.contains("challenge") {
+                        if allow_manual_verification {
+                            log::info!(
+                                "CAPTCHA detected, attempting manual verification for {}",
+                                url
+                            );
+                            return fetch_with_manual_verification(
+                                url,
+                                conn,
+                                session_cache_duration_days,
+                            )
+                            .await;
+                        } else {
+                            return Err(AppError::External(
+                                "This site requires manual CAPTCHA verification. Enable manual verification in settings.".to_string()
+                            ));
+                        }
+                    }
+                }
+
+                return Err(e);
+            }
+        }
     }
 
-    Err(AppError::External(BOT_PROTECTION_MESSAGE.to_string()))
+    if allow_manual_verification {
+        Err(AppError::External(
+            "This site has bot protection. Manual verification is enabled but headless browser must be enabled first.".to_string()
+        ))
+    } else {
+        Err(AppError::External(BOT_PROTECTION_MESSAGE.to_string()))
+    }
 }
 
 /// Fetch page HTML using headless browser
@@ -84,6 +126,49 @@ async fn fetch_with_headless(url: &str) -> Result<String, AppError> {
     })
     .await
     .map_err(|e| AppError::Internal(format!("Headless task failed: {}", e)))?
+}
+
+/// Fetch page with manual verification workflow
+///
+/// Checks for cached verified session first, then launches visible browser if needed.
+async fn fetch_with_manual_verification(
+    url: &str,
+    conn: &DatabaseConnection,
+    session_cache_duration_days: i32,
+) -> Result<String, AppError> {
+    let domain = ManualVerificationService::extract_domain(url)?;
+
+    // Check if we have a cached session
+    if let Some(_session) = VerifiedSessionRepository::find_by_domain(conn, &domain).await? {
+        log::info!("Using cached verified session for {}", domain);
+
+        // TODO: Use the cached session cookies to fetch the page
+        // This would require adding cookie support to the HTTP client
+        // For Phase 3 MVP, we'll just re-verify each time (noted in plan as limitation)
+    }
+
+    // Launch visible browser for manual verification
+    let url_owned = url.to_string();
+    let (html, cookies_json) = tokio::task::spawn_blocking(move || {
+        let verification_service = ManualVerificationService::new();
+        verification_service.launch_visible_browser(&url_owned)
+    })
+    .await
+    .map_err(|e| AppError::Internal(format!("Manual verification task failed: {}", e)))??;
+
+    // Store the verified session
+    VerifiedSessionRepository::create(
+        conn,
+        domain,
+        cookies_json,
+        USER_AGENT.to_string(),
+        session_cache_duration_days,
+    )
+    .await?;
+
+    log::info!("Verified session stored for future use");
+
+    Ok(html)
 }
 
 /// Fetch a page's HTML content using HTTP

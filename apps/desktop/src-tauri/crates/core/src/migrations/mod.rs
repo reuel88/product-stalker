@@ -4,6 +4,7 @@ mod m20240105_000001_add_headless_browser_setting;
 mod m20250206_000001_create_app_settings_table;
 mod m20250207_000001_backfill_app_settings;
 mod m20250208_000001_drop_old_settings_table;
+mod m20250214_000001_create_verified_sessions;
 mod migrator;
 
 pub use migrator::migrations;

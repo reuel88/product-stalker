@@ -11,7 +11,10 @@ import {
 import { MESSAGES } from "@/constants";
 import { withToast, withToastVoid } from "@/lib/toast-helpers";
 import { cn } from "@/lib/utils";
-import { useCheckAllAvailability } from "@/modules/products/hooks/useAvailability";
+import {
+	useCheckAllAvailability,
+	useManualVerificationListener,
+} from "@/modules/products/hooks/useAvailability";
 import { useProductDialogs } from "@/modules/products/hooks/useProductDialogs";
 import { useProducts } from "@/modules/products/hooks/useProducts";
 import type { BulkCheckSummary } from "@/modules/products/types";
@@ -87,6 +90,9 @@ export function ProductsView() {
 		closeDialog,
 		updateFormData,
 	} = useProductDialogs();
+
+	// Auto-subscribe to manual verification events
+	useManualVerificationListener();
 
 	const handleSubmit = async () => {
 		if (dialogState.type !== "create" && dialogState.type !== "edit") return;
