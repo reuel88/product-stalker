@@ -218,13 +218,32 @@ fn normalize_js_to_json(js: &str) -> String {
     while let Some(ch) = chars.next() {
         if escaped {
             escaped = false;
-            result.push(ch);
+            match string_ctx {
+                StringContext::SingleQuoted => {
+                    if ch == '\'' {
+                        // JS escaped single-quote -> plain apostrophe (valid in JSON "...")
+                        result.push('\'');
+                    } else if ch == '"' {
+                        // Literal double-quote must be escaped in JSON "..."
+                        result.push('\\');
+                        result.push('"');
+                    } else {
+                        // Other escapes (\n, \t, \\, etc.) -> preserve both chars
+                        result.push('\\');
+                        result.push(ch);
+                    }
+                }
+                _ => {
+                    // DoubleQuoted and None: preserve escape as-is
+                    result.push('\\');
+                    result.push(ch);
+                }
+            }
             continue;
         }
 
         if ch == '\\' {
             escaped = true;
-            result.push(ch);
             continue;
         }
 
@@ -467,6 +486,38 @@ mod tests {
         let result = normalize_js_to_json(input);
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["name"], r#"item "special""#);
+    }
+
+    #[test]
+    fn test_normalize_escaped_single_quote_in_single_quoted() {
+        let input = r"{'name': 'Joe\'s Shop'}";
+        let result = normalize_js_to_json(input);
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["name"], "Joe's Shop");
+    }
+
+    #[test]
+    fn test_normalize_escaped_backslash_in_single_quoted() {
+        let input = r"{'path': 'c:\\users'}";
+        let result = normalize_js_to_json(input);
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["path"], r"c:\users");
+    }
+
+    #[test]
+    fn test_normalize_escaped_newline_in_single_quoted() {
+        let input = r"{'text': 'line1\nline2'}";
+        let result = normalize_js_to_json(input);
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["text"], "line1\nline2");
+    }
+
+    #[test]
+    fn test_normalize_escaped_double_quote_in_double_quoted() {
+        let input = r#"{"name": "Joe\"s"}"#;
+        let result = normalize_js_to_json(input);
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["name"], r#"Joe"s"#);
     }
 
     // --- GA4 extraction tests ---
