@@ -96,12 +96,14 @@ describe("useReorderProducts", () => {
 		});
 
 		// Check cache was updated optimistically
-		const cached = queryClient.getQueryData<ProductResponse[]>(
-			QUERY_KEYS.PRODUCTS,
-		);
-		expect(cached?.[0].id).toBe("prod-b");
-		expect(cached?.[0].sort_order).toBe(0);
-		expect(cached?.[1].id).toBe("prod-a");
-		expect(cached?.[1].sort_order).toBe(1);
+		await waitFor(() => {
+			const cached = queryClient.getQueryData<ProductResponse[]>(
+				QUERY_KEYS.PRODUCTS,
+			);
+			expect(cached?.[0].id).toBe("prod-b");
+			expect(cached?.[0].sort_order).toBe(0);
+			expect(cached?.[1].id).toBe("prod-a");
+			expect(cached?.[1].sort_order).toBe(1);
+		});
 	});
 });

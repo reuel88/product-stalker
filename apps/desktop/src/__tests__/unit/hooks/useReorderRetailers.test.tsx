@@ -115,12 +115,14 @@ describe("useReorderRetailers", () => {
 		});
 
 		// Check cache was updated optimistically
-		const cached = queryClient.getQueryData<ProductRetailerResponse[]>(
-			QUERY_KEYS.productRetailers(PRODUCT_ID),
-		);
-		expect(cached?.[0].id).toBe("pr-b");
-		expect(cached?.[0].sort_order).toBe(0);
-		expect(cached?.[1].id).toBe("pr-a");
-		expect(cached?.[1].sort_order).toBe(1);
+		await waitFor(() => {
+			const cached = queryClient.getQueryData<ProductRetailerResponse[]>(
+				QUERY_KEYS.productRetailers(PRODUCT_ID),
+			);
+			expect(cached?.[0].id).toBe("pr-b");
+			expect(cached?.[0].sort_order).toBe(0);
+			expect(cached?.[1].id).toBe("pr-a");
+			expect(cached?.[1].sort_order).toBe(1);
+		});
 	});
 });
