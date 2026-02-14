@@ -59,6 +59,7 @@ impl MigrationTrait for Migration {
 
 #[derive(Iden)]
 pub enum ExchangeRate {
+    #[iden = "exchange_rates"]
     Table,
     Id,
     FromCurrency,

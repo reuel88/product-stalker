@@ -6,6 +6,7 @@ mod m20250207_000001_backfill_app_settings;
 mod m20250208_000001_drop_old_settings_table;
 mod m20250214_000001_create_verified_sessions;
 mod m20260216_000001_create_exchange_rates_table;
+mod m20260216_000002_rename_tables_to_plural;
 mod migrator;
 
 pub use migrator::migrations;
