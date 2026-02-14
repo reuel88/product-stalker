@@ -192,4 +192,109 @@ describe("ProductFormDialog", () => {
 			);
 		});
 	});
+
+	describe("retailers section (create mode)", () => {
+		const createModeProps = {
+			...defaultProps,
+			retailerEntries: [] as { id: number; url: string; label: string }[],
+			onAddRetailerEntry: vi.fn(),
+			onUpdateRetailerEntry: vi.fn(),
+			onRemoveRetailerEntry: vi.fn(),
+		};
+
+		it("should render Retailers label and Add Retailer button in create mode", () => {
+			render(<ProductFormDialog {...createModeProps} />);
+
+			expect(screen.getByText("Retailers")).toBeInTheDocument();
+			expect(
+				screen.getByRole("button", { name: /add retailer/i }),
+			).toBeInTheDocument();
+		});
+
+		it("should NOT render retailers section in edit mode", () => {
+			render(<ProductFormDialog {...createModeProps} mode="edit" />);
+
+			expect(screen.queryByText("Retailers")).not.toBeInTheDocument();
+			expect(
+				screen.queryByRole("button", { name: /add retailer/i }),
+			).not.toBeInTheDocument();
+		});
+
+		it("should show empty state message when no entries", () => {
+			render(<ProductFormDialog {...createModeProps} />);
+
+			expect(
+				screen.getByText(
+					"No retailers added. You can add retailers after creation too.",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("should render retailer URL and label inputs when entries provided", () => {
+			render(
+				<ProductFormDialog
+					{...createModeProps}
+					retailerEntries={[
+						{ id: 1, url: "https://example.com", label: "Example" },
+					]}
+				/>,
+			);
+
+			expect(screen.getByTestId("retailer-url-0")).toHaveValue(
+				"https://example.com",
+			);
+			expect(screen.getByTestId("retailer-label-0")).toHaveValue("Example");
+		});
+
+		it("should call onAddRetailerEntry when Add Retailer is clicked", async () => {
+			const onAddRetailerEntry = vi.fn();
+			const { user } = render(
+				<ProductFormDialog
+					{...createModeProps}
+					onAddRetailerEntry={onAddRetailerEntry}
+				/>,
+			);
+
+			await user.click(screen.getByRole("button", { name: /add retailer/i }));
+
+			expect(onAddRetailerEntry).toHaveBeenCalledTimes(1);
+		});
+
+		it("should call onUpdateRetailerEntry with correct index on URL change", async () => {
+			const onUpdateRetailerEntry = vi.fn();
+			const { user } = render(
+				<ProductFormDialog
+					{...createModeProps}
+					retailerEntries={[{ id: 1, url: "", label: "" }]}
+					onUpdateRetailerEntry={onUpdateRetailerEntry}
+				/>,
+			);
+
+			await user.type(screen.getByTestId("retailer-url-0"), "h");
+
+			expect(onUpdateRetailerEntry).toHaveBeenCalledWith(0, {
+				id: 1,
+				url: "h",
+				label: "",
+			});
+		});
+
+		it("should call onRemoveRetailerEntry with correct index on remove click", async () => {
+			const onRemoveRetailerEntry = vi.fn();
+			const { user } = render(
+				<ProductFormDialog
+					{...createModeProps}
+					retailerEntries={[
+						{ id: 1, url: "https://example.com", label: "Example" },
+					]}
+					onRemoveRetailerEntry={onRemoveRetailerEntry}
+				/>,
+			);
+
+			const removeButton = screen.getByTestId("retailer-remove-0");
+			await user.click(removeButton);
+
+			expect(onRemoveRetailerEntry).toHaveBeenCalledWith(0);
+		});
+	});
 });

@@ -498,6 +498,242 @@ describe("ProductsView", () => {
 		});
 	});
 
+	describe("create product with retailers", () => {
+		it("should show Add Retailer button in create dialog", async () => {
+			mockInvokeMultiple({
+				[COMMANDS.GET_PRODUCTS]: [],
+				[COMMANDS.GET_LATEST_AVAILABILITY]: null,
+			});
+
+			const { user } = render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(
+					screen.getByRole("button", { name: /add product/i }),
+				).toBeInTheDocument();
+			});
+
+			await user.click(screen.getByRole("button", { name: /add product/i }));
+
+			await waitFor(() => {
+				expect(
+					screen.getByRole("button", { name: /add retailer/i }),
+				).toBeInTheDocument();
+			});
+		});
+
+		it("should show URL and label inputs after clicking Add Retailer", async () => {
+			mockInvokeMultiple({
+				[COMMANDS.GET_PRODUCTS]: [],
+				[COMMANDS.GET_LATEST_AVAILABILITY]: null,
+			});
+
+			const { user } = render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(
+					screen.getByRole("button", { name: /add product/i }),
+				).toBeInTheDocument();
+			});
+
+			await user.click(screen.getByRole("button", { name: /add product/i }));
+
+			await waitFor(() => {
+				expect(
+					screen.getByRole("button", { name: /add retailer/i }),
+				).toBeInTheDocument();
+			});
+
+			await user.click(screen.getByRole("button", { name: /add retailer/i }));
+
+			await waitFor(() => {
+				expect(screen.getByTestId("retailer-url-0")).toBeInTheDocument();
+				expect(screen.getByTestId("retailer-label-0")).toBeInTheDocument();
+			});
+		});
+
+		it("should call CREATE_PRODUCT and ADD_PRODUCT_RETAILER when submitting with retailers", async () => {
+			const newProduct = createMockProduct({
+				id: "new-prod-1",
+				name: "Test Product",
+			});
+			const retailerResponse = {
+				id: "retailer-1",
+				product_id: "new-prod-1",
+				retailer_id: "example.com",
+				url: "https://example.com/product",
+				label: null,
+				sort_order: 0,
+				created_at: new Date().toISOString(),
+			};
+			mockInvokeMultiple({
+				[COMMANDS.GET_PRODUCTS]: [],
+				[COMMANDS.GET_LATEST_AVAILABILITY]: null,
+				[COMMANDS.CREATE_PRODUCT]: newProduct,
+				[COMMANDS.ADD_PRODUCT_RETAILER]: retailerResponse,
+			});
+
+			const { user } = render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(
+					screen.getByRole("button", { name: /add product/i }),
+				).toBeInTheDocument();
+			});
+
+			await user.click(screen.getByRole("button", { name: /add product/i }));
+
+			await waitFor(() => {
+				expect(screen.getByLabelText("Name")).toBeInTheDocument();
+			});
+
+			await user.type(screen.getByLabelText("Name"), "Test Product");
+
+			await user.click(screen.getByRole("button", { name: /add retailer/i }));
+
+			await waitFor(() => {
+				expect(screen.getByTestId("retailer-url-0")).toBeInTheDocument();
+			});
+
+			await user.type(
+				screen.getByTestId("retailer-url-0"),
+				"https://example.com/product",
+			);
+
+			await user.click(screen.getByRole("button", { name: "Create" }));
+
+			await waitFor(() => {
+				expect(getMockedInvoke()).toHaveBeenCalledWith(
+					COMMANDS.CREATE_PRODUCT,
+					expect.objectContaining({
+						input: expect.objectContaining({ name: "Test Product" }),
+					}),
+				);
+			});
+
+			await waitFor(() => {
+				expect(getMockedInvoke()).toHaveBeenCalledWith(
+					COMMANDS.ADD_PRODUCT_RETAILER,
+					expect.objectContaining({
+						input: expect.objectContaining({
+							product_id: "new-prod-1",
+							url: "https://example.com/product",
+						}),
+					}),
+				);
+			});
+		});
+
+		it("should skip empty-URL retailer entries", async () => {
+			const newProduct = createMockProduct({
+				id: "new-prod-2",
+				name: "Test Product",
+			});
+			mockInvokeMultiple({
+				[COMMANDS.GET_PRODUCTS]: [],
+				[COMMANDS.GET_LATEST_AVAILABILITY]: null,
+				[COMMANDS.CREATE_PRODUCT]: newProduct,
+			});
+
+			const { user } = render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(
+					screen.getByRole("button", { name: /add product/i }),
+				).toBeInTheDocument();
+			});
+
+			await user.click(screen.getByRole("button", { name: /add product/i }));
+
+			await waitFor(() => {
+				expect(screen.getByLabelText("Name")).toBeInTheDocument();
+			});
+
+			await user.type(screen.getByLabelText("Name"), "Test Product");
+
+			// Add a retailer entry but leave URL empty
+			await user.click(screen.getByRole("button", { name: /add retailer/i }));
+
+			await waitFor(() => {
+				expect(screen.getByTestId("retailer-url-0")).toBeInTheDocument();
+			});
+
+			await user.click(screen.getByRole("button", { name: "Create" }));
+
+			await waitFor(() => {
+				expect(getMockedInvoke()).toHaveBeenCalledWith(
+					COMMANDS.CREATE_PRODUCT,
+					expect.anything(),
+				);
+			});
+
+			// ADD_PRODUCT_RETAILER should NOT have been called
+			expect(getMockedInvoke()).not.toHaveBeenCalledWith(
+				COMMANDS.ADD_PRODUCT_RETAILER,
+				expect.anything(),
+			);
+		});
+
+		it("should still create product if retailer add fails", async () => {
+			const newProduct = createMockProduct({
+				id: "new-prod-3",
+				name: "Test Product",
+			});
+			getMockedInvoke().mockImplementation((cmd: string) => {
+				if (cmd === COMMANDS.GET_PRODUCTS) return Promise.resolve([]);
+				if (cmd === COMMANDS.GET_LATEST_AVAILABILITY)
+					return Promise.resolve(null);
+				if (cmd === COMMANDS.CREATE_PRODUCT) return Promise.resolve(newProduct);
+				if (cmd === COMMANDS.ADD_PRODUCT_RETAILER)
+					return Promise.reject(new Error("Invalid URL"));
+				return Promise.reject(new Error(`Unmocked: ${cmd}`));
+			});
+
+			const { user } = render(<ProductsView />);
+
+			await waitFor(() => {
+				expect(
+					screen.getByRole("button", { name: /add product/i }),
+				).toBeInTheDocument();
+			});
+
+			await user.click(screen.getByRole("button", { name: /add product/i }));
+
+			await waitFor(() => {
+				expect(screen.getByLabelText("Name")).toBeInTheDocument();
+			});
+
+			await user.type(screen.getByLabelText("Name"), "Test Product");
+
+			await user.click(screen.getByRole("button", { name: /add retailer/i }));
+
+			await waitFor(() => {
+				expect(screen.getByTestId("retailer-url-0")).toBeInTheDocument();
+			});
+
+			await user.type(screen.getByTestId("retailer-url-0"), "invalid-url");
+
+			await user.click(screen.getByRole("button", { name: "Create" }));
+
+			// Product should still be created
+			await waitFor(() => {
+				expect(getMockedInvoke()).toHaveBeenCalledWith(
+					COMMANDS.CREATE_PRODUCT,
+					expect.objectContaining({
+						input: expect.objectContaining({ name: "Test Product" }),
+					}),
+				);
+			});
+
+			// Dialog should close even though retailer failed
+			await waitFor(() => {
+				expect(
+					screen.queryByText("Add a new product to track"),
+				).not.toBeInTheDocument();
+			});
+		});
+	});
+
 	describe("check all functionality", () => {
 		it("should call checkAllAvailability when Check All is clicked", async () => {
 			const products = createMockProducts(2);
