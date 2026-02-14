@@ -30,7 +30,11 @@ pub fn get_db_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     Ok(app_data_dir.join("product_stalker.db"))
 }
 
-/// Build connection options for SQLite with recommended settings
+/// Build connection options for SQLite with recommended settings.
+///
+/// Per-connection pragmas (`synchronous`, `foreign_keys`) are configured via
+/// `map_sqlx_sqlite_opts` so they apply to **every** connection in the pool,
+/// not just the first one acquired.
 pub(crate) fn build_connection_options(db_url: String) -> ConnectOptions {
     let mut opt = ConnectOptions::new(db_url);
     opt.max_connections(5) // SQLite works best with small pool
@@ -40,7 +44,11 @@ pub(crate) fn build_connection_options(db_url: String) -> ConnectOptions {
         .idle_timeout(Duration::from_secs(8))
         .max_lifetime(Duration::from_secs(8))
         .sqlx_logging(true)
-        .sqlx_logging_level(log::LevelFilter::Debug);
+        .sqlx_logging_level(log::LevelFilter::Debug)
+        .map_sqlx_sqlite_opts(|opts| {
+            opts.pragma("synchronous", "NORMAL")
+                .pragma("foreign_keys", "ON")
+        });
     opt
 }
 
@@ -68,28 +76,17 @@ pub async fn init_db(app: &AppHandle) -> Result<DatabaseConnection, AppError> {
     init_db_from_url(db_url).await
 }
 
-/// Configure SQLite with WAL mode and recommended pragmas
+/// Enable WAL journal mode (database-level, persists in the file).
+///
+/// Per-connection pragmas (`synchronous`, `foreign_keys`) are set via
+/// `map_sqlx_sqlite_opts` in [`build_connection_options`] so they apply to
+/// every connection in the pool.
 pub(crate) async fn enable_wal_mode(conn: &DatabaseConnection) -> Result<(), AppError> {
     use sea_orm::{ConnectionTrait, Statement};
 
-    // Enable WAL mode
     conn.execute(Statement::from_string(
         conn.get_database_backend(),
         "PRAGMA journal_mode=WAL;".to_owned(),
-    ))
-    .await?;
-
-    // Set synchronous mode to NORMAL for better performance with WAL
-    conn.execute(Statement::from_string(
-        conn.get_database_backend(),
-        "PRAGMA synchronous=NORMAL;".to_owned(),
-    ))
-    .await?;
-
-    // Enable foreign keys
-    conn.execute(Statement::from_string(
-        conn.get_database_backend(),
-        "PRAGMA foreign_keys=ON;".to_owned(),
     ))
     .await?;
 
@@ -135,12 +132,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_enable_wal_mode_sets_synchronous() {
-        let conn = Database::connect("sqlite::memory:").await.unwrap();
+    async fn test_build_connection_options_sets_synchronous_normal() {
+        let opts = build_connection_options("sqlite::memory:".to_string());
+        let conn = Database::connect(opts).await.unwrap();
 
-        enable_wal_mode(&conn).await.unwrap();
-
-        // Verify synchronous mode is NORMAL (1)
         let result = conn
             .query_one(Statement::from_string(
                 conn.get_database_backend(),
@@ -155,12 +150,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_enable_wal_mode_enables_foreign_keys() {
-        let conn = Database::connect("sqlite::memory:").await.unwrap();
+    async fn test_build_connection_options_sets_foreign_keys_on() {
+        let opts = build_connection_options("sqlite::memory:".to_string());
+        let conn = Database::connect(opts).await.unwrap();
 
-        enable_wal_mode(&conn).await.unwrap();
-
-        // Verify foreign keys are enabled
         let result = conn
             .query_one(Statement::from_string(
                 conn.get_database_backend(),

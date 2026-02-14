@@ -22,6 +22,8 @@ import { useProduct } from "@/modules/products/hooks/useProduct";
 import { useProductRetailers } from "@/modules/products/hooks/useProductRetailers";
 import {
 	filterByTimeRange,
+	findCheapestRetailerId,
+	getLatestPriceByRetailer,
 	transformToMultiRetailerChartData,
 } from "@/modules/products/price-utils";
 import type { TimeRange } from "@/modules/products/types";
@@ -91,6 +93,11 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 		filteredHistory,
 		retailers ?? [],
 	);
+	const retailerPrices = getLatestPriceByRetailer(
+		history ?? [],
+		retailers ?? [],
+	);
+	const cheapestRetailerId = findCheapestRetailerId(retailerPrices);
 
 	const handleAddRetailer = async (url: string, label: string | null) => {
 		if (!url) {
@@ -147,6 +154,8 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 						retailers={retailers ?? []}
 						onRemove={handleRemoveRetailer}
 						isRemoving={isRemoving}
+						retailerPrices={retailerPrices}
+						cheapestRetailerId={cheapestRetailerId}
 					/>
 				</CardContent>
 			</Card>

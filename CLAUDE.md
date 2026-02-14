@@ -147,6 +147,21 @@ let products = ProductService::get_all(db.conn()).await?;
 let conn = db.conn.lock().unwrap();  // Blocks async runtime!
 ```
 
+### SQLite Migration Safety
+`DatabaseConnection` is a pool (5 connections). SeaORM does NOT wrap SQLite migrations
+in transactions, so each `execute_unprepared()` runs on a random connection. For multi-step
+DDL (table rebuilds), always wrap in a transaction:
+```rust
+// Correct: transaction pins to one connection
+let txn = db.begin().await?;
+txn.execute_unprepared("CREATE TABLE t_new (...)").await?;
+txn.execute_unprepared("DROP TABLE t").await?;
+txn.execute_unprepared("ALTER TABLE t_new RENAME TO t").await?;
+txn.commit().await?;
+```
+Single-statement DDL (ALTER TABLE ADD COLUMN, CREATE TABLE) does not need a transaction.
+Per-connection pragmas must use `map_sqlx_sqlite_opts()` in `build_connection_options()`.
+
 ### Adding New Database Entities
 1. Create migration in `src-tauri/crates/core/src/migrations/`
 2. Entity files go in `crates/core/src/entities/` (infrastructure) or `crates/domain/src/entities/` (product-specific)

@@ -408,6 +408,14 @@ impl AvailabilityService {
         AvailabilityCheckRepository::find_latest_for_product(conn, product_id).await
     }
 
+    /// Get the cheapest current price across all retailers for a product
+    pub async fn get_cheapest_current_price(
+        conn: &DatabaseConnection,
+        product_id: Uuid,
+    ) -> Result<Option<crate::repositories::CheapestPriceResult>, AppError> {
+        AvailabilityCheckRepository::find_cheapest_current_price(conn, product_id).await
+    }
+
     /// Get the availability check history for a product
     pub async fn get_history(
         conn: &DatabaseConnection,

@@ -119,6 +119,9 @@ export function createMockAvailabilityCheck(
 		today_average_price_minor_units: null,
 		yesterday_average_price_minor_units: null,
 		is_price_drop: false,
+		lowest_price_minor_units: null,
+		lowest_price_currency: null,
+		lowest_currency_exponent: null,
 		...overrides,
 	};
 }

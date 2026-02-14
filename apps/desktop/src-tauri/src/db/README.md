@@ -12,7 +12,7 @@ Contains database initialization logic:
 
 - `get_db_path()` - Returns the platform-specific database file path
 - `init_db()` - Initializes database connection with WAL mode and runs migrations
-- `enable_wal_mode()` - Configures SQLite for optimal performance
+- `enable_wal_mode()` - Sets WAL journal mode (database-level)
 
 ### `mod.rs`
 
@@ -39,11 +39,19 @@ pub struct DbState {
 
 ### SQLite Configuration
 
-The following PRAGMAs are set on initialization:
+PRAGMAs are split into two categories based on scope:
 
+**Database-level** (persists in the file, set once via `enable_wal_mode()`):
 - `journal_mode=WAL` - Write-Ahead Logging for better concurrency
+
+**Per-connection** (set via `map_sqlx_sqlite_opts()` in `build_connection_options()`):
 - `synchronous=NORMAL` - Balanced durability/performance with WAL
-- `foreign_keys=ON` - Enable referential integrity
+- `foreign_keys=ON` - Enable referential integrity (also sqlx default)
+
+Using `map_sqlx_sqlite_opts()` ensures these pragmas apply to **every** connection
+in the pool, not just the first one acquired. This is important because
+`DatabaseConnection` is a pool of 5 connections, and pragmas set via
+`conn.execute("PRAGMA ...")` only affect whichever connection is acquired.
 
 ### Pool Settings
 
@@ -72,3 +80,21 @@ pub async fn get_products(db: State<'_, DbState>) -> Result<Vec<Product>, AppErr
     Ok(products)
 }
 ```
+
+### Migration Safety
+
+SeaORM does **not** wrap SQLite migrations in transactions. Each `execute_unprepared()`
+acquires a random connection from the pool, so multi-step DDL (DROP TABLE + ALTER TABLE
+RENAME) can fail if statements land on different connections with stale schema state.
+
+**Always wrap multi-step DDL in a transaction:**
+
+```rust
+let txn = db.begin().await?;
+txn.execute_unprepared("CREATE TABLE t_new (...)").await?;
+txn.execute_unprepared("DROP TABLE t").await?;
+txn.execute_unprepared("ALTER TABLE t_new RENAME TO t").await?;
+txn.commit().await?;
+```
+
+Single-statement DDL (ALTER TABLE ADD COLUMN, CREATE TABLE) does not need a transaction.

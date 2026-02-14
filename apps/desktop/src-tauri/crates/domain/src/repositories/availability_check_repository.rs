@@ -15,6 +15,13 @@ struct AveragePriceResult {
     avg_price: Option<f64>,
 }
 
+/// Result of finding the cheapest current price across retailers
+#[derive(Debug, FromQueryResult)]
+pub struct CheapestPriceResult {
+    pub price_minor_units: i64,
+    pub price_currency: String,
+}
+
 /// Repository for availability check data access
 pub struct AvailabilityCheckRepository;
 
@@ -155,6 +162,45 @@ impl AvailabilityCheckRepository {
         Ok(checks)
     }
 
+    /// Find the cheapest current price across all retailers for a product.
+    ///
+    /// Uses a window function to get the latest check per retailer, then picks
+    /// the lowest price. Only considers checks linked to a product_retailer
+    /// that have a non-null price.
+    pub async fn find_cheapest_current_price(
+        conn: &DatabaseConnection,
+        product_id: Uuid,
+    ) -> Result<Option<CheapestPriceResult>, AppError> {
+        use sea_orm::Value;
+
+        let result = CheapestPriceResult::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            r#"
+                WITH latest_per_retailer AS (
+                    SELECT price_minor_units, price_currency,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY product_retailer_id
+                               ORDER BY checked_at DESC
+                           ) as rn
+                    FROM availability_checks
+                    WHERE product_id = ?
+                      AND product_retailer_id IS NOT NULL
+                      AND price_minor_units IS NOT NULL
+                )
+                SELECT price_minor_units, price_currency
+                FROM latest_per_retailer
+                WHERE rn = 1
+                ORDER BY price_minor_units ASC
+                LIMIT 1
+            "#,
+            [Value::Uuid(Some(Box::new(product_id)))],
+        ))
+        .one(conn)
+        .await?;
+
+        Ok(result)
+    }
+
     /// Get average price for a product-retailer within a time period [from, to)
     pub async fn get_average_price_for_period_by_product_retailer(
         conn: &DatabaseConnection,
@@ -206,6 +252,30 @@ impl AvailabilityCheckRepository {
             checked_at: Set(checked_at),
             price_minor_units: Set(price_minor_units),
             price_currency: Set(Some("USD".to_string())),
+            raw_price: Set(None),
+        };
+        active_model.insert(conn).await.unwrap()
+    }
+
+    /// Test helper: create an availability check with a specific timestamp and retailer
+    pub async fn create_with_timestamp_and_retailer(
+        conn: &DatabaseConnection,
+        product_id: Uuid,
+        product_retailer_id: Uuid,
+        price_minor_units: Option<i64>,
+        price_currency: Option<&str>,
+        checked_at: DateTime<Utc>,
+    ) -> AvailabilityCheckModel {
+        let active_model = AvailabilityCheckActiveModel {
+            id: Set(Uuid::new_v4()),
+            product_id: Set(product_id),
+            product_retailer_id: Set(Some(product_retailer_id)),
+            status: Set("in_stock".to_string()),
+            raw_availability: Set(None),
+            error_message: Set(None),
+            checked_at: Set(checked_at),
+            price_minor_units: Set(price_minor_units),
+            price_currency: Set(price_currency.map(|s| s.to_string())),
             raw_price: Set(None),
         };
         active_model.insert(conn).await.unwrap()
@@ -585,6 +655,203 @@ mod tests {
             .unwrap();
 
             assert_eq!(result, None);
+        }
+    }
+
+    mod cheapest_price_tests {
+        use super::*;
+        use crate::repositories::{
+            CreateProductRetailerParams, ProductRetailerRepository, RetailerRepository,
+        };
+        use chrono::Duration;
+
+        /// Helper to create a product_retailer record and return its ID
+        async fn create_test_product_retailer(
+            conn: &DatabaseConnection,
+            product_id: Uuid,
+            domain: &str,
+        ) -> Uuid {
+            let retailer = RetailerRepository::find_or_create_by_domain(conn, domain)
+                .await
+                .unwrap();
+            let pr_id = Uuid::new_v4();
+            ProductRetailerRepository::create(
+                conn,
+                pr_id,
+                retailer.id,
+                CreateProductRetailerParams {
+                    product_id,
+                    url: format!("https://{}/product", domain),
+                    label: None,
+                },
+            )
+            .await
+            .unwrap();
+            pr_id
+        }
+
+        #[tokio::test]
+        async fn test_no_retailer_checks_returns_none() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+
+            let result =
+                AvailabilityCheckRepository::find_cheapest_current_price(&conn, product_id)
+                    .await
+                    .unwrap();
+
+            assert!(result.is_none());
+        }
+
+        #[tokio::test]
+        async fn test_single_retailer_returns_its_price() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let pr_id = create_test_product_retailer(&conn, product_id, "shop-a.com").await;
+            let now = Utc::now();
+
+            AvailabilityCheckRepository::create_with_timestamp_and_retailer(
+                &conn,
+                product_id,
+                pr_id,
+                Some(5000),
+                Some("USD"),
+                now,
+            )
+            .await;
+
+            let result =
+                AvailabilityCheckRepository::find_cheapest_current_price(&conn, product_id)
+                    .await
+                    .unwrap();
+
+            assert!(result.is_some());
+            let cheapest = result.unwrap();
+            assert_eq!(cheapest.price_minor_units, 5000);
+            assert_eq!(cheapest.price_currency, "USD");
+        }
+
+        #[tokio::test]
+        async fn test_two_retailers_returns_cheapest() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let pr_a = create_test_product_retailer(&conn, product_id, "shop-a.com").await;
+            let pr_b = create_test_product_retailer(&conn, product_id, "shop-b.com").await;
+            let now = Utc::now();
+
+            // Retailer A: $30.00
+            AvailabilityCheckRepository::create_with_timestamp_and_retailer(
+                &conn,
+                product_id,
+                pr_a,
+                Some(3000),
+                Some("USD"),
+                now,
+            )
+            .await;
+
+            // Retailer B: $50.00
+            AvailabilityCheckRepository::create_with_timestamp_and_retailer(
+                &conn,
+                product_id,
+                pr_b,
+                Some(5000),
+                Some("USD"),
+                now,
+            )
+            .await;
+
+            let result =
+                AvailabilityCheckRepository::find_cheapest_current_price(&conn, product_id)
+                    .await
+                    .unwrap();
+
+            let cheapest = result.unwrap();
+            assert_eq!(cheapest.price_minor_units, 3000);
+        }
+
+        #[tokio::test]
+        async fn test_uses_latest_check_per_retailer() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let pr_a = create_test_product_retailer(&conn, product_id, "shop-a.com").await;
+            let now = Utc::now();
+
+            // Retailer A old check: $10.00
+            AvailabilityCheckRepository::create_with_timestamp_and_retailer(
+                &conn,
+                product_id,
+                pr_a,
+                Some(1000),
+                Some("USD"),
+                now - Duration::hours(2),
+            )
+            .await;
+
+            // Retailer A new check: $80.00
+            AvailabilityCheckRepository::create_with_timestamp_and_retailer(
+                &conn,
+                product_id,
+                pr_a,
+                Some(8000),
+                Some("USD"),
+                now,
+            )
+            .await;
+
+            let result =
+                AvailabilityCheckRepository::find_cheapest_current_price(&conn, product_id)
+                    .await
+                    .unwrap();
+
+            let cheapest = result.unwrap();
+            // Should use the latest check ($80), not the old one ($10)
+            assert_eq!(cheapest.price_minor_units, 8000);
+        }
+
+        #[tokio::test]
+        async fn test_ignores_checks_without_retailer() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+
+            // Legacy check (no retailer) with a low price
+            AvailabilityCheckRepository::create_with_timestamp(&conn, product_id, Some(100), now)
+                .await;
+
+            let result =
+                AvailabilityCheckRepository::find_cheapest_current_price(&conn, product_id)
+                    .await
+                    .unwrap();
+
+            // Should not find the legacy check
+            assert!(result.is_none());
+        }
+
+        #[tokio::test]
+        async fn test_ignores_null_prices() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let pr_id = create_test_product_retailer(&conn, product_id, "shop-a.com").await;
+            let now = Utc::now();
+
+            // Check with null price
+            AvailabilityCheckRepository::create_with_timestamp_and_retailer(
+                &conn,
+                product_id,
+                pr_id,
+                None,
+                Some("USD"),
+                now,
+            )
+            .await;
+
+            let result =
+                AvailabilityCheckRepository::find_cheapest_current_price(&conn, product_id)
+                    .await
+                    .unwrap();
+
+            assert!(result.is_none());
         }
     }
 }
