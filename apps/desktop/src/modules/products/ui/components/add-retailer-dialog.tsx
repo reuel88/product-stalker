@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 interface AddRetailerDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	onSubmit: (url: string, label: string | null) => void;
+	onSubmit: (url: string, label: string | null) => void | Promise<void>;
 	isSubmitting: boolean;
 }
 
@@ -28,8 +28,8 @@ export function AddRetailerDialog({
 	const [url, setUrl] = useState("");
 	const [label, setLabel] = useState("");
 
-	const handleSubmit = () => {
-		onSubmit(url, label || null);
+	const handleSubmit = async () => {
+		await onSubmit(url, label || null);
 		setUrl("");
 		setLabel("");
 	};

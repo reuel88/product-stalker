@@ -73,7 +73,7 @@ impl AvailabilityService {
         let params = match result {
             Ok(scraping_result) => {
                 let params = Self::params_from_success(scraping_result);
-                Self::auto_set_product_currency(conn, &product, params.price_currency.as_deref())
+                Self::auto_set_product_currency(conn, &product, params.price_currency.as_deref(), None)
                     .await;
                 params
             }
@@ -119,7 +119,7 @@ impl AvailabilityService {
         let mut params = match result {
             Ok(scraping_result) => {
                 let params = Self::params_from_success(scraping_result);
-                Self::auto_set_product_currency(conn, &product, params.price_currency.as_deref())
+                Self::auto_set_product_currency(conn, &product, params.price_currency.as_deref(), Some(&pr.url))
                     .await;
                 params
             }
@@ -141,6 +141,7 @@ impl AvailabilityService {
         conn: &DatabaseConnection,
         product: &ProductModel,
         scraped_currency: Option<&str>,
+        check_url: Option<&str>,
     ) {
         let Some(scraped) = scraped_currency else {
             return;
@@ -167,7 +168,7 @@ impl AvailabilityService {
                 // Special case: If the URL has a path locale pattern, the scraped
                 // currency (from new logic) is more reliable than the stored one
                 // (from old logic that didn't check path locales)
-                if product.url.as_deref().is_some_and(has_path_locale) {
+                if check_url.or(product.url.as_deref()).is_some_and(has_path_locale) {
                     log::info!(
                         "Correcting currency for product {} from {} to {} (path locale detected in URL)",
                         product.id,
@@ -751,7 +752,7 @@ mod tests {
 
             assert_eq!(product.currency, None);
 
-            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD")).await;
+            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD"), None).await;
 
             let updated = ProductRepository::find_by_id(&conn, product.id)
                 .await
@@ -771,7 +772,7 @@ mod tests {
             .await;
 
             // Set initial currency
-            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD")).await;
+            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD"), None).await;
 
             let product = ProductRepository::find_by_id(&conn, product.id)
                 .await
@@ -779,7 +780,7 @@ mod tests {
                 .unwrap();
 
             // Try to set the same currency again
-            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD")).await;
+            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD"), None).await;
 
             let updated = ProductRepository::find_by_id(&conn, product.id)
                 .await
@@ -816,7 +817,7 @@ mod tests {
             assert_eq!(product.currency, Some("GBP".to_string()));
 
             // New scraper detects AUD - should auto-correct because path locale is present
-            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD")).await;
+            AvailabilityService::auto_set_product_currency(&conn, &product, Some("AUD"), None).await;
 
             let updated = ProductRepository::find_by_id(&conn, product.id)
                 .await
@@ -850,7 +851,7 @@ mod tests {
             assert_eq!(product.currency, Some("USD".to_string()));
 
             // Scraper detects GBP - should NOT override (no path locale to guide us)
-            AvailabilityService::auto_set_product_currency(&conn, &product, Some("GBP")).await;
+            AvailabilityService::auto_set_product_currency(&conn, &product, Some("GBP"), None).await;
 
             let updated = ProductRepository::find_by_id(&conn, product.id)
                 .await
@@ -885,7 +886,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
 
-            AvailabilityService::auto_set_product_currency(&conn, &product_nz, Some("NZD")).await;
+            AvailabilityService::auto_set_product_currency(&conn, &product_nz, Some("NZD"), None).await;
 
             let updated_nz = ProductRepository::find_by_id(&conn, product_nz.id)
                 .await
@@ -914,13 +915,68 @@ mod tests {
                 .unwrap()
                 .unwrap();
 
-            AvailabilityService::auto_set_product_currency(&conn, &product_gb, Some("GBP")).await;
+            AvailabilityService::auto_set_product_currency(&conn, &product_gb, Some("GBP"), None).await;
 
             let updated_gb = ProductRepository::find_by_id(&conn, product_gb.id)
                 .await
                 .unwrap()
                 .unwrap();
             assert_eq!(updated_gb.currency, Some("GBP".to_string()));
+        }
+
+        #[tokio::test]
+        async fn test_corrects_currency_via_check_url_when_product_has_no_url() {
+            let conn = setup_availability_db().await;
+
+            // Create product with NO URL (multi-retailer scenario)
+            let id = Uuid::new_v4();
+            ProductRepository::create(
+                &conn,
+                id,
+                CreateProductRepoParams {
+                    name: "Multi-Retailer Product".to_string(),
+                    url: None,
+                    description: None,
+                    notes: None,
+                },
+            )
+            .await
+            .unwrap();
+
+            let product = ProductRepository::find_by_id(&conn, id)
+                .await
+                .unwrap()
+                .unwrap();
+
+            // Set initial currency to GBP (simulating old detection)
+            let update = crate::repositories::ProductUpdateInput {
+                currency: Some(Some("GBP".to_string())),
+                ..Default::default()
+            };
+            ProductRepository::update(&conn, product.clone(), update)
+                .await
+                .unwrap();
+
+            let product = ProductRepository::find_by_id(&conn, id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(product.currency, Some("GBP".to_string()));
+
+            // Call with check_url containing a path locale — should correct to AUD
+            AvailabilityService::auto_set_product_currency(
+                &conn,
+                &product,
+                Some("AUD"),
+                Some("https://example.com/en-au/products/item"),
+            )
+            .await;
+
+            let updated = ProductRepository::find_by_id(&conn, id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(updated.currency, Some("AUD".to_string()));
         }
     }
 }
