@@ -34,8 +34,16 @@ export function AddRetailerDialog({
 		setLabel("");
 	};
 
+	const handleOpenChange = (next: boolean) => {
+		if (!next) {
+			setUrl("");
+			setLabel("");
+		}
+		onOpenChange(next);
+	};
+
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Add Retailer</DialogTitle>
@@ -66,7 +74,7 @@ export function AddRetailerDialog({
 					</div>
 				</div>
 				<DialogFooter>
-					<Button variant="outline" onClick={() => onOpenChange(false)}>
+					<Button variant="outline" onClick={() => handleOpenChange(false)}>
 						Cancel
 					</Button>
 					<Button onClick={handleSubmit} disabled={isSubmitting || !url}>

@@ -9,6 +9,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { getDisplayPrice } from "@/modules/products/price-utils";
 import type {
 	AvailabilityCheckResponse,
 	AvailabilityStatus,
@@ -48,17 +49,8 @@ export function ProductInfoCard({
 }: ProductInfoCardProps) {
 	const { formatDate } = useDateFormat();
 
-	const displayPrice =
-		latestCheck?.lowest_price_minor_units ??
-		latestCheck?.price_minor_units ??
-		null;
-	const displayCurrency =
-		latestCheck?.lowest_price_currency ?? latestCheck?.price_currency ?? null;
-	const displayExponent =
-		latestCheck?.lowest_currency_exponent ??
-		latestCheck?.currency_exponent ??
-		2;
-	const hasPrice = displayPrice != null;
+	const { price, currency, exponent } = getDisplayPrice(latestCheck);
+	const hasPrice = price != null;
 
 	return (
 		<Card>
@@ -91,15 +83,15 @@ export function ProductInfoCard({
 					<div>
 						<p className="text-muted-foreground text-xs">Current Price</p>
 						<PriceChangeIndicator
-							currentPriceMinorUnits={displayPrice}
+							currentPriceMinorUnits={price}
 							todayAverageMinorUnits={
 								latestCheck?.today_average_price_minor_units ?? null
 							}
 							yesterdayAverageMinorUnits={
 								latestCheck?.yesterday_average_price_minor_units ?? null
 							}
-							currency={displayCurrency}
-							currencyExponent={displayExponent}
+							currency={currency}
+							currencyExponent={exponent}
 							variant="detailed"
 						/>
 					</div>

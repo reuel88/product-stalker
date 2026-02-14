@@ -1,5 +1,6 @@
 //! Price comparison and stock transition detection.
 
+use chrono::{DateTime, Utc};
 use sea_orm::DatabaseConnection;
 use uuid::Uuid;
 
@@ -9,6 +10,15 @@ use product_stalker_core::AppError;
 
 use super::types::DailyPriceComparison;
 use super::AvailabilityService;
+
+/// Rolling 24-hour time windows for daily price comparison.
+/// "Today" = last 24 hours, "Yesterday" = 24-48 hours ago.
+fn daily_time_windows() -> (DateTime<Utc>, DateTime<Utc>, DateTime<Utc>) {
+    let now = Utc::now();
+    let twenty_four_hours_ago = now - chrono::Duration::hours(24);
+    let forty_eight_hours_ago = now - chrono::Duration::hours(48);
+    (now, twenty_four_hours_ago, forty_eight_hours_ago)
+}
 
 impl AvailabilityService {
     /// Determines if a product has transitioned back to being in stock.
@@ -55,22 +65,20 @@ impl AvailabilityService {
         conn: &DatabaseConnection,
         product_id: Uuid,
     ) -> Result<DailyPriceComparison, AppError> {
-        let now = chrono::Utc::now();
-        let twenty_four_hours_ago = now - chrono::Duration::hours(24);
-        let forty_eight_hours_ago = now - chrono::Duration::hours(48);
+        let (now, yesterday_start, day_before_start) = daily_time_windows();
 
         let today_average = AvailabilityCheckRepository::get_average_price_for_period(
             conn,
             product_id,
-            twenty_four_hours_ago,
+            yesterday_start,
             now,
         )
         .await?;
         let yesterday_average = AvailabilityCheckRepository::get_average_price_for_period(
             conn,
             product_id,
-            forty_eight_hours_ago,
-            twenty_four_hours_ago,
+            day_before_start,
+            yesterday_start,
         )
         .await?;
 
@@ -85,15 +93,13 @@ impl AvailabilityService {
         conn: &DatabaseConnection,
         product_retailer_id: Uuid,
     ) -> Result<DailyPriceComparison, AppError> {
-        let now = chrono::Utc::now();
-        let twenty_four_hours_ago = now - chrono::Duration::hours(24);
-        let forty_eight_hours_ago = now - chrono::Duration::hours(48);
+        let (now, yesterday_start, day_before_start) = daily_time_windows();
 
         let today_average =
             AvailabilityCheckRepository::get_average_price_for_period_by_product_retailer(
                 conn,
                 product_retailer_id,
-                twenty_four_hours_ago,
+                yesterday_start,
                 now,
             )
             .await?;
@@ -101,8 +107,8 @@ impl AvailabilityService {
             AvailabilityCheckRepository::get_average_price_for_period_by_product_retailer(
                 conn,
                 product_retailer_id,
-                forty_eight_hours_ago,
-                twenty_four_hours_ago,
+                day_before_start,
+                yesterday_start,
             )
             .await?;
 

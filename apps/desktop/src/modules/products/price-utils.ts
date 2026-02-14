@@ -238,6 +238,27 @@ export function formatPrice(
 	}).format(minorUnits / 10 ** exponent);
 }
 
+/** Display price resolved from an availability check, preferring multi-retailer lowest price */
+export interface DisplayPrice {
+	price: number | null;
+	currency: string | null;
+	exponent: number;
+}
+
+/**
+ * Resolve the best display price from an availability check.
+ * Prefers `lowest_price_*` fields (multi-retailer cheapest) over the single-check `price_*` fields.
+ */
+export function getDisplayPrice(
+	check: AvailabilityCheckResponse | null | undefined,
+): DisplayPrice {
+	return {
+		price: check?.lowest_price_minor_units ?? check?.price_minor_units ?? null,
+		currency: check?.lowest_price_currency ?? check?.price_currency ?? null,
+		exponent: check?.lowest_currency_exponent ?? check?.currency_exponent ?? 2,
+	};
+}
+
 /** Latest price info for a single retailer */
 export interface RetailerPrice {
 	priceMinorUnits: number;
