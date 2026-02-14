@@ -303,64 +303,39 @@ export function ProductsTable({
 						</TableRow>
 					))}
 				</TableHeader>
-				{isReorderMode ? (
-					<DndContext
-						sensors={sensors}
-						collisionDetection={closestCenter}
-						onDragEnd={handleDragEnd}
+				<DndContext
+					sensors={sensors}
+					collisionDetection={closestCenter}
+					onDragEnd={handleDragEnd}
+				>
+					<SortableContext
+						items={productIds}
+						strategy={verticalListSortingStrategy}
 					>
-						<SortableContext
-							items={productIds}
-							strategy={verticalListSortingStrategy}
-						>
-							<TableBody>
-								{table.getRowModel().rows?.length ? (
-									table
-										.getRowModel()
-										.rows.map((row) => (
-											<SortableRow
-												key={row.original.id}
-												row={row}
-												isReorderMode={isReorderMode}
-											/>
-										))
-								) : (
-									<TableRow>
-										<TableCell
-											colSpan={columns.length + 1}
-											className="h-24 text-center"
-										>
-											No products found
-										</TableCell>
-									</TableRow>
-								)}
-							</TableBody>
-						</SortableContext>
-					</DndContext>
-				) : (
-					<TableBody>
-						{table.getRowModel().rows?.length ? (
-							table
-								.getRowModel()
-								.rows.map((row) => (
-									<SortableRow
-										key={row.original.id}
-										row={row}
-										isReorderMode={isReorderMode}
-									/>
-								))
-						) : (
-							<TableRow>
-								<TableCell
-									colSpan={columns.length}
-									className="h-24 text-center"
-								>
-									No products found
-								</TableCell>
-							</TableRow>
-						)}
-					</TableBody>
-				)}
+						<TableBody>
+							{table.getRowModel().rows?.length ? (
+								table
+									.getRowModel()
+									.rows.map((row) => (
+										<SortableRow
+											key={row.original.id}
+											row={row}
+											isReorderMode={isReorderMode}
+										/>
+									))
+							) : (
+								<TableRow>
+									<TableCell
+										colSpan={columns.length + (isReorderMode ? 1 : 0)}
+										className="h-24 text-center"
+									>
+										No products found
+									</TableCell>
+								</TableRow>
+							)}
+						</TableBody>
+					</SortableContext>
+				</DndContext>
 			</Table>
 
 			{!isReorderMode && (
