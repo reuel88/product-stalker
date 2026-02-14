@@ -27,6 +27,9 @@ pub struct Model {
     /// ISO 4217 currency code (e.g., USD, AUD), auto-set on first scrape
     pub currency: Option<String>,
 
+    /// User-defined display order (0 = first)
+    pub sort_order: i32,
+
     /// Creation timestamp
     pub created_at: DateTimeUtc,
 
@@ -72,6 +75,7 @@ mod tests {
             description: Some("A description".to_string()),
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -90,6 +94,7 @@ mod tests {
             description: None,
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -109,6 +114,7 @@ mod tests {
             description: None,
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: now,
             updated_at: now,
         };
@@ -119,6 +125,7 @@ mod tests {
             description: None,
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: now,
             updated_at: now,
         };
@@ -135,6 +142,7 @@ mod tests {
             description: None,
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: now,
             updated_at: now,
         };
@@ -145,6 +153,7 @@ mod tests {
             description: None,
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: now,
             updated_at: now,
         };
@@ -161,6 +170,7 @@ mod tests {
             description: Some("desc".to_string()),
             notes: Some("notes".to_string()),
             currency: None,
+            sort_order: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -181,6 +191,7 @@ mod tests {
             description: Some("Full description with details".to_string()),
             notes: Some("Important notes about this product".to_string()),
             currency: None,
+            sort_order: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -197,6 +208,7 @@ mod tests {
             description: None,
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -215,6 +227,7 @@ mod tests {
             description: None,
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: created,
             updated_at: updated,
         };

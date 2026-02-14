@@ -20,7 +20,11 @@ pub use domain_setting_service::{
 pub use headless_service::HeadlessService;
 pub use manual_verification_service::ManualVerificationService;
 pub use notification_service::NotificationService;
-pub use product_retailer_service::{AddRetailerParams, ProductRetailerService};
-pub use product_service::{CreateProductParams, ProductService, UpdateProductParams};
+pub use product_retailer_service::{
+    AddRetailerParams, ProductRetailerService, ReorderRetailersParams,
+};
+pub use product_service::{
+    CreateProductParams, ProductService, ReorderProductsParams, UpdateProductParams,
+};
 pub use product_stalker_core::services::notification_helpers::NotificationData;
 pub use scraper::ScraperService;

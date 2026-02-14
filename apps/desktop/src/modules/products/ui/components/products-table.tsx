@@ -1,4 +1,21 @@
 import {
+	closestCenter,
+	DndContext,
+	type DragEndEvent,
+	KeyboardSensor,
+	PointerSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	arrayMove,
+	SortableContext,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import type { PaginationState, Row } from "@tanstack/react-table";
+import {
 	flexRender,
 	getCoreRowModel,
 	getPaginationRowModel,
@@ -9,9 +26,10 @@ import {
 	ChevronLast,
 	ChevronLeft,
 	ChevronRight,
+	GripVertical,
 } from "lucide-react";
-import type { ReactNode } from "react";
-import { createContext, useContext, useMemo } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,6 +45,7 @@ import { UI } from "@/constants";
 import { cn } from "@/lib/utils";
 import { useAvailability } from "@/modules/products/hooks/useAvailability";
 import { useProductRetailers } from "@/modules/products/hooks/useProductRetailers";
+import { useReorderProducts } from "@/modules/products/hooks/useReorderProducts";
 import { getDisplayPrice } from "@/modules/products/price-utils";
 import type {
 	AvailabilityCheckResponse,
@@ -137,6 +156,52 @@ function RetailerCountCell({ productId }: { productId: string }) {
 	);
 }
 
+function SortableRow({
+	row,
+	isReorderMode,
+}: {
+	row: Row<ProductResponse>;
+	isReorderMode: boolean;
+}) {
+	const { attributes, listeners, setNodeRef, transform, transition } =
+		useSortable({ id: row.original.id });
+
+	const style: CSSProperties = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+	};
+
+	return (
+		<ProductAvailabilityProvider productId={row.original.id}>
+			<TableRow
+				ref={setNodeRef}
+				style={style}
+				data-state={row.getIsSelected() && "selected"}
+			>
+				{isReorderMode && (
+					<TableCell className="w-8 px-2">
+						<button
+							type="button"
+							className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
+							aria-label="Drag to reorder"
+							data-testid={`drag-handle-${row.original.id}`}
+							{...attributes}
+							{...listeners}
+						>
+							<GripVertical className="size-4" />
+						</button>
+					</TableCell>
+				)}
+				{row.getVisibleCells().map((cell) => (
+					<TableCell key={cell.id}>
+						{flexRender(cell.column.columnDef.cell, cell.getContext())}
+					</TableCell>
+				))}
+			</TableRow>
+		</ProductAvailabilityProvider>
+	);
+}
+
 export function ProductsTable({
 	products,
 	isLoading,
@@ -144,6 +209,13 @@ export function ProductsTable({
 	onDelete,
 }: ProductsTableProps) {
 	const { formatDate } = useDateFormat();
+	const [isReorderMode, setIsReorderMode] = useState(false);
+	const reorderMutation = useReorderProducts();
+
+	const sensors = useSensors(
+		useSensor(PointerSensor),
+		useSensor(KeyboardSensor),
+	);
 
 	const columns = useMemo(
 		() =>
@@ -158,28 +230,66 @@ export function ProductsTable({
 		[onEdit, onDelete, formatDate],
 	);
 
+	const [pagination, setPagination] = useState<PaginationState>({
+		pageIndex: 0,
+		pageSize: UI.PAGINATION.DEFAULT_PAGE_SIZE,
+	});
+
+	const effectivePageSize = isReorderMode
+		? products.length || 1
+		: pagination.pageSize;
+
 	const table = useReactTable({
 		data: products,
 		columns,
 		getCoreRowModel: getCoreRowModel(),
 		getPaginationRowModel: getPaginationRowModel(),
-		initialState: {
+		state: {
 			pagination: {
-				pageSize: UI.PAGINATION.DEFAULT_PAGE_SIZE,
+				...pagination,
+				pageSize: effectivePageSize,
 			},
 		},
+		onPaginationChange: setPagination,
 	});
+
+	function handleDragEnd(event: DragEndEvent) {
+		const { active, over } = event;
+		if (!over || active.id === over.id) return;
+
+		const oldIndex = products.findIndex((p) => p.id === active.id);
+		const newIndex = products.findIndex((p) => p.id === over.id);
+		if (oldIndex === -1 || newIndex === -1) return;
+
+		const newOrder = arrayMove(products, oldIndex, newIndex);
+		reorderMutation.mutate(newOrder);
+	}
 
 	if (isLoading) {
 		return <ProductsTableSkeleton />;
 	}
 
+	const productIds = products.map((p) => p.id);
+
 	return (
 		<div className="space-y-4">
+			<div className="flex justify-end">
+				<Button
+					variant={isReorderMode ? "default" : "outline"}
+					size="sm"
+					onClick={() => setIsReorderMode((prev) => !prev)}
+					data-testid="reorder-toggle"
+				>
+					<GripVertical className="mr-1 size-4" />
+					{isReorderMode ? "Done" : "Reorder"}
+				</Button>
+			</div>
+
 			<Table>
 				<TableHeader>
 					{table.getHeaderGroups().map((headerGroup) => (
 						<TableRow key={headerGroup.id}>
+							{isReorderMode && <TableHead className="w-8" />}
 							{headerGroup.headers.map((header) => (
 								<TableHead key={header.id}>
 									{header.isPlaceholder
@@ -193,75 +303,108 @@ export function ProductsTable({
 						</TableRow>
 					))}
 				</TableHeader>
-				<TableBody>
-					{table.getRowModel().rows?.length ? (
-						table.getRowModel().rows.map((row) => (
-							<ProductAvailabilityProvider
-								key={row.id}
-								productId={row.original.id}
-							>
-								<TableRow data-state={row.getIsSelected() && "selected"}>
-									{row.getVisibleCells().map((cell) => (
-										<TableCell key={cell.id}>
-											{flexRender(
-												cell.column.columnDef.cell,
-												cell.getContext(),
-											)}
+				{isReorderMode ? (
+					<DndContext
+						sensors={sensors}
+						collisionDetection={closestCenter}
+						onDragEnd={handleDragEnd}
+					>
+						<SortableContext
+							items={productIds}
+							strategy={verticalListSortingStrategy}
+						>
+							<TableBody>
+								{table.getRowModel().rows?.length ? (
+									table
+										.getRowModel()
+										.rows.map((row) => (
+											<SortableRow
+												key={row.original.id}
+												row={row}
+												isReorderMode={isReorderMode}
+											/>
+										))
+								) : (
+									<TableRow>
+										<TableCell
+											colSpan={columns.length + 1}
+											className="h-24 text-center"
+										>
+											No products found
 										</TableCell>
-									))}
-								</TableRow>
-							</ProductAvailabilityProvider>
-						))
-					) : (
-						<TableRow>
-							<TableCell colSpan={columns.length} className="h-24 text-center">
-								No products found
-							</TableCell>
-						</TableRow>
-					)}
-				</TableBody>
+									</TableRow>
+								)}
+							</TableBody>
+						</SortableContext>
+					</DndContext>
+				) : (
+					<TableBody>
+						{table.getRowModel().rows?.length ? (
+							table
+								.getRowModel()
+								.rows.map((row) => (
+									<SortableRow
+										key={row.original.id}
+										row={row}
+										isReorderMode={isReorderMode}
+									/>
+								))
+						) : (
+							<TableRow>
+								<TableCell
+									colSpan={columns.length}
+									className="h-24 text-center"
+								>
+									No products found
+								</TableCell>
+							</TableRow>
+						)}
+					</TableBody>
+				)}
 			</Table>
 
-			<div className="flex items-center justify-between">
-				<div className="text-muted-foreground text-xs">
-					Page {table.getState().pagination.pageIndex + 1} of{" "}
-					{table.getPageCount() || 1}
+			{!isReorderMode && (
+				<div className="flex items-center justify-between">
+					<div className="text-muted-foreground text-xs">
+						Page {table.getState().pagination.pageIndex + 1} of{" "}
+						{table.getPageCount() || 1}
+					</div>
+					<div className="flex items-center gap-1">
+						<Button
+							variant="outline"
+							size="icon-sm"
+							onClick={() => table.firstPage()}
+							disabled={!table.getCanPreviousPage()}
+						>
+							<ChevronFirst className="size-4" />
+						</Button>
+						<Button
+							variant="outline"
+							size="icon-sm"
+							onClick={() => table.previousPage()}
+							disabled={!table.getCanPreviousPage()}
+						>
+							<ChevronLeft className="size-4" />
+						</Button>
+						<Button
+							variant="outline"
+							size="icon-sm"
+							onClick={() => table.nextPage()}
+							disabled={!table.getCanNextPage()}
+						>
+							<ChevronRight className="size-4" />
+						</Button>
+						<Button
+							variant="outline"
+							size="icon-sm"
+							onClick={() => table.lastPage()}
+							disabled={!table.getCanNextPage()}
+						>
+							<ChevronLast className="size-4" />
+						</Button>
+					</div>
 				</div>
-				<div className="flex items-center gap-1">
-					<Button
-						variant="outline"
-						size="icon-sm"
-						onClick={() => table.firstPage()}
-						disabled={!table.getCanPreviousPage()}
-					>
-						<ChevronFirst className="size-4" />
-					</Button>
-					<Button
-						variant="outline"
-						size="icon-sm"
-						onClick={() => table.previousPage()}
-						disabled={!table.getCanPreviousPage()}
-					>
-						<ChevronLeft className="size-4" />
-					</Button>
-					<Button
-						variant="outline"
-						size="icon-sm"
-						onClick={() => table.nextPage()}
-						disabled={!table.getCanNextPage()}
-					>
-						<ChevronRight className="size-4" />
-					</Button>
-					<Button
-						variant="outline"
-						size="icon-sm"
-						onClick={() => table.lastPage()}
-						disabled={!table.getCanNextPage()}
-					>
-						<ChevronLast className="size-4" />
-					</Button>
-				</div>
-			</div>
+			)}
 		</div>
 	);
 }

@@ -6,6 +6,8 @@ use super::m20250205_000001_add_price_tracking;
 use super::m20260211_000001_add_product_currency;
 use super::m20260212_000001_rename_price_cents_to_price_minor_units;
 use super::m20260213_000001_add_multi_retailer;
+use super::m20260214_000001_add_product_sort_order;
+use super::m20260215_000001_add_retailer_sort_order;
 
 pub fn migrations() -> Vec<Box<dyn MigrationTrait>> {
     vec![
@@ -15,5 +17,7 @@ pub fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         Box::new(m20260211_000001_add_product_currency::Migration),
         Box::new(m20260212_000001_rename_price_cents_to_price_minor_units::Migration),
         Box::new(m20260213_000001_add_multi_retailer::Migration),
+        Box::new(m20260214_000001_add_product_sort_order::Migration),
+        Box::new(m20260215_000001_add_retailer_sort_order::Migration),
     ]
 }

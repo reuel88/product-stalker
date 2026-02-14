@@ -422,6 +422,7 @@ function createRetailer(
 		retailer_id: "amazon.com",
 		url: "https://www.amazon.com/dp/B123",
 		label: null,
+		sort_order: 0,
 		created_at: new Date().toISOString(),
 		...overrides,
 	};

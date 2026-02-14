@@ -17,6 +17,7 @@ function createRetailer(
 		retailer_id: "amazon.com",
 		url: "https://www.amazon.com/dp/B123",
 		label: null,
+		sort_order: 0,
 		created_at: new Date().toISOString(),
 		...overrides,
 	};
@@ -27,6 +28,7 @@ describe("RetailerList", () => {
 		retailers: [] as ProductRetailerResponse[],
 		onRemove: vi.fn(),
 		isRemoving: false,
+		onReorder: vi.fn(),
 	};
 
 	it("should show empty message when no retailers", () => {
@@ -48,6 +50,7 @@ describe("RetailerList", () => {
 			createRetailer({
 				id: "pr-2",
 				url: "https://www.bestbuy.com/product/123",
+				sort_order: 1,
 			}),
 		];
 		const retailerPrices = new Map<string, RetailerPrice>([
@@ -81,6 +84,7 @@ describe("RetailerList", () => {
 			createRetailer({
 				id: "pr-2",
 				url: "https://www.bestbuy.com/product/123",
+				sort_order: 1,
 			}),
 		];
 		const retailerPrices = new Map<string, RetailerPrice>([
@@ -129,6 +133,7 @@ describe("RetailerList", () => {
 			createRetailer({
 				id: "pr-2",
 				url: "https://www.bestbuy.com/product/123",
+				sort_order: 1,
 			}),
 		];
 		const retailerPrices = new Map<string, RetailerPrice>([
@@ -147,5 +152,21 @@ describe("RetailerList", () => {
 		// pr-2 has no price data, so no second price element
 		const priceElements = screen.getAllByText(/\$/);
 		expect(priceElements).toHaveLength(1);
+	});
+
+	it("should render drag handles for each retailer", () => {
+		const retailers = [
+			createRetailer({ id: "pr-1" }),
+			createRetailer({
+				id: "pr-2",
+				url: "https://www.bestbuy.com/product/123",
+				sort_order: 1,
+			}),
+		];
+
+		render(<RetailerList {...defaultProps} retailers={retailers} />);
+
+		expect(screen.getByTestId("drag-handle-pr-1")).toBeInTheDocument();
+		expect(screen.getByTestId("drag-handle-pr-2")).toBeInTheDocument();
 	});
 });

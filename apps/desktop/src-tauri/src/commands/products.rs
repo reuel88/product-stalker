@@ -3,7 +3,9 @@ use tauri::State;
 
 use crate::db::DbState;
 use crate::domain::entities::prelude::ProductModel;
-use crate::domain::services::{CreateProductParams, ProductService, UpdateProductParams};
+use crate::domain::services::{
+    CreateProductParams, ProductService, ReorderProductsParams, UpdateProductParams,
+};
 use crate::tauri_error::CommandError;
 use crate::utils::parse_uuid;
 
@@ -31,6 +33,7 @@ pub struct ProductResponse {
     pub description: Option<String>,
     pub notes: Option<String>,
     pub currency: Option<String>,
+    pub sort_order: i32,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -43,6 +46,7 @@ impl From<ProductModel> for ProductResponse {
             description: model.description,
             notes: model.notes,
             currency: model.currency,
+            sort_order: model.sort_order,
             created_at: model.created_at.to_rfc3339(),
             updated_at: model.updated_at.to_rfc3339(),
         }
@@ -110,6 +114,35 @@ pub async fn update_product(
     Ok(ProductResponse::from(product))
 }
 
+/// A single reorder entry: product ID + new sort_order
+#[derive(Debug, Deserialize)]
+pub struct ReorderUpdate {
+    pub id: String,
+    pub sort_order: i32,
+}
+
+/// Input for reordering products
+#[derive(Debug, Deserialize)]
+pub struct ReorderProductsInput {
+    pub updates: Vec<ReorderUpdate>,
+}
+
+/// Reorder products by updating their sort_order values
+#[tauri::command]
+pub async fn reorder_products(
+    input: ReorderProductsInput,
+    db: State<'_, DbState>,
+) -> Result<(), CommandError> {
+    let updates: Vec<(uuid::Uuid, i32)> = input
+        .updates
+        .iter()
+        .map(|u| Ok((parse_uuid(&u.id)?, u.sort_order)))
+        .collect::<Result<_, CommandError>>()?;
+
+    ProductService::reorder(db.conn(), ReorderProductsParams { updates }).await?;
+    Ok(())
+}
+
 /// Delete a product
 #[tauri::command]
 pub async fn delete_product(id: String, db: State<'_, DbState>) -> Result<(), CommandError> {
@@ -136,6 +169,7 @@ mod tests {
             description: Some("A description".to_string()),
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: now,
             updated_at: now,
         };
@@ -159,6 +193,7 @@ mod tests {
             description: Some("Full description".to_string()),
             notes: Some("Some notes".to_string()),
             currency: None,
+            sort_order: 0,
             created_at: now,
             updated_at: now,
         };
@@ -184,6 +219,7 @@ mod tests {
             description: None,
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: now,
             updated_at: now,
         };
@@ -206,6 +242,7 @@ mod tests {
             description: Some("Test desc".to_string()),
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: now,
             updated_at: now,
         };
@@ -278,6 +315,7 @@ mod tests {
             description: None,
             notes: None,
             currency: None,
+            sort_order: 0,
             created_at: now,
             updated_at: now,
         };
@@ -287,5 +325,36 @@ mod tests {
         // RFC3339 format includes 'T' separator and timezone
         assert!(response.created_at.contains('T'));
         assert!(response.updated_at.contains('T'));
+    }
+
+    #[test]
+    fn test_reorder_products_input_deserializes() {
+        let json = r#"{"updates":[{"id":"550e8400-e29b-41d4-a716-446655440000","sort_order":1},{"id":"550e8400-e29b-41d4-a716-446655440001","sort_order":0}]}"#;
+        let input: ReorderProductsInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.updates.len(), 2);
+        assert_eq!(input.updates[0].id, "550e8400-e29b-41d4-a716-446655440000");
+        assert_eq!(input.updates[0].sort_order, 1);
+        assert_eq!(input.updates[1].sort_order, 0);
+    }
+
+    #[test]
+    fn test_product_response_includes_sort_order() {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+        let model = ProductModel {
+            id,
+            name: "Sort Test".to_string(),
+            url: None,
+            description: None,
+            notes: None,
+            currency: None,
+            sort_order: 5,
+            created_at: now,
+            updated_at: now,
+        };
+
+        let response = ProductResponse::from(model);
+        assert_eq!(response.sort_order, 5);
     }
 }

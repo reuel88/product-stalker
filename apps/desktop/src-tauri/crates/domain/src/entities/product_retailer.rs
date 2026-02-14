@@ -23,6 +23,9 @@ pub struct Model {
     /// Optional user-provided label (e.g., "64GB version")
     pub label: Option<String>,
 
+    /// User-defined display order (0 = first)
+    pub sort_order: i32,
+
     /// Creation timestamp
     pub created_at: DateTimeUtc,
 }
@@ -81,6 +84,7 @@ mod tests {
             retailer_id: Uuid::new_v4(),
             url: "https://amazon.com/dp/B123".to_string(),
             label: Some("64GB".to_string()),
+            sort_order: 0,
             created_at: Utc::now(),
         };
         let cloned = model.clone();
@@ -97,6 +101,7 @@ mod tests {
             retailer_id: Uuid::new_v4(),
             url: "https://walmart.com/item/456".to_string(),
             label: None,
+            sort_order: 0,
             created_at: Utc::now(),
         };
         let json = serde_json::to_string(&model).unwrap();
