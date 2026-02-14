@@ -439,20 +439,31 @@ impl AvailabilityService {
         // Step 2: Check retailers first, fall back to legacy product.url
         let retailers = ProductRetailerRepository::find_by_product_id(conn, product_id).await?;
 
-        let check = if retailers.is_empty() {
+        let (check, any_back_in_stock) = if retailers.is_empty() {
             // Legacy path: product has no retailer links, use product.url
-            Self::check_product(
+            let check = Self::check_product(
                 conn,
                 product_id,
                 enable_headless,
                 allow_manual_verification,
                 session_cache_duration_days,
             )
-            .await?
+            .await?;
+            let is_back = Self::is_back_in_stock(&previous_status, &check.status_enum());
+            (check, is_back)
         } else {
-            // Multi-retailer path: check all retailers, return the last result
+            // Multi-retailer path: check all retailers, track back-in-stock per-retailer
             let mut last_check = None;
+            let mut back_in_stock = false;
             for retailer in &retailers {
+                let retailer_previous =
+                    AvailabilityCheckRepository::find_latest_for_product_retailer(
+                        conn,
+                        retailer.id,
+                    )
+                    .await?
+                    .map(|c| c.status_enum());
+
                 let result = Self::check_product_retailer(
                     conn,
                     retailer.id,
@@ -461,16 +472,20 @@ impl AvailabilityService {
                     session_cache_duration_days,
                 )
                 .await?;
+
+                if Self::is_back_in_stock(&retailer_previous, &result.status_enum()) {
+                    back_in_stock = true;
+                }
                 last_check = Some(result);
             }
-            last_check.expect("retailers is non-empty")
+            (last_check.expect("retailers is non-empty"), back_in_stock)
         };
 
         // Step 3: Get daily price comparison (includes the new check in today's average)
         let daily_comparison = Self::get_daily_price_comparison(conn, product_id).await?;
 
         // Step 4: Determine if back in stock
-        let is_back_in_stock = Self::is_back_in_stock(&previous_status, &check.status_enum());
+        let is_back_in_stock = any_back_in_stock;
 
         // Step 5: Build notification if applicable (using NotificationService)
         let notification = NotificationService::build_single_notification(
@@ -687,6 +702,198 @@ mod tests {
                 .await
                 .unwrap();
             assert!(latest.is_some(), "A check record should have been created");
+        }
+
+        #[tokio::test]
+        async fn test_multi_retailer_notification_checks_all_retailers() {
+            let conn = setup_availability_db().await;
+
+            // Create a product with NO URL
+            let product_id = Uuid::new_v4();
+            ProductRepository::create(
+                &conn,
+                product_id,
+                CreateProductRepoParams {
+                    name: "Multi-Retailer Product".to_string(),
+                    url: None,
+                    description: None,
+                    notes: None,
+                },
+            )
+            .await
+            .unwrap();
+
+            // Create two retailers linked to the product
+            let retailer_a = RetailerRepository::find_or_create_by_domain(&conn, "shop-a.com")
+                .await
+                .unwrap();
+            let retailer_b = RetailerRepository::find_or_create_by_domain(&conn, "shop-b.com")
+                .await
+                .unwrap();
+
+            let pr_a_id = Uuid::new_v4();
+            ProductRetailerRepository::create(
+                &conn,
+                pr_a_id,
+                retailer_a.id,
+                CreateProductRetailerParams {
+                    product_id,
+                    url: "https://shop-a.com/product".to_string(),
+                    label: None,
+                },
+            )
+            .await
+            .unwrap();
+
+            let pr_b_id = Uuid::new_v4();
+            ProductRetailerRepository::create(
+                &conn,
+                pr_b_id,
+                retailer_b.id,
+                CreateProductRetailerParams {
+                    product_id,
+                    url: "https://shop-b.com/product".to_string(),
+                    label: None,
+                },
+            )
+            .await
+            .unwrap();
+
+            // Run the check — scraping fails for both, but both should get check records
+            let result = AvailabilityService::check_product_with_notification(
+                &conn, product_id, false, false, false, 14,
+            )
+            .await;
+
+            assert!(
+                result.is_ok(),
+                "Expected Ok but got: {:?}",
+                result.unwrap_err()
+            );
+
+            // Verify both retailers got check records
+            let check_a =
+                AvailabilityCheckRepository::find_latest_for_product_retailer(&conn, pr_a_id)
+                    .await
+                    .unwrap();
+            let check_b =
+                AvailabilityCheckRepository::find_latest_for_product_retailer(&conn, pr_b_id)
+                    .await
+                    .unwrap();
+
+            assert!(check_a.is_some(), "Retailer A should have a check record");
+            assert!(check_b.is_some(), "Retailer B should have a check record");
+
+            // No back-in-stock notification (scraping failed → Unknown status)
+            let result = result.unwrap();
+            assert!(
+                result.notification.is_none(),
+                "No notification expected when scraping fails"
+            );
+        }
+
+        #[tokio::test]
+        async fn test_multi_retailer_no_false_positive_back_in_stock() {
+            let conn = setup_availability_db().await;
+
+            // Create a product with NO URL
+            let product_id = Uuid::new_v4();
+            ProductRepository::create(
+                &conn,
+                product_id,
+                CreateProductRepoParams {
+                    name: "Multi-Retailer Product".to_string(),
+                    url: None,
+                    description: None,
+                    notes: None,
+                },
+            )
+            .await
+            .unwrap();
+
+            // Create two retailers
+            let retailer_a = RetailerRepository::find_or_create_by_domain(&conn, "shop-a.com")
+                .await
+                .unwrap();
+            let retailer_b = RetailerRepository::find_or_create_by_domain(&conn, "shop-b.com")
+                .await
+                .unwrap();
+
+            let pr_a_id = Uuid::new_v4();
+            ProductRetailerRepository::create(
+                &conn,
+                pr_a_id,
+                retailer_a.id,
+                CreateProductRetailerParams {
+                    product_id,
+                    url: "https://shop-a.com/product".to_string(),
+                    label: None,
+                },
+            )
+            .await
+            .unwrap();
+
+            let pr_b_id = Uuid::new_v4();
+            ProductRetailerRepository::create(
+                &conn,
+                pr_b_id,
+                retailer_b.id,
+                CreateProductRetailerParams {
+                    product_id,
+                    url: "https://shop-b.com/product".to_string(),
+                    label: None,
+                },
+            )
+            .await
+            .unwrap();
+
+            // Seed per-retailer previous checks with different statuses:
+            // Retailer A was OutOfStock, Retailer B was InStock
+            AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product_id,
+                CreateCheckParams {
+                    status: AvailabilityStatus::OutOfStock,
+                    product_retailer_id: Some(pr_a_id),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+            AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product_id,
+                CreateCheckParams {
+                    status: AvailabilityStatus::InStock,
+                    product_retailer_id: Some(pr_b_id),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+            // Run the check — scraping fails (Unknown status), neither retailer transitions to InStock
+            let result = AvailabilityService::check_product_with_notification(
+                &conn, product_id, false, true, false, 14,
+            )
+            .await;
+
+            assert!(
+                result.is_ok(),
+                "Expected Ok but got: {:?}",
+                result.unwrap_err()
+            );
+
+            // No notification: retailer A was OutOfStock→Unknown (not InStock),
+            // retailer B was InStock→Unknown (not a back-in-stock transition)
+            let result = result.unwrap();
+            assert!(
+                result.notification.is_none(),
+                "No notification expected when no retailer transitions to InStock"
+            );
         }
 
         #[tokio::test]
