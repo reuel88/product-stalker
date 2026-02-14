@@ -21,6 +21,11 @@ pub struct UpdateProductParams {
     pub notes: Option<String>,
 }
 
+/// Parameters for reordering products
+pub struct ReorderProductsParams {
+    pub updates: Vec<(Uuid, i32)>,
+}
+
 /// Service layer for product business logic
 ///
 /// This layer validates input and orchestrates repository calls.
@@ -97,6 +102,22 @@ impl ProductService {
         ProductRepository::find_all_without_retailers(conn).await
     }
 
+    /// Reorder products by updating their sort_order values
+    pub async fn reorder(
+        conn: &DatabaseConnection,
+        params: ReorderProductsParams,
+    ) -> Result<(), AppError> {
+        for &(_, sort_order) in &params.updates {
+            if sort_order < 0 {
+                return Err(AppError::Validation(
+                    "sort_order must be non-negative".to_string(),
+                ));
+            }
+        }
+
+        ProductRepository::update_sort_orders(conn, params.updates).await
+    }
+
     /// Delete a product
     pub async fn delete(conn: &DatabaseConnection, id: Uuid) -> Result<(), AppError> {
         let rows_affected = ProductRepository::delete_by_id(conn, id).await?;
@@ -135,6 +156,19 @@ mod tests {
     #[test]
     fn test_validate_name_valid() {
         assert!(ProductService::validate_name("My Product").is_ok());
+    }
+
+    #[test]
+    fn test_reorder_validates_negative_sort_order() {
+        let params = ReorderProductsParams {
+            updates: vec![(Uuid::new_v4(), -1)],
+        };
+        // Validation fails before any DB call, so Disconnected is fine
+        let conn = DatabaseConnection::Disconnected;
+        let result = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async { ProductService::reorder(&conn, params).await });
+        assert!(matches!(result, Err(AppError::Validation(_))));
     }
 }
 
@@ -356,5 +390,33 @@ mod integration_tests {
         // Verify it's actually deleted
         let find_result = ProductService::get_by_id(&conn, created.id).await;
         assert!(matches!(find_result, Err(AppError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn test_reorder_products() {
+        let conn = setup_products_db().await;
+
+        let p1 = ProductService::create(&conn, params("Alpha"))
+            .await
+            .unwrap();
+        let p2 = ProductService::create(&conn, params("Beta")).await.unwrap();
+        let p3 = ProductService::create(&conn, params("Gamma"))
+            .await
+            .unwrap();
+
+        // Reverse order
+        ProductService::reorder(
+            &conn,
+            ReorderProductsParams {
+                updates: vec![(p3.id, 0), (p2.id, 1), (p1.id, 2)],
+            },
+        )
+        .await
+        .unwrap();
+
+        let products = ProductService::get_all(&conn).await.unwrap();
+        assert_eq!(products[0].name, "Gamma");
+        assert_eq!(products[1].name, "Beta");
+        assert_eq!(products[2].name, "Alpha");
     }
 }

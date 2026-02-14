@@ -1,5 +1,8 @@
 use product_stalker_core::AppError;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{
+    ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder, Set,
+    TransactionTrait,
+};
 use uuid::Uuid;
 
 use crate::entities::prelude::*;
@@ -38,9 +41,12 @@ pub struct CreateProductRepoParams {
 pub struct ProductRepository;
 
 impl ProductRepository {
-    /// Find all products
+    /// Find all products ordered by sort_order
     pub async fn find_all(conn: &DatabaseConnection) -> Result<Vec<ProductModel>, AppError> {
-        let products = Product::find().all(conn).await?;
+        let products = Product::find()
+            .order_by_asc(ProductColumn::SortOrder)
+            .all(conn)
+            .await?;
         Ok(products)
     }
 
@@ -53,13 +59,16 @@ impl ProductRepository {
         Ok(product)
     }
 
-    /// Create a new product
+    /// Create a new product (appends to end of sort order)
     pub async fn create(
         conn: &DatabaseConnection,
         id: Uuid,
         params: CreateProductRepoParams,
     ) -> Result<ProductModel, AppError> {
         let now = chrono::Utc::now();
+
+        // Append to end: sort_order = current product count
+        let count = Product::find().count(conn).await? as i32;
 
         let active_model = ProductActiveModel {
             id: Set(id),
@@ -68,6 +77,7 @@ impl ProductRepository {
             description: Set(params.description),
             notes: Set(params.notes),
             currency: Set(None),
+            sort_order: Set(count),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -126,6 +136,26 @@ impl ProductRepository {
 
         let updated = active_model.update(conn).await?;
         Ok(updated)
+    }
+
+    /// Bulk-update sort_order values in a transaction
+    pub async fn update_sort_orders(
+        conn: &DatabaseConnection,
+        updates: Vec<(Uuid, i32)>,
+    ) -> Result<(), AppError> {
+        let txn = conn.begin().await?;
+
+        for (id, sort_order) in updates {
+            let product = Product::find_by_id(id).one(&txn).await?;
+            let product =
+                product.ok_or_else(|| AppError::NotFound(format!("Product not found: {}", id)))?;
+            let mut active_model: ProductActiveModel = product.into();
+            active_model.sort_order = Set(sort_order);
+            active_model.update(&txn).await?;
+        }
+
+        txn.commit().await?;
+        Ok(())
     }
 
     /// Delete a product by ID
@@ -339,5 +369,68 @@ mod tests {
 
         assert!(updated.description.is_none());
         assert!(updated.notes.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_find_all_ordered_by_sort_order() {
+        let conn = setup_products_db().await;
+
+        // Create products (auto-assigned sort_order: 0, 1, 2)
+        let p1 =
+            ProductRepository::create(&conn, Uuid::new_v4(), params("First", "https://first.com"))
+                .await
+                .unwrap();
+        let p2 = ProductRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            params("Second", "https://second.com"),
+        )
+        .await
+        .unwrap();
+        let p3 =
+            ProductRepository::create(&conn, Uuid::new_v4(), params("Third", "https://third.com"))
+                .await
+                .unwrap();
+
+        assert_eq!(p1.sort_order, 0);
+        assert_eq!(p2.sort_order, 1);
+        assert_eq!(p3.sort_order, 2);
+
+        // Reorder: Third=0, First=1, Second=2
+        ProductRepository::update_sort_orders(&conn, vec![(p3.id, 0), (p1.id, 1), (p2.id, 2)])
+            .await
+            .unwrap();
+
+        let products = ProductRepository::find_all(&conn).await.unwrap();
+        assert_eq!(products[0].name, "Third");
+        assert_eq!(products[1].name, "First");
+        assert_eq!(products[2].name, "Second");
+    }
+
+    #[tokio::test]
+    async fn test_create_appends_to_end() {
+        let conn = setup_products_db().await;
+
+        let p1 = ProductRepository::create(&conn, Uuid::new_v4(), params("A", "https://a.com"))
+            .await
+            .unwrap();
+        let p2 = ProductRepository::create(&conn, Uuid::new_v4(), params("B", "https://b.com"))
+            .await
+            .unwrap();
+        let p3 = ProductRepository::create(&conn, Uuid::new_v4(), params("C", "https://c.com"))
+            .await
+            .unwrap();
+
+        assert_eq!(p1.sort_order, 0);
+        assert_eq!(p2.sort_order, 1);
+        assert_eq!(p3.sort_order, 2);
+    }
+
+    #[tokio::test]
+    async fn test_update_sort_orders_invalid_id() {
+        let conn = setup_products_db().await;
+
+        let result = ProductRepository::update_sort_orders(&conn, vec![(Uuid::new_v4(), 0)]).await;
+        assert!(matches!(result, Err(AppError::NotFound(_))));
     }
 }

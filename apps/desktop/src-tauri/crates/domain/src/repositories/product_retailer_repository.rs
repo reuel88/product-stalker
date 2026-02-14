@@ -1,5 +1,8 @@
 use product_stalker_core::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
+};
 use uuid::Uuid;
 
 use crate::entities::prelude::*;
@@ -15,7 +18,7 @@ pub struct CreateProductRetailerParams {
 pub struct ProductRetailerRepository;
 
 impl ProductRetailerRepository {
-    /// Create a new product-retailer link
+    /// Create a new product-retailer link (appends to end of sort order)
     pub async fn create(
         conn: &DatabaseConnection,
         id: Uuid,
@@ -24,12 +27,16 @@ impl ProductRetailerRepository {
     ) -> Result<ProductRetailerModel, AppError> {
         let now = chrono::Utc::now();
 
+        // Append to end: sort_order = current retailer count for this product
+        let count = Self::count_by_product_id(conn, params.product_id).await? as i32;
+
         let active_model = ProductRetailerActiveModel {
             id: Set(id),
             product_id: Set(params.product_id),
             retailer_id: Set(retailer_id),
             url: Set(params.url),
             label: Set(params.label),
+            sort_order: Set(count),
             created_at: Set(now),
         };
 
@@ -37,13 +44,14 @@ impl ProductRetailerRepository {
         Ok(link)
     }
 
-    /// Find all product-retailer links for a product
+    /// Find all product-retailer links for a product, ordered by sort_order
     pub async fn find_by_product_id(
         conn: &DatabaseConnection,
         product_id: Uuid,
     ) -> Result<Vec<ProductRetailerModel>, AppError> {
         let links = ProductRetailer::find()
             .filter(ProductRetailerColumn::ProductId.eq(product_id))
+            .order_by_asc(ProductRetailerColumn::SortOrder)
             .all(conn)
             .await?;
         Ok(links)
@@ -85,6 +93,26 @@ impl ProductRetailerRepository {
             .one(conn)
             .await?;
         Ok(result)
+    }
+
+    /// Bulk update sort_order for multiple product-retailer links
+    pub async fn update_sort_orders(
+        conn: &DatabaseConnection,
+        updates: Vec<(Uuid, i32)>,
+    ) -> Result<(), AppError> {
+        let txn = conn.begin().await?;
+
+        for (id, sort_order) in updates {
+            let link = ProductRetailer::find_by_id(id).one(&txn).await?;
+            let link = link
+                .ok_or_else(|| AppError::NotFound(format!("Product retailer not found: {}", id)))?;
+            let mut active_model: ProductRetailerActiveModel = link.into();
+            active_model.sort_order = Set(sort_order);
+            active_model.update(&txn).await?;
+        }
+
+        txn.commit().await?;
+        Ok(())
     }
 
     /// Count how many retailer links a product has
@@ -244,5 +272,145 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_find_by_product_id_ordered_by_sort_order() {
+        let conn = setup_product_retailer_db().await;
+        let (product, _retailer, pr1) = create_test_data(&conn).await;
+
+        let retailer2 = RetailerRepository::find_or_create_by_domain(&conn, "walmart.com")
+            .await
+            .unwrap();
+        let pr2 = ProductRetailerRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            retailer2.id,
+            CreateProductRetailerParams {
+                product_id: product.id,
+                url: "https://walmart.com/item/456".to_string(),
+                label: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let retailer3 = RetailerRepository::find_or_create_by_domain(&conn, "bestbuy.com")
+            .await
+            .unwrap();
+        let pr3 = ProductRetailerRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            retailer3.id,
+            CreateProductRetailerParams {
+                product_id: product.id,
+                url: "https://bestbuy.com/product/789".to_string(),
+                label: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // Reorder: bestbuy first, then amazon, then walmart
+        ProductRetailerRepository::update_sort_orders(
+            &conn,
+            vec![(pr3.id, 0), (pr1.id, 1), (pr2.id, 2)],
+        )
+        .await
+        .unwrap();
+
+        let links = ProductRetailerRepository::find_by_product_id(&conn, product.id)
+            .await
+            .unwrap();
+        assert_eq!(links.len(), 3);
+        assert_eq!(links[0].id, pr3.id);
+        assert_eq!(links[1].id, pr1.id);
+        assert_eq!(links[2].id, pr2.id);
+    }
+
+    #[tokio::test]
+    async fn test_create_appends_to_end() {
+        let conn = setup_product_retailer_db().await;
+        let (product, _retailer, pr1) = create_test_data(&conn).await;
+
+        let retailer2 = RetailerRepository::find_or_create_by_domain(&conn, "walmart.com")
+            .await
+            .unwrap();
+        let pr2 = ProductRetailerRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            retailer2.id,
+            CreateProductRetailerParams {
+                product_id: product.id,
+                url: "https://walmart.com/item/456".to_string(),
+                label: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let retailer3 = RetailerRepository::find_or_create_by_domain(&conn, "bestbuy.com")
+            .await
+            .unwrap();
+        let pr3 = ProductRetailerRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            retailer3.id,
+            CreateProductRetailerParams {
+                product_id: product.id,
+                url: "https://bestbuy.com/product/789".to_string(),
+                label: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(pr1.sort_order, 0);
+        assert_eq!(pr2.sort_order, 1);
+        assert_eq!(pr3.sort_order, 2);
+    }
+
+    #[tokio::test]
+    async fn test_update_sort_orders() {
+        let conn = setup_product_retailer_db().await;
+        let (product, _retailer, pr1) = create_test_data(&conn).await;
+
+        let retailer2 = RetailerRepository::find_or_create_by_domain(&conn, "walmart.com")
+            .await
+            .unwrap();
+        let pr2 = ProductRetailerRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            retailer2.id,
+            CreateProductRetailerParams {
+                product_id: product.id,
+                url: "https://walmart.com/item/456".to_string(),
+                label: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // Swap order
+        ProductRetailerRepository::update_sort_orders(&conn, vec![(pr2.id, 0), (pr1.id, 1)])
+            .await
+            .unwrap();
+
+        let links = ProductRetailerRepository::find_by_product_id(&conn, product.id)
+            .await
+            .unwrap();
+        assert_eq!(links[0].id, pr2.id);
+        assert_eq!(links[0].sort_order, 0);
+        assert_eq!(links[1].id, pr1.id);
+        assert_eq!(links[1].sort_order, 1);
+    }
+
+    #[tokio::test]
+    async fn test_update_sort_orders_invalid_id() {
+        let conn = setup_product_retailer_db().await;
+
+        let result =
+            ProductRetailerRepository::update_sort_orders(&conn, vec![(Uuid::new_v4(), 0)]).await;
+        assert!(matches!(result, Err(AppError::NotFound(_))));
     }
 }

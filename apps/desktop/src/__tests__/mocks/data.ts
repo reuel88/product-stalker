@@ -22,6 +22,7 @@ export function createMockProduct(
 		description: null,
 		notes: null,
 		currency: null,
+		sort_order: 0,
 		created_at: now,
 		updated_at: now,
 		...overrides,

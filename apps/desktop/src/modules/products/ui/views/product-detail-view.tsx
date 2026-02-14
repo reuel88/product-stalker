@@ -20,6 +20,7 @@ import {
 } from "@/modules/products/hooks/useAvailability";
 import { useProduct } from "@/modules/products/hooks/useProduct";
 import { useProductRetailers } from "@/modules/products/hooks/useProductRetailers";
+import { useReorderRetailers } from "@/modules/products/hooks/useReorderRetailers";
 import {
 	filterByTimeRange,
 	findCheapestRetailerId,
@@ -77,6 +78,7 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 		useAvailabilityHistory(productId);
 	const { retailers, addRetailer, isAdding, removeRetailer, isRemoving } =
 		useProductRetailers(productId);
+	const reorderMutation = useReorderRetailers(productId);
 
 	if (isLoadingProduct) {
 		return <LoadingSkeleton />;
@@ -139,7 +141,7 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 			/>
 
 			<Card>
-				<CardHeader className="flex-row items-center justify-between">
+				<CardHeader className="flex items-center justify-between">
 					<div>
 						<CardTitle>Retailers</CardTitle>
 						<CardDescription>URLs tracked for this product</CardDescription>
@@ -156,6 +158,7 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 						isRemoving={isRemoving}
 						retailerPrices={retailerPrices}
 						cheapestRetailerId={cheapestRetailerId}
+						onReorder={reorderMutation.mutate}
 					/>
 				</CardContent>
 			</Card>

@@ -12,6 +12,8 @@ export interface ProductResponse {
 	notes: string | null;
 	/** ISO 4217 currency code auto-set from first successful price scrape */
 	currency: string | null;
+	/** User-defined display order (0 = first) */
+	sort_order: number;
 	/** ISO 8601 timestamp when the product was added */
 	created_at: string;
 	/** ISO 8601 timestamp of the last update */
@@ -32,6 +34,8 @@ export interface ProductRetailerResponse {
 	url: string;
 	/** Optional user-provided label (e.g., "64GB version") */
 	label: string | null;
+	/** User-defined display order (0 = first) */
+	sort_order: number;
 	/** ISO 8601 timestamp when the link was created */
 	created_at: string;
 }

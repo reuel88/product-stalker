@@ -16,6 +16,11 @@ pub struct AddRetailerParams {
     pub label: Option<String>,
 }
 
+/// Parameters for reordering retailers
+pub struct ReorderRetailersParams {
+    pub updates: Vec<(Uuid, i32)>,
+}
+
 /// Service layer for product-retailer business logic
 pub struct ProductRetailerService;
 
@@ -53,6 +58,22 @@ impl ProductRetailerService {
         product_id: Uuid,
     ) -> Result<Vec<ProductRetailerModel>, AppError> {
         ProductRetailerRepository::find_by_product_id(conn, product_id).await
+    }
+
+    /// Reorder retailer links
+    pub async fn reorder(
+        conn: &DatabaseConnection,
+        params: ReorderRetailersParams,
+    ) -> Result<(), AppError> {
+        for &(_, sort_order) in &params.updates {
+            if sort_order < 0 {
+                return Err(AppError::Validation(
+                    "sort_order must be non-negative".to_string(),
+                ));
+            }
+        }
+
+        ProductRetailerRepository::update_sort_orders(conn, params.updates).await
     }
 
     /// Remove a retailer link
@@ -126,6 +147,21 @@ mod tests {
     #[test]
     fn test_validate_url_invalid() {
         assert!(ProductRetailerService::validate_url("not-a-url").is_err());
+    }
+
+    #[tokio::test]
+    async fn test_reorder_validates_negative_sort_order() {
+        // No DB needed — validation happens before any DB call
+        let params = ReorderRetailersParams {
+            updates: vec![(Uuid::new_v4(), -1)],
+        };
+        // We need a dummy connection, but since validation fails first, we can use any
+        // Actually, reorder takes &DatabaseConnection, so we need one. Let's test the validation
+        // logic directly by checking the error type.
+        // Use an in-memory DB just to satisfy the signature.
+        let conn = crate::test_utils::setup_product_retailer_db().await;
+        let result = ProductRetailerService::reorder(&conn, params).await;
+        assert!(matches!(result, Err(AppError::Validation(_))));
     }
 }
 
@@ -287,5 +323,60 @@ mod integration_tests {
         let conn = setup_product_retailer_db().await;
         let result = ProductRetailerService::remove_retailer(&conn, Uuid::new_v4()).await;
         assert!(matches!(result, Err(AppError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn test_reorder_retailers() {
+        let conn = setup_product_retailer_db().await;
+        let product = ProductRepository::create(
+            &conn,
+            Uuid::new_v4(),
+            CreateProductRepoParams {
+                name: "Test".to_string(),
+                url: None,
+                description: None,
+                notes: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let pr1 = ProductRetailerService::add_retailer(
+            &conn,
+            AddRetailerParams {
+                product_id: product.id,
+                url: "https://amazon.com/dp/B123".to_string(),
+                label: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let pr2 = ProductRetailerService::add_retailer(
+            &conn,
+            AddRetailerParams {
+                product_id: product.id,
+                url: "https://walmart.com/item/456".to_string(),
+                label: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // Swap order
+        ProductRetailerService::reorder(
+            &conn,
+            super::ReorderRetailersParams {
+                updates: vec![(pr2.id, 0), (pr1.id, 1)],
+            },
+        )
+        .await
+        .unwrap();
+
+        let retailers = ProductRetailerService::get_retailers_for_product(&conn, product.id)
+            .await
+            .unwrap();
+        assert_eq!(retailers[0].id, pr2.id);
+        assert_eq!(retailers[1].id, pr1.id);
     }
 }

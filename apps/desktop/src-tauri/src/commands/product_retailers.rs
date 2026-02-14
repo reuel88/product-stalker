@@ -3,7 +3,7 @@ use tauri::State;
 
 use crate::db::DbState;
 use crate::domain::entities::prelude::ProductRetailerModel;
-use crate::domain::services::{AddRetailerParams, ProductRetailerService};
+use crate::domain::services::{AddRetailerParams, ProductRetailerService, ReorderRetailersParams};
 use crate::tauri_error::CommandError;
 use crate::utils::parse_uuid;
 
@@ -23,6 +23,7 @@ pub struct ProductRetailerResponse {
     pub retailer_id: String,
     pub url: String,
     pub label: Option<String>,
+    pub sort_order: i32,
     pub created_at: String,
 }
 
@@ -34,9 +35,23 @@ impl From<ProductRetailerModel> for ProductRetailerResponse {
             retailer_id: model.retailer_id.to_string(),
             url: model.url,
             label: model.label,
+            sort_order: model.sort_order,
             created_at: model.created_at.to_rfc3339(),
         }
     }
+}
+
+/// A single reorder update entry
+#[derive(Debug, Deserialize)]
+pub struct ReorderRetailerUpdate {
+    pub id: String,
+    pub sort_order: i32,
+}
+
+/// Input for reordering product retailers
+#[derive(Debug, Deserialize)]
+pub struct ReorderRetailersInput {
+    pub updates: Vec<ReorderRetailerUpdate>,
 }
 
 /// Add a retailer URL to a product
@@ -75,6 +90,22 @@ pub async fn get_product_retailers(
         .collect())
 }
 
+/// Reorder retailers for a product
+#[tauri::command]
+pub async fn reorder_product_retailers(
+    input: ReorderRetailersInput,
+    db: State<'_, DbState>,
+) -> Result<(), CommandError> {
+    let updates: Vec<(uuid::Uuid, i32)> = input
+        .updates
+        .iter()
+        .map(|u| Ok((parse_uuid(&u.id)?, u.sort_order)))
+        .collect::<Result<_, CommandError>>()?;
+
+    ProductRetailerService::reorder(db.conn(), ReorderRetailersParams { updates }).await?;
+    Ok(())
+}
+
 /// Remove a retailer link from a product
 #[tauri::command]
 pub async fn remove_product_retailer(
@@ -106,6 +137,7 @@ mod tests {
             retailer_id,
             url: "https://amazon.com/dp/B123".to_string(),
             label: Some("64GB version".to_string()),
+            sort_order: 0,
             created_at: now,
         };
 
@@ -127,6 +159,7 @@ mod tests {
             retailer_id: Uuid::new_v4(),
             url: "https://walmart.com/item/456".to_string(),
             label: None,
+            sort_order: 0,
             created_at: Utc::now(),
         };
 
@@ -145,6 +178,7 @@ mod tests {
             retailer_id: Uuid::new_v4(),
             url: "https://bestbuy.com/product/789".to_string(),
             label: Some("Blue".to_string()),
+            sort_order: 0,
             created_at: Utc::now(),
         };
 
@@ -173,5 +207,34 @@ mod tests {
 
         assert_eq!(input.url, "https://amazon.com/dp/B123");
         assert!(input.label.is_none());
+    }
+
+    #[test]
+    fn test_reorder_retailers_input_deserializes() {
+        let json = r#"{"updates":[{"id":"550e8400-e29b-41d4-a716-446655440000","sort_order":1},{"id":"550e8400-e29b-41d4-a716-446655440001","sort_order":0}]}"#;
+        let input: ReorderRetailersInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.updates.len(), 2);
+        assert_eq!(input.updates[0].id, "550e8400-e29b-41d4-a716-446655440000");
+        assert_eq!(input.updates[0].sort_order, 1);
+        assert_eq!(input.updates[1].sort_order, 0);
+    }
+
+    #[test]
+    fn test_product_retailer_response_includes_sort_order() {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+        let model = ProductRetailerModel {
+            id,
+            product_id: Uuid::new_v4(),
+            retailer_id: Uuid::new_v4(),
+            url: "https://amazon.com/dp/B123".to_string(),
+            label: None,
+            sort_order: 5,
+            created_at: now,
+        };
+
+        let response = ProductRetailerResponse::from(model);
+        assert_eq!(response.sort_order, 5);
     }
 }

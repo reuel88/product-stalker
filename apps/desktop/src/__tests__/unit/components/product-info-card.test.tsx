@@ -16,6 +16,7 @@ function createMockProduct(
 		description: null,
 		notes: null,
 		currency: null,
+		sort_order: 0,
 		created_at: "2024-01-01T00:00:00Z",
 		updated_at: "2024-01-15T00:00:00Z",
 		...overrides,

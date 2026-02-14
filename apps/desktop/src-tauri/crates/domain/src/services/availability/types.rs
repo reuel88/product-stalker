@@ -184,6 +184,7 @@ mod tests {
                 retailer_id: Uuid::new_v4(),
                 url: "https://amazon.com/dp/B123".to_string(),
                 label: Some("64GB".to_string()),
+                sort_order: 0,
                 created_at: chrono::Utc::now(),
             };
 
