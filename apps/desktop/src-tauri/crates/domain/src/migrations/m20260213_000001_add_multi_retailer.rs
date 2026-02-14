@@ -55,41 +55,7 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
-        // 3. Recreate availability_checks with FK to products + new product_retailer_id column
-        txn.execute_unprepared(
-            r#"
-            CREATE TABLE availability_checks (
-                id TEXT NOT NULL PRIMARY KEY,
-                product_id TEXT NOT NULL,
-                status TEXT NOT NULL,
-                raw_availability TEXT NULL,
-                error_message TEXT NULL,
-                checked_at TEXT NOT NULL,
-                price_minor_units INTEGER NULL,
-                price_currency TEXT NULL,
-                raw_price TEXT NULL,
-                product_retailer_id TEXT NULL,
-                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-            )
-            "#,
-        )
-        .await?;
-        txn.execute_unprepared(
-            "INSERT INTO availability_checks (id, product_id, status, raw_availability, error_message, checked_at, price_minor_units, price_currency, raw_price) SELECT id, product_id, status, raw_availability, error_message, checked_at, price_minor_units, price_currency, raw_price FROM availability_checks_backup",
-        )
-        .await?;
-        txn.execute_unprepared("DROP TABLE availability_checks_backup")
-            .await?;
-        txn.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_availability_checks_product_id ON availability_checks (product_id)",
-        )
-        .await?;
-        txn.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_availability_checks_checked_at ON availability_checks (checked_at)",
-        )
-        .await?;
-
-        // 4. Create retailers table
+        // 3. Create retailers table (before availability_checks rebuild, which references product_retailers)
         txn.execute_unprepared(
             r#"
             CREATE TABLE IF NOT EXISTS retailers (
@@ -102,7 +68,7 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
-        // 5. Create product_retailers table
+        // 4. Create product_retailers table
         txn.execute_unprepared(
             r#"
             CREATE TABLE IF NOT EXISTS product_retailers (
@@ -131,7 +97,42 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
-        // 6. Data migration: create retailers and product_retailers from existing products
+        // 5. Recreate availability_checks with FKs to products and product_retailers + new column
+        txn.execute_unprepared(
+            r#"
+            CREATE TABLE availability_checks (
+                id TEXT NOT NULL PRIMARY KEY,
+                product_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                raw_availability TEXT NULL,
+                error_message TEXT NULL,
+                checked_at TEXT NOT NULL,
+                price_minor_units INTEGER NULL,
+                price_currency TEXT NULL,
+                raw_price TEXT NULL,
+                product_retailer_id TEXT NULL,
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                FOREIGN KEY (product_retailer_id) REFERENCES product_retailers(id) ON DELETE SET NULL
+            )
+            "#,
+        )
+        .await?;
+        txn.execute_unprepared(
+            "INSERT INTO availability_checks (id, product_id, status, raw_availability, error_message, checked_at, price_minor_units, price_currency, raw_price) SELECT id, product_id, status, raw_availability, error_message, checked_at, price_minor_units, price_currency, raw_price FROM availability_checks_backup",
+        )
+        .await?;
+        txn.execute_unprepared("DROP TABLE availability_checks_backup")
+            .await?;
+        txn.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_availability_checks_product_id ON availability_checks (product_id)",
+        )
+        .await?;
+        txn.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_availability_checks_checked_at ON availability_checks (checked_at)",
+        )
+        .await?;
+
+        // 6. Data migration: populate retailers and product_retailers from existing products
         txn.execute_unprepared(
             r#"
             INSERT OR IGNORE INTO retailers (id, domain, name, created_at)
