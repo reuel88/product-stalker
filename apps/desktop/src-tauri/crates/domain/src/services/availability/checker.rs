@@ -363,10 +363,9 @@ impl AvailabilityService {
             Self::process_check_result(check_result, &context.previous_status, &daily_comparison);
 
         // Step 5: Build bulk result with retailer info
-        let mut bulk_result =
-            BulkCheckResult::from_processing_result(product, &result, &context, &daily_comparison);
-        bulk_result.product_retailer_id = Some(product_retailer.id.to_string());
-        bulk_result.url = Some(product_retailer.url.clone());
+        let bulk_result =
+            BulkCheckResult::from_processing_result(product, &result, &context, &daily_comparison)
+                .with_retailer(product_retailer);
 
         (bulk_result, result)
     }

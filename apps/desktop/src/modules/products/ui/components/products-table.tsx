@@ -27,6 +27,7 @@ import { UI } from "@/constants";
 import { cn } from "@/lib/utils";
 import { useAvailability } from "@/modules/products/hooks/useAvailability";
 import { useProductRetailers } from "@/modules/products/hooks/useProductRetailers";
+import { getDisplayPrice } from "@/modules/products/price-utils";
 import type {
 	AvailabilityCheckResponse,
 	ProductResponse,
@@ -106,29 +107,20 @@ function AvailabilityCell() {
 function PriceCell({ productId }: { productId: string }) {
 	const { latestCheck } = useProductAvailabilityData();
 
-	const displayPrice =
-		latestCheck?.lowest_price_minor_units ??
-		latestCheck?.price_minor_units ??
-		null;
-	const displayCurrency =
-		latestCheck?.lowest_price_currency ?? latestCheck?.price_currency ?? null;
-	const displayExponent =
-		latestCheck?.lowest_currency_exponent ??
-		latestCheck?.currency_exponent ??
-		2;
+	const { price, currency, exponent } = getDisplayPrice(latestCheck);
 
 	return (
 		<span data-testid={`price-${productId}`}>
 			<PriceChangeIndicator
-				currentPriceMinorUnits={displayPrice}
+				currentPriceMinorUnits={price}
 				todayAverageMinorUnits={
 					latestCheck?.today_average_price_minor_units ?? null
 				}
 				yesterdayAverageMinorUnits={
 					latestCheck?.yesterday_average_price_minor_units ?? null
 				}
-				currency={displayCurrency}
-				currencyExponent={displayExponent}
+				currency={currency}
+				currencyExponent={exponent}
 				variant="compact"
 			/>
 		</span>

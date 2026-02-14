@@ -4,6 +4,7 @@ import { ExternalLink, Store, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
+	extractDomain,
 	formatPrice,
 	type RetailerPrice,
 } from "@/modules/products/price-utils";
@@ -15,15 +16,6 @@ interface RetailerListProps {
 	isRemoving: boolean;
 	retailerPrices?: Map<string, RetailerPrice>;
 	cheapestRetailerId?: string | null;
-}
-
-/** Extract display domain from a full URL */
-function extractDomain(url: string): string {
-	try {
-		return new URL(url).hostname;
-	} catch {
-		return url;
-	}
 }
 
 export function RetailerList({

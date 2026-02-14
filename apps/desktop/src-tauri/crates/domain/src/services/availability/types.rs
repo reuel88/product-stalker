@@ -107,6 +107,16 @@ impl BulkCheckResult {
         }
     }
 
+    /// Set retailer info on the result.
+    pub fn with_retailer(
+        mut self,
+        product_retailer: &crate::entities::prelude::ProductRetailerModel,
+    ) -> Self {
+        self.product_retailer_id = Some(product_retailer.id.to_string());
+        self.url = Some(product_retailer.url.clone());
+        self
+    }
+
     /// Build an error result when context or infrastructure fails
     pub fn error_for_product(product: &ProductModel, error_message: String) -> Self {
         Self {
@@ -162,6 +172,30 @@ mod tests {
             let json = serde_json::to_string(&result).unwrap();
             assert!(json.contains("Failed to fetch"));
             assert!(json.contains("unknown"));
+        }
+
+        #[test]
+        fn test_with_retailer() {
+            use crate::entities::prelude::ProductRetailerModel;
+
+            let pr = ProductRetailerModel {
+                id: Uuid::new_v4(),
+                product_id: Uuid::new_v4(),
+                retailer_id: Uuid::new_v4(),
+                url: "https://amazon.com/dp/B123".to_string(),
+                label: Some("64GB".to_string()),
+                created_at: chrono::Utc::now(),
+            };
+
+            let result = BulkCheckResult {
+                product_id: "p1".to_string(),
+                product_name: "Product 1".to_string(),
+                ..Default::default()
+            }
+            .with_retailer(&pr);
+
+            assert_eq!(result.product_retailer_id, Some(pr.id.to_string()));
+            assert_eq!(result.url, Some("https://amazon.com/dp/B123".to_string()));
         }
     }
 

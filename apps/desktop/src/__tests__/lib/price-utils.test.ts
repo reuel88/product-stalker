@@ -7,6 +7,7 @@ import {
 	formatPrice,
 	formatPriceChangePercent,
 	getDateRangeLabel,
+	getDisplayPrice,
 	getLatestPriceByRetailer,
 	getPriceChangeDirection,
 	isRoundedZero,
@@ -435,6 +436,69 @@ describe("extractDomain", () => {
 
 	it("should return raw string for invalid URL", () => {
 		expect(extractDomain("not-a-url")).toBe("not-a-url");
+	});
+});
+
+describe("getDisplayPrice", () => {
+	it("should prefer lowest_price fields when available", () => {
+		const check = createCheck({
+			price_minor_units: 9999,
+			price_currency: "USD",
+			currency_exponent: 2,
+			lowest_price_minor_units: 7999,
+			lowest_price_currency: "AUD",
+			lowest_currency_exponent: 2,
+		});
+
+		const result = getDisplayPrice(check);
+
+		expect(result.price).toBe(7999);
+		expect(result.currency).toBe("AUD");
+		expect(result.exponent).toBe(2);
+	});
+
+	it("should fall back to single-check price fields", () => {
+		const check = createCheck({
+			price_minor_units: 9999,
+			price_currency: "USD",
+			currency_exponent: 3,
+			lowest_price_minor_units: null,
+			lowest_price_currency: null,
+			lowest_currency_exponent: null,
+		});
+
+		const result = getDisplayPrice(check);
+
+		expect(result.price).toBe(9999);
+		expect(result.currency).toBe("USD");
+		expect(result.exponent).toBe(3);
+	});
+
+	it("should return nulls and default exponent for null check", () => {
+		const result = getDisplayPrice(null);
+
+		expect(result.price).toBeNull();
+		expect(result.currency).toBeNull();
+		expect(result.exponent).toBe(2);
+	});
+
+	it("should return nulls and default exponent for undefined check", () => {
+		const result = getDisplayPrice(undefined);
+
+		expect(result.price).toBeNull();
+		expect(result.currency).toBeNull();
+		expect(result.exponent).toBe(2);
+	});
+
+	it("should default exponent to 2 when both are null", () => {
+		const check = createCheck({
+			currency_exponent: null,
+			lowest_currency_exponent: null,
+		});
+
+		const result = getDisplayPrice(check);
+
+		expect(result.exponent).toBe(2);
 	});
 });
 
