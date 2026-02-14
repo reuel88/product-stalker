@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
 	calculatePriceChangePercent,
+	extractDomain,
 	filterByTimeRange,
 	formatPrice,
 	formatPriceChangePercent,
 	getDateRangeLabel,
 	getPriceChangeDirection,
 	isRoundedZero,
+	transformToMultiRetailerChartData,
 	transformToPriceDataPoints,
 } from "@/modules/products/price-utils";
-import type { AvailabilityCheckResponse } from "@/modules/products/types";
+import type {
+	AvailabilityCheckResponse,
+	ProductRetailerResponse,
+} from "@/modules/products/types";
 
 function createCheck(
 	overrides: Partial<AvailabilityCheckResponse> = {},
@@ -398,5 +403,220 @@ describe("isRoundedZero", () => {
 
 	it("should return false when yesterday value is zero", () => {
 		expect(isRoundedZero(100, 0)).toBe(false);
+	});
+});
+
+function createRetailer(
+	overrides: Partial<ProductRetailerResponse> = {},
+): ProductRetailerResponse {
+	return {
+		id: "pr-1",
+		product_id: "product-1",
+		retailer_id: "amazon.com",
+		url: "https://www.amazon.com/dp/B123",
+		label: null,
+		created_at: new Date().toISOString(),
+		...overrides,
+	};
+}
+
+describe("extractDomain", () => {
+	it("should extract hostname from a valid URL", () => {
+		expect(extractDomain("https://www.amazon.com/dp/B123")).toBe(
+			"www.amazon.com",
+		);
+	});
+
+	it("should return raw string for invalid URL", () => {
+		expect(extractDomain("not-a-url")).toBe("not-a-url");
+	});
+});
+
+describe("transformToMultiRetailerChartData", () => {
+	it("should return empty data for empty checks", () => {
+		const result = transformToMultiRetailerChartData([], []);
+
+		expect(result.data).toHaveLength(0);
+		expect(result.series).toHaveLength(0);
+	});
+
+	it("should produce two series for two retailers", () => {
+		const retailers = [
+			createRetailer({
+				id: "pr-1",
+				url: "https://www.amazon.com/dp/B123",
+			}),
+			createRetailer({
+				id: "pr-2",
+				url: "https://www.bestbuy.com/product/123",
+				retailer_id: "bestbuy.com",
+			}),
+		];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:05Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: "pr-2",
+				checked_at: "2024-01-01T10:00:10Z",
+				price_minor_units: 10999,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+		];
+
+		const result = transformToMultiRetailerChartData(checks, retailers);
+
+		expect(result.series).toHaveLength(2);
+		expect(result.series[0].label).toBe("www.amazon.com");
+		expect(result.series[1].label).toBe("www.bestbuy.com");
+		expect(result.series[0].color).toBe("var(--chart-1)");
+		expect(result.series[1].color).toBe("var(--chart-2)");
+		expect(result.currency).toBe("USD");
+		expect(result.currencyExponent).toBe(2);
+	});
+
+	it("should bucket checks from same minute into one row", () => {
+		const retailers = [
+			createRetailer({ id: "pr-1" }),
+			createRetailer({
+				id: "pr-2",
+				url: "https://www.bestbuy.com/product/123",
+			}),
+		];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:05Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: "pr-2",
+				checked_at: "2024-01-01T10:00:30Z",
+				price_minor_units: 10999,
+				price_currency: "USD",
+			}),
+		];
+
+		const result = transformToMultiRetailerChartData(checks, retailers);
+
+		expect(result.data).toHaveLength(1);
+		expect(result.data[0]["pr-1"]).toBe(9999);
+		expect(result.data[0]["pr-2"]).toBe(10999);
+	});
+
+	it("should produce single 'Price' series for legacy checks (null product_retailer_id)", () => {
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: null,
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: null,
+				checked_at: "2024-01-02T10:00:00Z",
+				price_minor_units: 8999,
+				price_currency: "USD",
+			}),
+		];
+
+		const result = transformToMultiRetailerChartData(checks, []);
+
+		expect(result.series).toHaveLength(1);
+		expect(result.series[0].id).toBe("legacy");
+		expect(result.series[0].label).toBe("Price");
+		expect(result.data).toHaveLength(2);
+		expect(result.data[0].legacy).toBe(9999);
+		expect(result.data[1].legacy).toBe(8999);
+	});
+
+	it("should filter out checks with null prices", () => {
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-02T10:00:00Z",
+				price_minor_units: null,
+				price_currency: null,
+			}),
+		];
+
+		const result = transformToMultiRetailerChartData(checks, retailers);
+
+		expect(result.data).toHaveLength(1);
+	});
+
+	it("should sort data rows by date ascending", () => {
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c2",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-03T10:00:00Z",
+				price_minor_units: 7999,
+				price_currency: "USD",
+			}),
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+			}),
+		];
+
+		const result = transformToMultiRetailerChartData(checks, retailers);
+
+		expect(new Date(result.data[0].date as string).getTime()).toBeLessThan(
+			new Date(result.data[1].date as string).getTime(),
+		);
+	});
+
+	it("should include label in series when retailer has a label", () => {
+		const retailers = [
+			createRetailer({
+				id: "pr-1",
+				url: "https://www.amazon.com/dp/B123",
+				label: "64GB",
+			}),
+		];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+			}),
+		];
+
+		const result = transformToMultiRetailerChartData(checks, retailers);
+
+		expect(result.series[0].label).toBe("www.amazon.com (64GB)");
 	});
 });

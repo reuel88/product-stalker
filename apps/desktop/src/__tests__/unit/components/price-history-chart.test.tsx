@@ -1,29 +1,39 @@
 import { describe, expect, it } from "vitest";
-import type { PriceDataPoint } from "@/modules/products/types";
+import type { MultiRetailerChartData } from "@/modules/products/types";
 import { PriceHistoryChart } from "@/modules/products/ui/components/price-history-chart";
 import { render, screen } from "../../test-utils";
+
+function createChartData(
+	overrides: Partial<MultiRetailerChartData> = {},
+): MultiRetailerChartData {
+	return {
+		data: [],
+		series: [],
+		currency: "USD",
+		currencyExponent: 2,
+		...overrides,
+	};
+}
 
 describe("PriceHistoryChart", () => {
 	describe("empty state", () => {
 		it("should show empty message when data is empty", () => {
-			render(<PriceHistoryChart data={[]} />);
+			render(<PriceHistoryChart chartData={createChartData()} />);
 
 			expect(screen.getByText("No price data available")).toBeInTheDocument();
 		});
 	});
 
 	describe("single data point state", () => {
-		it("should show single price when there is only one data point", () => {
-			const data: PriceDataPoint[] = [
-				{
-					date: "2024-01-15T10:00:00Z",
-					price: 9999,
-					currency: "USD",
-					currencyExponent: 2,
-				},
-			];
+		it("should show single price when there is only one data point and one series", () => {
+			const chartData = createChartData({
+				data: [{ date: "2024-01-15T10:00:00Z", "retailer-1": 9999 }],
+				series: [
+					{ id: "retailer-1", label: "amazon.com", color: "var(--chart-1)" },
+				],
+			});
 
-			render(<PriceHistoryChart data={data} />);
+			render(<PriceHistoryChart chartData={chartData} />);
 
 			expect(screen.getByText("$99.99")).toBeInTheDocument();
 			expect(
@@ -32,16 +42,14 @@ describe("PriceHistoryChart", () => {
 		});
 
 		it("should show recorded date for single data point", () => {
-			const data: PriceDataPoint[] = [
-				{
-					date: "2024-01-15T10:00:00Z",
-					price: 12500,
-					currency: "USD",
-					currencyExponent: 2,
-				},
-			];
+			const chartData = createChartData({
+				data: [{ date: "2024-01-15T10:00:00Z", "retailer-1": 12500 }],
+				series: [
+					{ id: "retailer-1", label: "amazon.com", color: "var(--chart-1)" },
+				],
+			});
 
-			render(<PriceHistoryChart data={data} />);
+			render(<PriceHistoryChart chartData={chartData} />);
 
 			expect(screen.getByText(/Recorded on/)).toBeInTheDocument();
 		});
@@ -49,24 +57,50 @@ describe("PriceHistoryChart", () => {
 
 	describe("chart rendering", () => {
 		it("should render chart container for multiple data points", () => {
-			const data: PriceDataPoint[] = [
-				{
-					date: "2024-01-01T10:00:00Z",
-					price: 9999,
-					currency: "USD",
-					currencyExponent: 2,
-				},
-				{
-					date: "2024-01-02T10:00:00Z",
-					price: 8999,
-					currency: "USD",
-					currencyExponent: 2,
-				},
-			];
+			const chartData = createChartData({
+				data: [
+					{ date: "2024-01-01T10:00:00Z", "retailer-1": 9999 },
+					{ date: "2024-01-02T10:00:00Z", "retailer-1": 8999 },
+				],
+				series: [
+					{ id: "retailer-1", label: "amazon.com", color: "var(--chart-1)" },
+				],
+			});
 
-			const { container } = render(<PriceHistoryChart data={data} />);
+			const { container } = render(<PriceHistoryChart chartData={chartData} />);
 
-			// Check that RecahrtResponsiveContainer is rendered
+			const responsiveContainer = container.querySelector(
+				".recharts-responsive-container",
+			);
+			expect(responsiveContainer).toBeInTheDocument();
+		});
+
+		it("should render chart container for multiple series", () => {
+			const chartData = createChartData({
+				data: [
+					{
+						date: "2024-01-01T10:00:00Z",
+						"retailer-1": 9999,
+						"retailer-2": 10999,
+					},
+					{
+						date: "2024-01-02T10:00:00Z",
+						"retailer-1": 8999,
+						"retailer-2": 9999,
+					},
+				],
+				series: [
+					{ id: "retailer-1", label: "amazon.com", color: "var(--chart-1)" },
+					{
+						id: "retailer-2",
+						label: "bestbuy.com",
+						color: "var(--chart-2)",
+					},
+				],
+			});
+
+			const { container } = render(<PriceHistoryChart chartData={chartData} />);
+
 			const responsiveContainer = container.querySelector(
 				".recharts-responsive-container",
 			);
@@ -74,22 +108,17 @@ describe("PriceHistoryChart", () => {
 		});
 
 		it("should not show empty message for multiple data points", () => {
-			const data: PriceDataPoint[] = [
-				{
-					date: "2024-01-01T10:00:00Z",
-					price: 9999,
-					currency: "USD",
-					currencyExponent: 2,
-				},
-				{
-					date: "2024-01-02T10:00:00Z",
-					price: 8999,
-					currency: "USD",
-					currencyExponent: 2,
-				},
-			];
+			const chartData = createChartData({
+				data: [
+					{ date: "2024-01-01T10:00:00Z", "retailer-1": 9999 },
+					{ date: "2024-01-02T10:00:00Z", "retailer-1": 8999 },
+				],
+				series: [
+					{ id: "retailer-1", label: "amazon.com", color: "var(--chart-1)" },
+				],
+			});
 
-			render(<PriceHistoryChart data={data} />);
+			render(<PriceHistoryChart chartData={chartData} />);
 
 			expect(
 				screen.queryByText("No price data available"),
@@ -97,22 +126,17 @@ describe("PriceHistoryChart", () => {
 		});
 
 		it("should not show single data point message for multiple data points", () => {
-			const data: PriceDataPoint[] = [
-				{
-					date: "2024-01-01T10:00:00Z",
-					price: 9999,
-					currency: "USD",
-					currencyExponent: 2,
-				},
-				{
-					date: "2024-01-02T10:00:00Z",
-					price: 8999,
-					currency: "USD",
-					currencyExponent: 2,
-				},
-			];
+			const chartData = createChartData({
+				data: [
+					{ date: "2024-01-01T10:00:00Z", "retailer-1": 9999 },
+					{ date: "2024-01-02T10:00:00Z", "retailer-1": 8999 },
+				],
+				series: [
+					{ id: "retailer-1", label: "amazon.com", color: "var(--chart-1)" },
+				],
+			});
 
-			render(<PriceHistoryChart data={data} />);
+			render(<PriceHistoryChart chartData={chartData} />);
 
 			expect(
 				screen.queryByText(/More data points needed/),
@@ -122,18 +146,16 @@ describe("PriceHistoryChart", () => {
 
 	describe("price formatting", () => {
 		it("should format prices correctly in different currencies", () => {
-			const data: PriceDataPoint[] = [
-				{
-					date: "2024-01-15T10:00:00Z",
-					price: 15000,
-					currency: "EUR",
-					currencyExponent: 2,
-				},
-			];
+			const chartData = createChartData({
+				data: [{ date: "2024-01-15T10:00:00Z", "retailer-1": 15000 }],
+				series: [
+					{ id: "retailer-1", label: "amazon.de", color: "var(--chart-1)" },
+				],
+				currency: "EUR",
+			});
 
-			render(<PriceHistoryChart data={data} />);
+			render(<PriceHistoryChart chartData={chartData} />);
 
-			// EUR formatting may vary by locale, but should contain the amount
 			expect(screen.getByText(/150/)).toBeInTheDocument();
 		});
 	});

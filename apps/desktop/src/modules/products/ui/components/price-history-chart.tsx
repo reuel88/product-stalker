@@ -1,5 +1,6 @@
 import {
 	CartesianGrid,
+	Legend,
 	Line,
 	LineChart,
 	ResponsiveContainer,
@@ -9,27 +10,46 @@ import {
 } from "recharts";
 
 import { formatPrice } from "@/modules/products/price-utils";
-import type { PriceDataPoint } from "@/modules/products/types";
+import type {
+	MultiRetailerChartData,
+	RetailerChartSeries,
+} from "@/modules/products/types";
 import { useDateFormat } from "@/modules/shared/hooks/useDateFormat";
 
-const CHART_COLORS = {
-	line: "var(--chart-3)",
-	activeDot: "var(--chart-4)",
-} as const;
-
 interface PriceHistoryChartProps {
-	data: PriceDataPoint[];
+	chartData: MultiRetailerChartData;
 }
 
 interface CustomTooltipProps {
 	active?: boolean;
 	payload?: Array<{
-		payload: PriceDataPoint;
+		name: string;
+		value: number;
+		color: string;
 	}>;
+	label?: string;
+	currency: string;
+	currencyExponent: number;
 	formatTooltipDate: (dateString: string) => string;
 }
 
-function calculateYAxisDomain(prices: number[]): [number, number] {
+function calculateYAxisDomain(
+	data: Array<Record<string, string | number>>,
+	series: RetailerChartSeries[],
+): [number, number] {
+	const prices: number[] = [];
+	const seriesIds = new Set(series.map((s) => s.id));
+
+	for (const row of data) {
+		for (const [key, value] of Object.entries(row)) {
+			if (seriesIds.has(key) && typeof value === "number") {
+				prices.push(value);
+			}
+		}
+	}
+
+	if (prices.length === 0) return [0, 100];
+
 	const minPrice = Math.min(...prices);
 	const maxPrice = Math.max(...prices);
 	const padding = Math.max((maxPrice - minPrice) * 0.1, 100);
@@ -40,31 +60,41 @@ function calculateYAxisDomain(prices: number[]): [number, number] {
 function CustomTooltip({
 	active,
 	payload,
+	label,
+	currency,
+	currencyExponent,
 	formatTooltipDate,
 }: CustomTooltipProps) {
-	if (!active || !payload || payload.length === 0) {
+	if (!active || !payload || payload.length === 0 || !label) {
 		return null;
 	}
 
-	const data = payload[0].payload;
-	const formattedPrice = formatPrice(
-		data.price,
-		data.currency,
-		data.currencyExponent,
-	);
-
 	return (
 		<div className="rounded-none border bg-background px-3 py-2 shadow-sm">
-			<p className="font-medium text-sm">{formattedPrice}</p>
-			<p className="text-muted-foreground text-xs">
-				{formatTooltipDate(data.date)}
+			<p className="mb-1 text-muted-foreground text-xs">
+				{formatTooltipDate(label)}
 			</p>
+			{payload.map((entry) => (
+				<div key={entry.name} className="flex items-center gap-2">
+					<span
+						className="inline-block size-2 rounded-full"
+						style={{ backgroundColor: entry.color }}
+					/>
+					<span className="font-medium text-sm">
+						{formatPrice(entry.value, currency, currencyExponent)}
+					</span>
+					{payload.length > 1 && (
+						<span className="text-muted-foreground text-xs">{entry.name}</span>
+					)}
+				</div>
+			))}
 		</div>
 	);
 }
 
-export function PriceHistoryChart({ data }: PriceHistoryChartProps) {
+export function PriceHistoryChart({ chartData }: PriceHistoryChartProps) {
 	const { formatChartAxisDate, formatChartTooltipDate } = useDateFormat();
+	const { data, series, currency, currencyExponent } = chartData;
 
 	if (data.length === 0) {
 		return (
@@ -74,15 +104,20 @@ export function PriceHistoryChart({ data }: PriceHistoryChartProps) {
 		);
 	}
 
-	if (data.length === 1) {
+	if (data.length === 1 && series.length === 1) {
 		const point = data[0];
+		const price = point[series[0].id];
 		return (
 			<div className="flex h-[200px] flex-col items-center justify-center gap-2">
 				<p className="font-medium text-2xl">
-					{formatPrice(point.price, point.currency, point.currencyExponent)}
+					{formatPrice(
+						typeof price === "number" ? price : null,
+						currency,
+						currencyExponent,
+					)}
 				</p>
 				<p className="text-muted-foreground text-sm">
-					Recorded on {formatChartTooltipDate(point.date)}
+					Recorded on {formatChartTooltipDate(point.date as string)}
 				</p>
 				<p className="text-muted-foreground text-xs">
 					More data points needed to show price trend
@@ -91,10 +126,7 @@ export function PriceHistoryChart({ data }: PriceHistoryChartProps) {
 		);
 	}
 
-	const currency = data[0].currency;
-	const currencyExponent = data[0].currencyExponent;
-	const prices = data.map((d) => d.price);
-	const yAxisDomain = calculateYAxisDomain(prices);
+	const yAxisDomain = calculateYAxisDomain(data, series);
 
 	return (
 		<ResponsiveContainer width="100%" height={200}>
@@ -124,26 +156,38 @@ export function PriceHistoryChart({ data }: PriceHistoryChartProps) {
 					className="fill-muted-foreground"
 				/>
 				<Tooltip
-					content={<CustomTooltip formatTooltipDate={formatChartTooltipDate} />}
+					content={
+						<CustomTooltip
+							currency={currency}
+							currencyExponent={currencyExponent}
+							formatTooltipDate={formatChartTooltipDate}
+						/>
+					}
 				/>
-				<Line
-					type="monotone"
-					dataKey="price"
-					stroke={CHART_COLORS.line}
-					strokeWidth={2}
-					dot={{
-						r: 4,
-						fill: CHART_COLORS.line,
-						stroke: CHART_COLORS.line,
-						strokeWidth: 0,
-					}}
-					activeDot={{
-						r: 6,
-						fill: CHART_COLORS.activeDot,
-						stroke: CHART_COLORS.activeDot,
-						strokeWidth: 0,
-					}}
-				/>
+				{series.length > 1 && <Legend />}
+				{series.map((s) => (
+					<Line
+						key={s.id}
+						type="monotone"
+						dataKey={s.id}
+						name={s.label}
+						stroke={s.color}
+						strokeWidth={2}
+						connectNulls
+						dot={{
+							r: 4,
+							fill: s.color,
+							stroke: s.color,
+							strokeWidth: 0,
+						}}
+						activeDot={{
+							r: 6,
+							fill: s.color,
+							stroke: s.color,
+							strokeWidth: 0,
+						}}
+					/>
+				))}
 			</LineChart>
 		</ResponsiveContainer>
 	);

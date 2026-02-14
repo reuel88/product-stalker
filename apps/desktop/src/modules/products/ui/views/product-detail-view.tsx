@@ -22,7 +22,7 @@ import { useProduct } from "@/modules/products/hooks/useProduct";
 import { useProductRetailers } from "@/modules/products/hooks/useProductRetailers";
 import {
 	filterByTimeRange,
-	transformToPriceDataPoints,
+	transformToMultiRetailerChartData,
 } from "@/modules/products/price-utils";
 import type { TimeRange } from "@/modules/products/types";
 import { AddRetailerDialog } from "@/modules/products/ui/components/add-retailer-dialog";
@@ -87,7 +87,10 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 	}
 
 	const filteredHistory = history ? filterByTimeRange(history, timeRange) : [];
-	const priceDataPoints = transformToPriceDataPoints(filteredHistory);
+	const chartData = transformToMultiRetailerChartData(
+		filteredHistory,
+		retailers ?? [],
+	);
 
 	const handleAddRetailer = async (url: string, label: string | null) => {
 		if (!url) {
@@ -160,7 +163,7 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 					{isLoadingHistory ? (
 						<Skeleton className="h-50 w-full" />
 					) : (
-						<PriceHistoryChart data={priceDataPoints} />
+						<PriceHistoryChart chartData={chartData} />
 					)}
 				</CardContent>
 			</Card>

@@ -1,6 +1,9 @@
 import type {
 	AvailabilityCheckResponse,
+	MultiRetailerChartData,
 	PriceDataPoint,
+	ProductRetailerResponse,
+	RetailerChartSeries,
 	TimeRange,
 } from "@/modules/products/types";
 
@@ -233,4 +236,115 @@ export function formatPrice(
 		style: "currency",
 		currency,
 	}).format(minorUnits / 10 ** exponent);
+}
+
+const CHART_SERIES_COLORS = [
+	"var(--chart-1)",
+	"var(--chart-2)",
+	"var(--chart-3)",
+	"var(--chart-4)",
+	"var(--chart-5)",
+];
+
+/** Extract hostname from a URL, falling back to the raw string on parse failure. */
+export function extractDomain(url: string): string {
+	try {
+		return new URL(url).hostname;
+	} catch {
+		return url;
+	}
+}
+
+/** Truncate an ISO timestamp to the nearest minute for bucketing. */
+function bucketToMinute(isoDate: string): string {
+	const d = new Date(isoDate);
+	d.setSeconds(0, 0);
+	return d.toISOString();
+}
+
+/**
+ * Build a label for a retailer series from domain + optional user label.
+ * e.g. "amazon.com" or "amazon.com (64GB)"
+ */
+function buildSeriesLabel(
+	retailer: ProductRetailerResponse | undefined,
+): string {
+	if (!retailer) return "Price";
+	const domain = extractDomain(retailer.url);
+	return retailer.label ? `${domain} (${retailer.label})` : domain;
+}
+
+/**
+ * Transform availability checks into pivoted multi-retailer chart data.
+ *
+ * Groups checks by `product_retailer_id`, assigns each retailer a color,
+ * and produces rows keyed `{ date, [retailerId]: price }` for Recharts.
+ *
+ * Checks from the same check cycle (within the same minute) are bucketed together
+ * so they share an x-axis position.
+ */
+export function transformToMultiRetailerChartData(
+	checks: AvailabilityCheckResponse[],
+	retailers: ProductRetailerResponse[],
+): MultiRetailerChartData {
+	const validChecks = checks.filter(hasValidPrice);
+
+	if (validChecks.length === 0) {
+		return { data: [], series: [], currency: "", currencyExponent: 2 };
+	}
+
+	const currency = validChecks[0].price_currency;
+	const currencyExponent = validChecks[0].currency_exponent ?? 2;
+
+	// Group by product_retailer_id (null → "legacy" fallback)
+	const grouped = new Map<string, typeof validChecks>();
+	for (const check of validChecks) {
+		const key = check.product_retailer_id ?? "legacy";
+		const list = grouped.get(key);
+		if (list) {
+			list.push(check);
+		} else {
+			grouped.set(key, [check]);
+		}
+	}
+
+	const retailerMap = new Map(retailers.map((r) => [r.id, r]));
+
+	// Build series metadata
+	const series: RetailerChartSeries[] = [];
+	let colorIndex = 0;
+	for (const retailerId of grouped.keys()) {
+		const retailer = retailerMap.get(retailerId);
+		const label =
+			retailerId === "legacy" ? "Price" : buildSeriesLabel(retailer);
+		series.push({
+			id: retailerId,
+			label,
+			color: CHART_SERIES_COLORS[colorIndex % CHART_SERIES_COLORS.length],
+		});
+		colorIndex++;
+	}
+
+	// Build pivoted data rows bucketed by minute
+	const rowMap = new Map<string, Record<string, string | number>>();
+	for (const check of validChecks) {
+		const bucketDate = bucketToMinute(check.checked_at);
+		const retailerId = check.product_retailer_id ?? "legacy";
+
+		let row = rowMap.get(bucketDate);
+		if (!row) {
+			row = { date: bucketDate };
+			rowMap.set(bucketDate, row);
+		}
+		row[retailerId] = check.price_minor_units;
+	}
+
+	// Sort rows by date ascending
+	const data = Array.from(rowMap.values()).sort(
+		(a, b) =>
+			new Date(a.date as string).getTime() -
+			new Date(b.date as string).getTime(),
+	);
+
+	return { data, series, currency, currencyExponent };
 }
