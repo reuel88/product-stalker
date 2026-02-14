@@ -84,39 +84,41 @@ export function useProductDialogs() {
 	};
 
 	const updateFormData = (formData: CreateProductInput) => {
-		if (dialogState.type === "create") {
-			setDialogState({ ...dialogState, formData });
-		} else if (dialogState.type === "edit") {
-			setDialogState({ ...dialogState, formData });
-		}
+		setDialogState((prev) => {
+			if (prev.type === "create" || prev.type === "edit") {
+				return { ...prev, formData };
+			}
+			return prev;
+		});
 	};
 
 	const addRetailerEntry = () => {
-		if (dialogState.type !== "create") return;
 		const id = nextEntryId.current++;
-		setDialogState({
-			...dialogState,
-			retailerEntries: [
-				...dialogState.retailerEntries,
-				{ id, url: "", label: "" },
-			],
+		setDialogState((prev) => {
+			if (prev.type !== "create") return prev;
+			return {
+				...prev,
+				retailerEntries: [...prev.retailerEntries, { id, url: "", label: "" }],
+			};
 		});
 	};
 
 	const updateRetailerEntry = (index: number, entry: RetailerEntry) => {
-		if (dialogState.type !== "create") return;
-		const updated = [...dialogState.retailerEntries];
-		updated[index] = entry;
-		setDialogState({ ...dialogState, retailerEntries: updated });
+		setDialogState((prev) => {
+			if (prev.type !== "create") return prev;
+			const updated = [...prev.retailerEntries];
+			updated[index] = entry;
+			return { ...prev, retailerEntries: updated };
+		});
 	};
 
 	const removeRetailerEntry = (index: number) => {
-		if (dialogState.type !== "create") return;
-		setDialogState({
-			...dialogState,
-			retailerEntries: dialogState.retailerEntries.filter(
-				(_, i) => i !== index,
-			),
+		setDialogState((prev) => {
+			if (prev.type !== "create") return prev;
+			return {
+				...prev,
+				retailerEntries: prev.retailerEntries.filter((_, i) => i !== index),
+			};
 		});
 	};
 

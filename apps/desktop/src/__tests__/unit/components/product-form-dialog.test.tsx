@@ -240,10 +240,10 @@ describe("ProductFormDialog", () => {
 				/>,
 			);
 
-			expect(screen.getByTestId("retailer-url-0")).toHaveValue(
+			expect(screen.getByLabelText("Retailer 1 URL")).toHaveValue(
 				"https://example.com",
 			);
-			expect(screen.getByTestId("retailer-label-0")).toHaveValue("Example");
+			expect(screen.getByLabelText("Retailer 1 label")).toHaveValue("Example");
 		});
 
 		it("should call onAddRetailerEntry when Add Retailer is clicked", async () => {
@@ -270,7 +270,7 @@ describe("ProductFormDialog", () => {
 				/>,
 			);
 
-			await user.type(screen.getByTestId("retailer-url-0"), "h");
+			await user.type(screen.getByLabelText("Retailer 1 URL"), "h");
 
 			expect(onUpdateRetailerEntry).toHaveBeenCalledWith(0, {
 				id: 1,
@@ -291,7 +291,9 @@ describe("ProductFormDialog", () => {
 				/>,
 			);
 
-			const removeButton = screen.getByTestId("retailer-remove-0");
+			const removeButton = screen.getByRole("button", {
+				name: "Remove retailer 1",
+			});
 			await user.click(removeButton);
 
 			expect(onRemoveRetailerEntry).toHaveBeenCalledWith(0);

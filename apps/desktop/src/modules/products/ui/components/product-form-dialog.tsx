@@ -126,6 +126,7 @@ export function ProductFormDialog({
 										<div key={entry.id} className="flex items-center gap-2">
 											<Input
 												data-testid={`retailer-url-${index}`}
+												aria-label={`Retailer ${index + 1} URL`}
 												value={entry.url}
 												onChange={(e) =>
 													onUpdateRetailerEntry?.(index, {
@@ -137,6 +138,7 @@ export function ProductFormDialog({
 											/>
 											<Input
 												data-testid={`retailer-label-${index}`}
+												aria-label={`Retailer ${index + 1} label`}
 												value={entry.label}
 												onChange={(e) =>
 													onUpdateRetailerEntry?.(index, {
@@ -151,6 +153,7 @@ export function ProductFormDialog({
 												variant="ghost"
 												size="icon-sm"
 												data-testid={`retailer-remove-${index}`}
+												aria-label={`Remove retailer ${index + 1}`}
 												onClick={() => onRemoveRetailerEntry?.(index)}
 											>
 												<Trash2 />
