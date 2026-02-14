@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::core::services::{SettingService, SettingsCache};
 use crate::core::AppError;
+use crate::domain::repositories::ProductRetailerRepository;
 use crate::domain::services::{
     AvailabilityService, BulkCheckSummary, DomainSettingService, DomainSettingsCache,
     NotificationData, ProductService,
@@ -67,8 +68,9 @@ impl TauriAvailabilityService {
 
     /// Check all products with progress events and bulk notification.
     ///
-    /// Emits "availability:check-progress" events for each product checked.
-    /// Delegates per-product checking to domain's `AvailabilityService::check_single_product`.
+    /// Iterates all product-retailer links and checks each one. Also handles
+    /// legacy products that have no retailer links (using their deprecated url).
+    /// Emits "availability:check-progress" events for each check.
     /// Uses settings caching to avoid repeated database reads during bulk processing.
     pub async fn check_all_products_with_notification(
         conn: &DatabaseConnection,
@@ -81,8 +83,13 @@ impl TauriAvailabilityService {
         let allow_manual_verification = domain_cache.allow_manual_verification();
         let session_cache_duration = domain_cache.session_cache_duration_days();
 
-        let products = ProductService::get_all(conn).await?;
-        let total = products.len();
+        // Gather all product-retailer links (with their associated products)
+        let product_retailers = ProductRetailerRepository::find_all_with_product(conn).await?;
+
+        // Also find legacy products with no retailer links (deprecated url path)
+        let legacy_products = ProductService::get_all_without_retailers(conn).await?;
+
+        let total = product_retailers.len() + legacy_products.len();
 
         if total == 0 {
             return Ok(TauriBulkCheckResult {
@@ -99,9 +106,50 @@ impl TauriAvailabilityService {
         }
 
         let mut paired_results = Vec::with_capacity(total);
+        let mut current = 0;
 
-        for (index, product) in products.iter().enumerate() {
-            if index > 0 {
+        // Check each product-retailer link
+        for (pr, maybe_product) in &product_retailers {
+            if current > 0 {
+                tokio::time::sleep(Duration::from_millis(RATE_LIMIT_BETWEEN_CHECKS_MS)).await;
+            }
+
+            let product = match maybe_product {
+                Some(p) => p,
+                None => {
+                    current += 1;
+                    continue;
+                }
+            };
+
+            let (bulk_result, processing_result) =
+                AvailabilityService::check_single_product_retailer(
+                    conn,
+                    product,
+                    pr,
+                    enable_headless,
+                    allow_manual_verification,
+                    session_cache_duration,
+                )
+                .await;
+
+            let _ = app.emit(
+                "availability:check-progress",
+                &BulkCheckProgressEvent {
+                    product_id: product.id.to_string(),
+                    status: bulk_result.status.as_str().to_string(),
+                    current: current + 1,
+                    total,
+                },
+            );
+
+            paired_results.push((bulk_result, processing_result));
+            current += 1;
+        }
+
+        // Check legacy products without retailer links (deprecated url fallback)
+        for product in &legacy_products {
+            if current > 0 {
                 tokio::time::sleep(Duration::from_millis(RATE_LIMIT_BETWEEN_CHECKS_MS)).await;
             }
 
@@ -119,12 +167,13 @@ impl TauriAvailabilityService {
                 &BulkCheckProgressEvent {
                     product_id: product.id.to_string(),
                     status: bulk_result.status.as_str().to_string(),
-                    current: index + 1,
+                    current: current + 1,
                     total,
                 },
             );
 
             paired_results.push((bulk_result, processing_result));
+            current += 1;
         }
 
         let summary = AvailabilityService::build_summary_from_results(total, paired_results);

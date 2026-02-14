@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { ExternalLink, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Store, Trash2 } from "lucide-react";
 
 import {
 	DropdownMenu,
@@ -38,13 +37,21 @@ interface ColumnOptions {
 	onDelete?: (product: ProductResponse) => void;
 	AvailabilityCell: React.ComponentType<Record<string, never>>;
 	PriceCell: React.ComponentType<{ productId: string }>;
+	RetailerCountCell: React.ComponentType<{ productId: string }>;
 	formatDate: (dateString: string) => string;
 }
 
 export function createProductColumns(
 	options: ColumnOptions,
 ): ColumnDef<ProductResponse>[] {
-	const { onEdit, onDelete, AvailabilityCell, PriceCell, formatDate } = options;
+	const {
+		onEdit,
+		onDelete,
+		AvailabilityCell,
+		PriceCell,
+		RetailerCountCell,
+		formatDate,
+	} = options;
 
 	return [
 		{
@@ -61,21 +68,9 @@ export function createProductColumns(
 			),
 		},
 		{
-			accessorKey: "url",
-			header: "URL",
-			cell: ({ row }) => {
-				const url = row.original.url;
-				return (
-					<button
-						type="button"
-						onClick={() => openUrl(url)}
-						className="inline-flex items-center gap-1 text-left text-primary hover:underline"
-					>
-						<TruncatedText text={url} maxLength={UI.TRUNCATE.URL_LENGTH} />
-						<ExternalLink className="size-3" />
-					</button>
-				);
-			},
+			id: "retailers",
+			header: "Retailers",
+			cell: ({ row }) => <RetailerCountCell productId={row.original.id} />,
 		},
 		{
 			id: "availability",

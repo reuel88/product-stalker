@@ -26,6 +26,7 @@ impl AvailabilityService {
             price_minor_units: result.price.price_minor_units,
             price_currency: result.price.price_currency,
             raw_price: result.price.raw_price,
+            product_retailer_id: None,
         }
     }
 
@@ -37,7 +38,7 @@ impl AvailabilityService {
         }
     }
 
-    /// Check the availability of a product by its ID
+    /// Check the availability of a product by its ID using its deprecated URL field.
     ///
     /// Fetches the product's URL, scrapes the page for availability info,
     /// and stores the result in the database.
@@ -53,8 +54,13 @@ impl AvailabilityService {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Product not found: {}", product_id)))?;
 
+        let url = product
+            .url
+            .as_deref()
+            .ok_or_else(|| AppError::Validation("Product has no URL set".to_string()))?;
+
         let result = ScraperService::check_availability_with_headless(
-            &product.url,
+            url,
             enable_headless,
             allow_manual_verification,
             conn,
@@ -73,6 +79,54 @@ impl AvailabilityService {
         };
 
         AvailabilityCheckRepository::create(conn, Uuid::new_v4(), product_id, params).await
+    }
+
+    /// Check availability for a product-retailer link.
+    ///
+    /// Uses the product_retailer URL, stores results with both product_id and product_retailer_id.
+    pub async fn check_product_retailer(
+        conn: &DatabaseConnection,
+        product_retailer_id: Uuid,
+        enable_headless: bool,
+        allow_manual_verification: bool,
+        session_cache_duration_days: i32,
+    ) -> Result<AvailabilityCheckModel, AppError> {
+        let pr =
+            crate::repositories::ProductRetailerRepository::find_by_id(conn, product_retailer_id)
+                .await?
+                .ok_or_else(|| {
+                    AppError::NotFound(format!(
+                        "Product retailer not found: {}",
+                        product_retailer_id
+                    ))
+                })?;
+
+        let product = ProductRepository::find_by_id(conn, pr.product_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Product not found: {}", pr.product_id)))?;
+
+        let result = ScraperService::check_availability_with_headless(
+            &pr.url,
+            enable_headless,
+            allow_manual_verification,
+            conn,
+            session_cache_duration_days,
+        )
+        .await;
+
+        let mut params = match result {
+            Ok(scraping_result) => {
+                let params = Self::params_from_success(scraping_result);
+                Self::auto_set_product_currency(conn, &product, params.price_currency.as_deref())
+                    .await;
+                params
+            }
+            Err(e) => Self::params_from_error(&e),
+        };
+
+        params.product_retailer_id = Some(product_retailer_id);
+
+        AvailabilityCheckRepository::create(conn, Uuid::new_v4(), pr.product_id, params).await
     }
 
     /// Auto-set product currency from scraped price data.
@@ -111,7 +165,7 @@ impl AvailabilityService {
                 // Special case: If the URL has a path locale pattern, the scraped
                 // currency (from new logic) is more reliable than the stored one
                 // (from old logic that didn't check path locales)
-                if has_path_locale(&product.url) {
+                if product.url.as_deref().is_some_and(has_path_locale) {
                     log::info!(
                         "Correcting currency for product {} from {} to {} (path locale detected in URL)",
                         product.id,
@@ -241,6 +295,62 @@ impl AvailabilityService {
         // Step 5: Build the bulk result
         let bulk_result =
             BulkCheckResult::from_processing_result(product, &result, &context, &daily_comparison);
+
+        (bulk_result, result)
+    }
+
+    /// Check a single product-retailer link and return the result.
+    ///
+    /// Used in bulk operations where we iterate product_retailers instead of products.
+    pub async fn check_single_product_retailer(
+        conn: &DatabaseConnection,
+        product: &ProductModel,
+        product_retailer: &crate::entities::prelude::ProductRetailerModel,
+        enable_headless: bool,
+        allow_manual_verification: bool,
+        session_cache_duration_days: i32,
+    ) -> (BulkCheckResult, CheckProcessingResult) {
+        // Step 1: Get previous check context (based on product_retailer_id)
+        let previous_check = AvailabilityCheckRepository::find_latest_for_product_retailer(
+            conn,
+            product_retailer.id,
+        )
+        .await;
+        let context = match previous_check {
+            Ok(check) => ProductCheckContext {
+                previous_status: check.as_ref().map(|c| c.status_enum()),
+            },
+            Err(e) => return Self::build_context_error_result(product, e),
+        };
+
+        // Step 2: Perform the check via product_retailer
+        let check_result = Self::check_product_retailer(
+            conn,
+            product_retailer.id,
+            enable_headless,
+            allow_manual_verification,
+            session_cache_duration_days,
+        )
+        .await;
+
+        // Step 3: Get daily price comparison for this product_retailer
+        let daily_comparison =
+            match Self::get_daily_price_comparison_for_product_retailer(conn, product_retailer.id)
+                .await
+            {
+                Ok(dc) => dc,
+                Err(e) => return Self::build_context_error_result(product, e),
+            };
+
+        // Step 4: Process result
+        let result =
+            Self::process_check_result(check_result, &context.previous_status, &daily_comparison);
+
+        // Step 5: Build bulk result with retailer info
+        let mut bulk_result =
+            BulkCheckResult::from_processing_result(product, &result, &context, &daily_comparison);
+        bulk_result.product_retailer_id = Some(product_retailer.id.to_string());
+        bulk_result.url = Some(product_retailer.url.clone());
 
         (bulk_result, result)
     }
@@ -494,7 +604,7 @@ mod tests {
                 id,
                 CreateProductRepoParams {
                     name: name.to_string(),
-                    url: url.to_string(),
+                    url: Some(url.to_string()),
                     description: None,
                     notes: None,
                 },

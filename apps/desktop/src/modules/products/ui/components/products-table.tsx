@@ -26,6 +26,7 @@ import {
 import { UI } from "@/constants";
 import { cn } from "@/lib/utils";
 import { useAvailability } from "@/modules/products/hooks/useAvailability";
+import { useProductRetailers } from "@/modules/products/hooks/useProductRetailers";
 import type {
 	AvailabilityCheckResponse,
 	ProductResponse,
@@ -123,6 +124,16 @@ function PriceCell({ productId }: { productId: string }) {
 	);
 }
 
+function RetailerCountCell({ productId }: { productId: string }) {
+	const { retailers } = useProductRetailers(productId);
+	const count = retailers?.length ?? 0;
+	return (
+		<span className="text-muted-foreground text-sm">
+			{count} {count === 1 ? "retailer" : "retailers"}
+		</span>
+	);
+}
+
 export function ProductsTable({
 	products,
 	isLoading,
@@ -138,6 +149,7 @@ export function ProductsTable({
 				onDelete,
 				AvailabilityCell,
 				PriceCell,
+				RetailerCountCell,
 				formatDate,
 			}),
 		[onEdit, onDelete, formatDate],
@@ -254,7 +266,7 @@ export function ProductsTable({
 /** Skeleton widths that approximate the content they represent */
 const SKELETON_WIDTHS = {
 	name: "w-24",
-	url: "w-40",
+	retailers: "w-20",
 	availabilityBadge: "h-6 w-20",
 	price: "w-16",
 	description: "w-32",
@@ -270,7 +282,7 @@ function ProductsTableSkeleton() {
 				<TableHeader>
 					<TableRow>
 						<TableHead>Name</TableHead>
-						<TableHead>URL</TableHead>
+						<TableHead>Retailers</TableHead>
 						<TableHead>Availability</TableHead>
 						<TableHead>Price</TableHead>
 						<TableHead>Description</TableHead>
@@ -286,7 +298,7 @@ function ProductsTableSkeleton() {
 								<Skeleton className={cn("h-4", SKELETON_WIDTHS.name)} />
 							</TableCell>
 							<TableCell>
-								<Skeleton className={cn("h-4", SKELETON_WIDTHS.url)} />
+								<Skeleton className={cn("h-4", SKELETON_WIDTHS.retailers)} />
 							</TableCell>
 							<TableCell>
 								<Skeleton className={SKELETON_WIDTHS.availabilityBadge} />

@@ -184,7 +184,6 @@ describe("ProductsView", () => {
 
 			await waitFor(() => {
 				expect(screen.getByLabelText("Name")).toBeInTheDocument();
-				expect(screen.getByLabelText("URL")).toBeInTheDocument();
 				expect(screen.getByLabelText("Description")).toBeInTheDocument();
 				expect(screen.getByLabelText("Notes")).toBeInTheDocument();
 			});
@@ -213,10 +212,6 @@ describe("ProductsView", () => {
 			});
 
 			await user.type(screen.getByLabelText("Name"), "Test Product");
-			await user.type(
-				screen.getByLabelText("URL"),
-				"https://example.com/product",
-			);
 
 			await user.click(screen.getByRole("button", { name: "Create" }));
 
@@ -226,7 +221,6 @@ describe("ProductsView", () => {
 					expect.objectContaining({
 						input: expect.objectContaining({
 							name: "Test Product",
-							url: "https://example.com/product",
 						}),
 					}),
 				);
@@ -245,44 +239,14 @@ describe("ProductsView", () => {
 			await user.click(screen.getByRole("button", { name: /add product/i }));
 
 			await waitFor(() => {
-				expect(screen.getByLabelText("URL")).toBeInTheDocument();
+				expect(screen.getByLabelText("Name")).toBeInTheDocument();
 			});
 
-			// Only fill URL, leave name empty
-			await user.type(screen.getByLabelText("URL"), "https://example.com");
-
+			// Leave name empty, click Create
 			await user.click(screen.getByRole("button", { name: "Create" }));
 
 			// Create should not be called - validation should fail
 			// The dialog should still be open
-			await waitFor(() => {
-				expect(
-					screen.getByText("Add a new product to track"),
-				).toBeInTheDocument();
-			});
-		});
-
-		it("should show validation error when URL is missing", async () => {
-			const { user } = render(<ProductsView />);
-
-			await waitFor(() => {
-				expect(
-					screen.getByRole("button", { name: /add product/i }),
-				).toBeInTheDocument();
-			});
-
-			await user.click(screen.getByRole("button", { name: /add product/i }));
-
-			await waitFor(() => {
-				expect(screen.getByLabelText("Name")).toBeInTheDocument();
-			});
-
-			// Only fill name, leave URL empty
-			await user.type(screen.getByLabelText("Name"), "Test Product");
-
-			await user.click(screen.getByRole("button", { name: "Create" }));
-
-			// Dialog should still be open
 			await waitFor(() => {
 				expect(
 					screen.getByText("Add a new product to track"),
@@ -296,7 +260,6 @@ describe("ProductsView", () => {
 			const product = createMockProduct({
 				id: "prod-1",
 				name: "Existing Product",
-				url: "https://example.com/existing",
 				description: "A description",
 			});
 			mockInvokeMultiple({
@@ -328,16 +291,12 @@ describe("ProductsView", () => {
 
 			// Form should have existing values
 			expect(screen.getByLabelText("Name")).toHaveValue("Existing Product");
-			expect(screen.getByLabelText("URL")).toHaveValue(
-				"https://example.com/existing",
-			);
 		});
 
 		it("should call updateProduct when edit form is submitted", async () => {
 			const product = createMockProduct({
 				id: "prod-1",
 				name: "Existing Product",
-				url: "https://example.com/existing",
 			});
 			const updatedProduct = { ...product, name: "Updated Product" };
 			mockInvokeMultiple({

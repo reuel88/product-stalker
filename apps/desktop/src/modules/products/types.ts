@@ -6,8 +6,6 @@ export interface ProductResponse {
 	id: string;
 	/** Display name of the product */
 	name: string;
-	/** URL to the product page for availability checking */
-	url: string;
 	/** Optional description for user notes */
 	description: string | null;
 	/** Optional private notes */
@@ -18,6 +16,24 @@ export interface ProductResponse {
 	created_at: string;
 	/** ISO 8601 timestamp of the last update */
 	updated_at: string;
+}
+
+/**
+ * Product-retailer link returned from the backend.
+ */
+export interface ProductRetailerResponse {
+	/** Unique identifier (UUID) */
+	id: string;
+	/** Product ID this link belongs to */
+	product_id: string;
+	/** Retailer ID (domain-based) */
+	retailer_id: string;
+	/** URL to the product page at this retailer */
+	url: string;
+	/** Optional user-provided label (e.g., "64GB version") */
+	label: string | null;
+	/** ISO 8601 timestamp when the link was created */
+	created_at: string;
 }
 
 /**
@@ -41,6 +57,8 @@ export interface AvailabilityCheckResponse {
 	id: string;
 	/** Product ID this check belongs to */
 	product_id: string;
+	/** Product-retailer link ID this check was performed against */
+	product_retailer_id: string | null;
 	/** Parsed availability status */
 	status: AvailabilityStatus;
 	/** Raw availability string from Schema.org (e.g., "http://schema.org/InStock") */
@@ -73,6 +91,10 @@ export interface BulkCheckResult {
 	product_id: string;
 	/** Product name for display */
 	product_name: string;
+	/** Product-retailer link ID that was checked */
+	product_retailer_id: string | null;
+	/** URL that was checked */
+	url: string | null;
 	/** Current availability status */
 	status: AvailabilityStatus;
 	/** Previous status before this check (null if first check) */

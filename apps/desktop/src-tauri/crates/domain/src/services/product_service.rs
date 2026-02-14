@@ -10,7 +10,6 @@ use product_stalker_core::AppError;
 /// Parameters for creating a new product
 pub struct CreateProductParams {
     pub name: String,
-    pub url: String,
     pub description: Option<String>,
     pub notes: Option<String>,
 }
@@ -18,7 +17,6 @@ pub struct CreateProductParams {
 /// Parameters for updating an existing product (all fields optional for partial updates)
 pub struct UpdateProductParams {
     pub name: Option<String>,
-    pub url: Option<String>,
     pub description: Option<String>,
     pub notes: Option<String>,
 }
@@ -48,7 +46,6 @@ impl ProductService {
         params: CreateProductParams,
     ) -> Result<ProductModel, AppError> {
         Self::validate_name(&params.name)?;
-        Self::validate_url(&params.url)?;
 
         let id = Uuid::new_v4();
         ProductRepository::create(
@@ -56,7 +53,7 @@ impl ProductService {
             id,
             CreateProductRepoParams {
                 name: params.name,
-                url: params.url,
+                url: None,
                 description: params.description,
                 notes: params.notes,
             },
@@ -74,9 +71,6 @@ impl ProductService {
         if let Some(ref name) = params.name {
             Self::validate_name(name)?;
         }
-        if let Some(ref url) = params.url {
-            Self::validate_url(url)?;
-        }
 
         // Fetch existing product
         let product = Self::get_by_id(conn, id).await?;
@@ -87,13 +81,20 @@ impl ProductService {
             product,
             ProductUpdateInput {
                 name: params.name,
-                url: params.url,
+                url: None,
                 description: params.description.map(Some),
                 notes: params.notes.map(Some),
                 currency: None,
             },
         )
         .await
+    }
+
+    /// Get all products that have no associated product_retailers (legacy products)
+    pub async fn get_all_without_retailers(
+        conn: &DatabaseConnection,
+    ) -> Result<Vec<ProductModel>, AppError> {
+        ProductRepository::find_all_without_retailers(conn).await
     }
 
     /// Delete a product
@@ -113,15 +114,6 @@ impl ProductService {
         if name.trim().is_empty() {
             return Err(AppError::Validation("Name cannot be empty".to_string()));
         }
-        Ok(())
-    }
-
-    fn validate_url(url: &str) -> Result<(), AppError> {
-        if url.trim().is_empty() {
-            return Err(AppError::Validation("URL cannot be empty".to_string()));
-        }
-        url::Url::parse(url)
-            .map_err(|e| AppError::Validation(format!("Invalid URL format: {}", e)))?;
         Ok(())
     }
 }
@@ -144,30 +136,6 @@ mod tests {
     fn test_validate_name_valid() {
         assert!(ProductService::validate_name("My Product").is_ok());
     }
-
-    #[test]
-    fn test_validate_url_empty() {
-        assert!(ProductService::validate_url("").is_err());
-    }
-
-    #[test]
-    fn test_validate_url_whitespace() {
-        assert!(ProductService::validate_url("   ").is_err());
-    }
-
-    #[test]
-    fn test_validate_url_valid() {
-        assert!(ProductService::validate_url("https://example.com").is_ok());
-    }
-
-    #[test]
-    fn test_validate_url_invalid_format() {
-        let result = ProductService::validate_url("not-a-valid-url");
-        assert!(result.is_err());
-        assert!(
-            matches!(result, Err(AppError::Validation(msg)) if msg.contains("Invalid URL format"))
-        );
-    }
 }
 
 #[cfg(test)]
@@ -182,23 +150,6 @@ mod integration_tests {
             &conn,
             CreateProductParams {
                 name: "".to_string(),
-                url: "https://test.com".to_string(),
-                description: None,
-                notes: None,
-            },
-        )
-        .await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_create_product_validates_url() {
-        let conn = setup_products_db().await;
-        let result = ProductService::create(
-            &conn,
-            CreateProductParams {
-                name: "Valid Name".to_string(),
-                url: "".to_string(),
                 description: None,
                 notes: None,
             },
@@ -214,7 +165,6 @@ mod integration_tests {
             &conn,
             CreateProductParams {
                 name: "Test Product".to_string(),
-                url: "https://test.com".to_string(),
                 description: Some("A description".to_string()),
                 notes: Some("Some notes".to_string()),
             },
@@ -224,7 +174,6 @@ mod integration_tests {
         assert!(result.is_ok());
         let product = result.unwrap();
         assert_eq!(product.name, "Test Product");
-        assert_eq!(product.url, "https://test.com");
         assert_eq!(product.description, Some("A description".to_string()));
         assert_eq!(product.notes, Some("Some notes".to_string()));
     }
@@ -236,7 +185,6 @@ mod integration_tests {
             &conn,
             CreateProductParams {
                 name: "Minimal Product".to_string(),
-                url: "https://minimal.com".to_string(),
                 description: None,
                 notes: None,
             },
@@ -258,10 +206,9 @@ mod integration_tests {
     }
 
     /// Helper to create a product with minimal params in tests
-    fn params(name: &str, url: &str) -> CreateProductParams {
+    fn params(name: &str) -> CreateProductParams {
         CreateProductParams {
             name: name.to_string(),
-            url: url.to_string(),
             description: None,
             notes: None,
         }
@@ -270,7 +217,7 @@ mod integration_tests {
     #[tokio::test]
     async fn test_get_by_id_success() {
         let conn = setup_products_db().await;
-        let created = ProductService::create(&conn, params("Find Me", "https://findme.com"))
+        let created = ProductService::create(&conn, params("Find Me"))
             .await
             .unwrap();
 
@@ -292,13 +239,13 @@ mod integration_tests {
     async fn test_get_all_multiple() {
         let conn = setup_products_db().await;
 
-        ProductService::create(&conn, params("Product 1", "https://p1.com"))
+        ProductService::create(&conn, params("Product 1"))
             .await
             .unwrap();
-        ProductService::create(&conn, params("Product 2", "https://p2.com"))
+        ProductService::create(&conn, params("Product 2"))
             .await
             .unwrap();
-        ProductService::create(&conn, params("Product 3", "https://p3.com"))
+        ProductService::create(&conn, params("Product 3"))
             .await
             .unwrap();
 
@@ -310,7 +257,7 @@ mod integration_tests {
     #[tokio::test]
     async fn test_update_product_name() {
         let conn = setup_products_db().await;
-        let created = ProductService::create(&conn, params("Original", "https://original.com"))
+        let created = ProductService::create(&conn, params("Original"))
             .await
             .unwrap();
 
@@ -319,7 +266,6 @@ mod integration_tests {
             created.id,
             UpdateProductParams {
                 name: Some("Updated Name".to_string()),
-                url: None,
                 description: None,
                 notes: None,
             },
@@ -329,47 +275,18 @@ mod integration_tests {
         assert!(updated.is_ok());
         let product = updated.unwrap();
         assert_eq!(product.name, "Updated Name");
-        assert_eq!(product.url, "https://original.com");
-    }
-
-    #[tokio::test]
-    async fn test_update_product_url() {
-        let conn = setup_products_db().await;
-        let created = ProductService::create(&conn, params("Test", "https://old.com"))
-            .await
-            .unwrap();
-
-        let updated = ProductService::update(
-            &conn,
-            created.id,
-            UpdateProductParams {
-                name: None,
-                url: Some("https://new.com".to_string()),
-                description: None,
-                notes: None,
-            },
-        )
-        .await;
-
-        assert!(updated.is_ok());
-        let product = updated.unwrap();
-        assert_eq!(product.name, "Test");
-        assert_eq!(product.url, "https://new.com");
     }
 
     #[tokio::test]
     async fn test_update_product_description() {
         let conn = setup_products_db().await;
-        let created = ProductService::create(&conn, params("Test", "https://test.com"))
-            .await
-            .unwrap();
+        let created = ProductService::create(&conn, params("Test")).await.unwrap();
 
         let updated = ProductService::update(
             &conn,
             created.id,
             UpdateProductParams {
                 name: None,
-                url: None,
                 description: Some("New description".to_string()),
                 notes: None,
             },
@@ -391,7 +308,6 @@ mod integration_tests {
             Uuid::new_v4(),
             UpdateProductParams {
                 name: Some("Name".to_string()),
-                url: None,
                 description: None,
                 notes: None,
             },
@@ -404,38 +320,13 @@ mod integration_tests {
     #[tokio::test]
     async fn test_update_validates_empty_name() {
         let conn = setup_products_db().await;
-        let created = ProductService::create(&conn, params("Test", "https://test.com"))
-            .await
-            .unwrap();
+        let created = ProductService::create(&conn, params("Test")).await.unwrap();
 
         let result = ProductService::update(
             &conn,
             created.id,
             UpdateProductParams {
                 name: Some("".to_string()),
-                url: None,
-                description: None,
-                notes: None,
-            },
-        )
-        .await;
-
-        assert!(matches!(result, Err(AppError::Validation(_))));
-    }
-
-    #[tokio::test]
-    async fn test_update_validates_empty_url() {
-        let conn = setup_products_db().await;
-        let created = ProductService::create(&conn, params("Test", "https://test.com"))
-            .await
-            .unwrap();
-
-        let result = ProductService::update(
-            &conn,
-            created.id,
-            UpdateProductParams {
-                name: None,
-                url: Some("".to_string()),
                 description: None,
                 notes: None,
             },
@@ -455,7 +346,7 @@ mod integration_tests {
     #[tokio::test]
     async fn test_delete_success() {
         let conn = setup_products_db().await;
-        let created = ProductService::create(&conn, params("To Delete", "https://delete.com"))
+        let created = ProductService::create(&conn, params("To Delete"))
             .await
             .unwrap();
 

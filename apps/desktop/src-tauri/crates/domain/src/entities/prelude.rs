@@ -19,3 +19,21 @@ pub use super::product::Column as ProductColumn;
 pub use super::product::Entity as Product;
 #[allow(unused_imports)]
 pub use super::product::Model as ProductModel;
+
+#[allow(unused_imports)]
+pub use super::product_retailer::ActiveModel as ProductRetailerActiveModel;
+#[allow(unused_imports)]
+pub use super::product_retailer::Column as ProductRetailerColumn;
+#[allow(unused_imports)]
+pub use super::product_retailer::Entity as ProductRetailer;
+#[allow(unused_imports)]
+pub use super::product_retailer::Model as ProductRetailerModel;
+
+#[allow(unused_imports)]
+pub use super::retailer::ActiveModel as RetailerActiveModel;
+#[allow(unused_imports)]
+pub use super::retailer::Column as RetailerColumn;
+#[allow(unused_imports)]
+pub use super::retailer::Entity as Retailer;
+#[allow(unused_imports)]
+pub use super::retailer::Model as RetailerModel;

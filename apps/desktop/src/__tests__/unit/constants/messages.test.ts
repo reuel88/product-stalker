@@ -85,16 +85,22 @@ describe("MESSAGES constant", () => {
 
 	describe("VALIDATION messages", () => {
 		it("should have required field messages", () => {
-			expect(MESSAGES.VALIDATION).toHaveProperty("NAME_URL_REQUIRED");
+			expect(MESSAGES.VALIDATION).toHaveProperty("NAME_REQUIRED");
+			expect(MESSAGES.VALIDATION).toHaveProperty("URL_REQUIRED");
 		});
 
 		it("should have non-empty validation messages", () => {
-			expect(typeof MESSAGES.VALIDATION.NAME_URL_REQUIRED).toBe("string");
-			expect(MESSAGES.VALIDATION.NAME_URL_REQUIRED.length).toBeGreaterThan(0);
+			expect(typeof MESSAGES.VALIDATION.NAME_REQUIRED).toBe("string");
+			expect(MESSAGES.VALIDATION.NAME_REQUIRED.length).toBeGreaterThan(0);
+			expect(typeof MESSAGES.VALIDATION.URL_REQUIRED).toBe("string");
+			expect(MESSAGES.VALIDATION.URL_REQUIRED.length).toBeGreaterThan(0);
 		});
 
 		it("should mention required fields in message", () => {
-			expect(MESSAGES.VALIDATION.NAME_URL_REQUIRED.toLowerCase()).toContain(
+			expect(MESSAGES.VALIDATION.NAME_REQUIRED.toLowerCase()).toContain(
+				"required",
+			);
+			expect(MESSAGES.VALIDATION.URL_REQUIRED.toLowerCase()).toContain(
 				"required",
 			);
 		});

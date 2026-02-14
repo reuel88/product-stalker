@@ -1,5 +1,4 @@
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -55,14 +54,6 @@ export function ProductInfoCard({
 			<CardHeader className="flex-row items-start justify-between gap-4">
 				<div className="min-w-0 flex-1 space-y-1">
 					<CardTitle className="text-lg">{product.name}</CardTitle>
-					<button
-						type="button"
-						onClick={() => openUrl(product.url)}
-						className="inline-flex items-center gap-1 text-left text-primary text-xs hover:underline"
-					>
-						<span className="truncate">{product.url}</span>
-						<ExternalLink className="size-3 shrink-0" />
-					</button>
 				</div>
 				<div className="flex items-center gap-2">
 					{latestCheck?.status && <StatusBadge status={latestCheck.status} />}

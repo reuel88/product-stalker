@@ -88,7 +88,6 @@ describe("useProducts", () => {
 
 			const createdProduct = await result.current.createProduct({
 				name: "New Product",
-				url: "https://example.com/new",
 			});
 
 			expect(createdProduct).toEqual(newProduct);
@@ -114,7 +113,6 @@ describe("useProducts", () => {
 
 			await result.current.createProduct({
 				name: "Test",
-				url: "https://test.com",
 			});
 
 			// After completion, isCreating should be false
@@ -248,7 +246,6 @@ describe("useProducts", () => {
 
 			await result.current.createProduct({
 				name: "Test",
-				url: "https://test.com",
 			});
 
 			// The query should have been called twice: initial + after invalidation

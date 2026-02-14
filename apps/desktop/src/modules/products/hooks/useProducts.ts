@@ -6,14 +6,12 @@ import type { ProductResponse } from "@/modules/products/types";
 
 export interface CreateProductInput {
 	name: string;
-	url: string;
 	description?: string | null;
 	notes?: string | null;
 }
 
 export interface UpdateProductInput {
 	name?: string | null;
-	url?: string | null;
 	description?: string | null;
 	notes?: string | null;
 }

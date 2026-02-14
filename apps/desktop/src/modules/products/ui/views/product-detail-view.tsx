@@ -1,7 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -10,18 +12,23 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MESSAGES } from "@/constants";
+import { withToast, withToastVoid } from "@/lib/toast-helpers";
 import {
 	useAvailability,
 	useAvailabilityHistory,
 } from "@/modules/products/hooks/useAvailability";
 import { useProduct } from "@/modules/products/hooks/useProduct";
+import { useProductRetailers } from "@/modules/products/hooks/useProductRetailers";
 import {
 	filterByTimeRange,
 	transformToPriceDataPoints,
 } from "@/modules/products/price-utils";
 import type { TimeRange } from "@/modules/products/types";
+import { AddRetailerDialog } from "@/modules/products/ui/components/add-retailer-dialog";
 import { PriceHistoryChart } from "@/modules/products/ui/components/price-history-chart";
 import { ProductInfoCard } from "@/modules/products/ui/components/product-info-card";
+import { RetailerList } from "@/modules/products/ui/components/retailer-list";
 import { TimeRangeSelector } from "@/modules/products/ui/components/time-range-selector";
 
 interface ProductDetailViewProps {
@@ -55,6 +62,7 @@ function ErrorState({ message }: { message: string }) {
 
 export function ProductDetailView({ productId }: ProductDetailViewProps) {
 	const [timeRange, setTimeRange] = useState<TimeRange>("30d");
+	const [showAddRetailer, setShowAddRetailer] = useState(false);
 
 	const {
 		product,
@@ -65,6 +73,8 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 		useAvailability(productId);
 	const { history, isLoading: isLoadingHistory } =
 		useAvailabilityHistory(productId);
+	const { retailers, addRetailer, isAdding, removeRetailer, isRemoving } =
+		useProductRetailers(productId);
 
 	if (isLoadingProduct) {
 		return <LoadingSkeleton />;
@@ -78,6 +88,28 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 
 	const filteredHistory = history ? filterByTimeRange(history, timeRange) : [];
 	const priceDataPoints = transformToPriceDataPoints(filteredHistory);
+
+	const handleAddRetailer = async (url: string, label: string | null) => {
+		if (!url) {
+			toast.error(MESSAGES.VALIDATION.URL_REQUIRED);
+			return;
+		}
+		const result = await withToast(
+			() => addRetailer({ product_id: productId, url, label }),
+			{
+				success: MESSAGES.RETAILER.ADDED,
+				error: MESSAGES.RETAILER.ADD_FAILED,
+			},
+		);
+		if (result) setShowAddRetailer(false);
+	};
+
+	const handleRemoveRetailer = async (id: string) => {
+		await withToastVoid(() => removeRetailer(id), {
+			success: MESSAGES.RETAILER.REMOVED,
+			error: MESSAGES.RETAILER.REMOVE_FAILED,
+		});
+	};
 
 	return (
 		<div className="container mx-auto space-y-6 overflow-y-auto px-4 py-6">
@@ -99,6 +131,26 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 			<Card>
 				<CardHeader className="flex-row items-center justify-between">
 					<div>
+						<CardTitle>Retailers</CardTitle>
+						<CardDescription>URLs tracked for this product</CardDescription>
+					</div>
+					<Button size="sm" onClick={() => setShowAddRetailer(true)}>
+						<Plus className="size-4" />
+						Add Retailer
+					</Button>
+				</CardHeader>
+				<CardContent>
+					<RetailerList
+						retailers={retailers ?? []}
+						onRemove={handleRemoveRetailer}
+						isRemoving={isRemoving}
+					/>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader className="flex-row items-center justify-between">
+					<div>
 						<CardTitle>Price History</CardTitle>
 						<CardDescription>Track how the price has changed</CardDescription>
 					</div>
@@ -112,6 +164,13 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 					)}
 				</CardContent>
 			</Card>
+
+			<AddRetailerDialog
+				open={showAddRetailer}
+				onOpenChange={setShowAddRetailer}
+				onSubmit={handleAddRetailer}
+				isSubmitting={isAdding}
+			/>
 		</div>
 	);
 }

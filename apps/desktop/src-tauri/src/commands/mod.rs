@@ -1,5 +1,6 @@
 // === DOMAIN ===
 mod availability;
+mod product_retailers;
 mod products;
 
 // === INFRASTRUCTURE ===
@@ -10,6 +11,7 @@ mod window;
 
 // === DOMAIN ===
 pub use availability::*;
+pub use product_retailers::*;
 pub use products::*;
 
 // === INFRASTRUCTURE ===

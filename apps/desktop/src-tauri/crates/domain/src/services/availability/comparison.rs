@@ -79,6 +79,38 @@ impl AvailabilityService {
             yesterday_average_minor_units: yesterday_average,
         })
     }
+
+    /// Get daily price comparison for a specific product-retailer link.
+    pub async fn get_daily_price_comparison_for_product_retailer(
+        conn: &DatabaseConnection,
+        product_retailer_id: Uuid,
+    ) -> Result<DailyPriceComparison, AppError> {
+        let now = chrono::Utc::now();
+        let twenty_four_hours_ago = now - chrono::Duration::hours(24);
+        let forty_eight_hours_ago = now - chrono::Duration::hours(48);
+
+        let today_average =
+            AvailabilityCheckRepository::get_average_price_for_period_by_product_retailer(
+                conn,
+                product_retailer_id,
+                twenty_four_hours_ago,
+                now,
+            )
+            .await?;
+        let yesterday_average =
+            AvailabilityCheckRepository::get_average_price_for_period_by_product_retailer(
+                conn,
+                product_retailer_id,
+                forty_eight_hours_ago,
+                twenty_four_hours_ago,
+            )
+            .await?;
+
+        Ok(DailyPriceComparison {
+            today_average_minor_units: today_average,
+            yesterday_average_minor_units: yesterday_average,
+        })
+    }
 }
 
 #[cfg(test)]

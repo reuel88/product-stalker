@@ -13,7 +13,6 @@ function createMockProduct(
 	return {
 		id: "product-1",
 		name: "Test Product",
-		url: "https://example.com/product",
 		description: null,
 		notes: null,
 		currency: null,
@@ -29,6 +28,7 @@ function createMockCheck(
 	return {
 		id: "check-1",
 		product_id: "product-1",
+		product_retailer_id: null,
 		status: "in_stock",
 		raw_availability: null,
 		error_message: null,
@@ -51,17 +51,6 @@ describe("ProductInfoCard", () => {
 			render(<ProductInfoCard product={product} latestCheck={null} />);
 
 			expect(screen.getByText("My Product")).toBeInTheDocument();
-		});
-
-		it("should display product URL", () => {
-			const product = createMockProduct({
-				url: "https://shop.example.com/item",
-			});
-			render(<ProductInfoCard product={product} latestCheck={null} />);
-
-			expect(
-				screen.getByText("https://shop.example.com/item"),
-			).toBeInTheDocument();
 		});
 
 		it("should display product description when present", () => {

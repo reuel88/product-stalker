@@ -14,6 +14,7 @@ use crate::utils::parse_uuid;
 pub struct AvailabilityCheckResponse {
     pub id: String,
     pub product_id: String,
+    pub product_retailer_id: Option<String>,
     pub status: String,
     pub raw_availability: Option<String>,
     pub error_message: Option<String>,
@@ -48,6 +49,7 @@ impl AvailabilityCheckResponse {
         Self {
             id: model.id.to_string(),
             product_id: model.product_id.to_string(),
+            product_retailer_id: model.product_retailer_id.map(|id| id.to_string()),
             status: model.status,
             raw_availability: model.raw_availability,
             error_message: model.error_message,
@@ -165,6 +167,7 @@ mod tests {
         AvailabilityCheckModel {
             id: Uuid::new_v4(),
             product_id: Uuid::new_v4(),
+            product_retailer_id: None,
             status: "in_stock".to_string(),
             raw_availability: Some("http://schema.org/InStock".to_string()),
             error_message: None,

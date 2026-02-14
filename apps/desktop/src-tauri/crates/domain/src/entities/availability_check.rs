@@ -103,6 +103,9 @@ pub struct Model {
 
     pub product_id: Uuid,
 
+    /// Product-retailer link this check was performed against
+    pub product_retailer_id: Option<Uuid>,
+
     /// Status as stored in DB (in_stock, out_of_stock, back_order, unknown)
     pub status: String,
 
@@ -133,11 +136,24 @@ pub enum Relation {
         to = "super::product::Column::Id"
     )]
     Product,
+
+    #[sea_orm(
+        belongs_to = "super::product_retailer::Entity",
+        from = "Column::ProductRetailerId",
+        to = "super::product_retailer::Column::Id"
+    )]
+    ProductRetailer,
 }
 
 impl Related<super::product::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Product.def()
+    }
+}
+
+impl Related<super::product_retailer::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ProductRetailer.def()
     }
 }
 
@@ -323,6 +339,7 @@ mod tests {
         let model = Model {
             id: Uuid::new_v4(),
             product_id: Uuid::new_v4(),
+            product_retailer_id: None,
             status: "in_stock".to_string(),
             raw_availability: None,
             error_message: None,

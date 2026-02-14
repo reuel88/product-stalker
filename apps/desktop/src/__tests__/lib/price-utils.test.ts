@@ -17,6 +17,7 @@ function createCheck(
 	return {
 		id: "check-1",
 		product_id: "product-1",
+		product_retailer_id: null,
 		status: "in_stock",
 		raw_availability: null,
 		error_message: null,

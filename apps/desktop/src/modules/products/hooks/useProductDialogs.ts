@@ -19,7 +19,6 @@ export type DialogState =
 
 const initialFormData: CreateProductInput = {
 	name: "",
-	url: "",
 	description: "",
 	notes: "",
 };
@@ -55,7 +54,6 @@ export function useProductDialogs() {
 			product,
 			formData: {
 				name: product.name,
-				url: product.url,
 				description: product.description || "",
 				notes: product.notes || "",
 			},
