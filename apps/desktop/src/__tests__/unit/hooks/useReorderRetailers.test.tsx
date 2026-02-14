@@ -1,4 +1,4 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -6,7 +6,7 @@ import { COMMANDS, QUERY_KEYS } from "@/constants";
 import { useReorderRetailers } from "@/modules/products/hooks/useReorderRetailers";
 import type { ProductRetailerResponse } from "@/modules/products/types";
 import { getMockedInvoke, mockInvokeMultiple } from "../../mocks/tauri";
-import { createHookWrapper, createTestQueryClient } from "../../test-utils";
+import { createHookWrapper } from "../../test-utils";
 
 function createRetailer(
 	overrides: Partial<ProductRetailerResponse> = {},
@@ -74,7 +74,14 @@ describe("useReorderRetailers", () => {
 	});
 
 	it("should optimistically update cache on mutate", async () => {
-		const queryClient = createTestQueryClient();
+		// Use gcTime: Infinity so setQueryData entries (which have no active
+		// observer) aren't garbage-collected before onMutate can read them.
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+				mutations: { retry: false },
+			},
+		});
 
 		const initialRetailers: ProductRetailerResponse[] = [
 			createRetailer({ id: "pr-a", sort_order: 0 }),
