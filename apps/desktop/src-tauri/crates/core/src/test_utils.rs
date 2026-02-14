@@ -6,6 +6,11 @@ use sea_orm::{ConnectionTrait, Database, DatabaseBackend, DatabaseConnection, Sc
 
 use crate::entities::app_setting::Entity as AppSettingEntity;
 
+/// Creates a bare in-memory SQLite test database with no tables
+pub async fn setup_in_memory_db() -> DatabaseConnection {
+    Database::connect("sqlite::memory:").await.unwrap()
+}
+
 /// Creates an in-memory SQLite test database with app_settings table only (EAV model)
 pub async fn setup_app_settings_db() -> DatabaseConnection {
     let conn = Database::connect("sqlite::memory:").await.unwrap();

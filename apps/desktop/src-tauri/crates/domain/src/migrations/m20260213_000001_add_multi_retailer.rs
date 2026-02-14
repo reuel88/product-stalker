@@ -237,22 +237,22 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
-        txn.commit().await?;
-
-        // Verify foreign key integrity after commit
-        let violations = db
+        // Verify foreign key integrity before commit (rollback on failure)
+        let violations = txn
             .query_all(Statement::from_string(
-                db.get_database_backend(),
+                txn.get_database_backend(),
                 "PRAGMA foreign_key_check".to_owned(),
             ))
             .await?;
 
         if !violations.is_empty() {
             return Err(DbErr::Custom(format!(
-                "Foreign key constraint violations detected after migration: {} violations",
+                "Foreign key constraint violations detected during migration: {} violations",
                 violations.len()
             )));
         }
+
+        txn.commit().await?;
 
         Ok(())
     }
@@ -269,43 +269,17 @@ impl MigrationTrait for Migration {
         txn.execute_unprepared("DROP TABLE IF EXISTS retailers")
             .await?;
 
-        // 2. Rebuild availability_checks without product_retailer_id column
+        // 2. Backup availability_checks data into FK-free table (excluding product_retailer_id).
+        // This prevents CASCADE deletion when we rebuild the products table.
         txn.execute_unprepared(
-            r#"
-            CREATE TABLE availability_checks_new (
-                id TEXT NOT NULL PRIMARY KEY,
-                product_id TEXT NOT NULL,
-                status TEXT NOT NULL,
-                raw_availability TEXT NULL,
-                error_message TEXT NULL,
-                checked_at TEXT NOT NULL,
-                price_minor_units INTEGER NULL,
-                price_currency TEXT NULL,
-                raw_price TEXT NULL,
-                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-            )
-            "#,
-        )
-        .await?;
-        txn.execute_unprepared(
-            "INSERT INTO availability_checks_new SELECT id, product_id, status, raw_availability, error_message, checked_at, price_minor_units, price_currency, raw_price FROM availability_checks",
+            "CREATE TABLE availability_checks_backup AS SELECT id, product_id, status, raw_availability, error_message, checked_at, price_minor_units, price_currency, raw_price FROM availability_checks",
         )
         .await?;
         txn.execute_unprepared("DROP TABLE availability_checks")
             .await?;
-        txn.execute_unprepared("ALTER TABLE availability_checks_new RENAME TO availability_checks")
-            .await?;
-        txn.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_availability_checks_product_id ON availability_checks (product_id)",
-        )
-        .await?;
-        txn.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_availability_checks_checked_at ON availability_checks (checked_at)",
-        )
-        .await?;
 
-        // 3. Make products.url NOT NULL again (table rebuild)
-        // Safe: availability_checks FK was removed above, no FK references to products.
+        // 3. Make products.url NOT NULL again (table rebuild).
+        // Safe: no foreign key references to products exist now.
         txn.execute_unprepared(
             r#"
             CREATE TABLE products_new (
@@ -335,10 +309,10 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
-        // 4. Recreate availability_checks with FK to rebuilt products
+        // 4. Recreate availability_checks with FK to rebuilt products, copy from backup
         txn.execute_unprepared(
             r#"
-            CREATE TABLE availability_checks_temp (
+            CREATE TABLE availability_checks (
                 id TEXT NOT NULL PRIMARY KEY,
                 product_id TEXT NOT NULL,
                 status TEXT NOT NULL,
@@ -354,15 +328,11 @@ impl MigrationTrait for Migration {
         )
         .await?;
         txn.execute_unprepared(
-            "INSERT INTO availability_checks_temp SELECT * FROM availability_checks",
+            "INSERT INTO availability_checks SELECT * FROM availability_checks_backup",
         )
         .await?;
-        txn.execute_unprepared("DROP TABLE availability_checks")
+        txn.execute_unprepared("DROP TABLE availability_checks_backup")
             .await?;
-        txn.execute_unprepared(
-            "ALTER TABLE availability_checks_temp RENAME TO availability_checks",
-        )
-        .await?;
         txn.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_availability_checks_product_id ON availability_checks (product_id)",
         )
@@ -372,22 +342,22 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
-        txn.commit().await?;
-
-        // Verify foreign key integrity after commit
-        let violations = db
+        // Verify foreign key integrity before commit (rollback on failure)
+        let violations = txn
             .query_all(Statement::from_string(
-                db.get_database_backend(),
+                txn.get_database_backend(),
                 "PRAGMA foreign_key_check".to_owned(),
             ))
             .await?;
 
         if !violations.is_empty() {
             return Err(DbErr::Custom(format!(
-                "Foreign key constraint violations detected after rollback: {} violations",
+                "Foreign key constraint violations detected during rollback: {} violations",
                 violations.len()
             )));
         }
+
+        txn.commit().await?;
 
         Ok(())
     }
