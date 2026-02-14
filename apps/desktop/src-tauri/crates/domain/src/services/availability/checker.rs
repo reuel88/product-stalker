@@ -5,7 +5,9 @@ use uuid::Uuid;
 
 use crate::entities::availability_check::AvailabilityStatus;
 use crate::entities::prelude::{AvailabilityCheckModel, ProductModel};
-use crate::repositories::{AvailabilityCheckRepository, CreateCheckParams, ProductRepository};
+use crate::repositories::{
+    AvailabilityCheckRepository, CreateCheckParams, ProductRepository, ProductRetailerRepository,
+};
 use crate::services::scraper::has_path_locale;
 use crate::services::{NotificationService, ScraperService};
 use product_stalker_core::AppError;
@@ -420,15 +422,35 @@ impl AvailabilityService {
         let previous_check = Self::get_latest(conn, product_id).await?;
         let previous_status = previous_check.map(|c| c.status_enum());
 
-        // Step 2: Perform the check
-        let check = Self::check_product(
-            conn,
-            product_id,
-            enable_headless,
-            allow_manual_verification,
-            session_cache_duration_days,
-        )
-        .await?;
+        // Step 2: Check retailers first, fall back to legacy product.url
+        let retailers = ProductRetailerRepository::find_by_product_id(conn, product_id).await?;
+
+        let check = if retailers.is_empty() {
+            // Legacy path: product has no retailer links, use product.url
+            Self::check_product(
+                conn,
+                product_id,
+                enable_headless,
+                allow_manual_verification,
+                session_cache_duration_days,
+            )
+            .await?
+        } else {
+            // Multi-retailer path: check all retailers, return the last result
+            let mut last_check = None;
+            for retailer in &retailers {
+                let result = Self::check_product_retailer(
+                    conn,
+                    retailer.id,
+                    enable_headless,
+                    allow_manual_verification,
+                    session_cache_duration_days,
+                )
+                .await?;
+                last_check = Some(result);
+            }
+            last_check.expect("retailers is non-empty")
+        };
 
         // Step 3: Get daily price comparison (includes the new check in today's average)
         let daily_comparison = Self::get_daily_price_comparison(conn, product_id).await?;
@@ -584,6 +606,106 @@ mod tests {
 
             assert!(result.is_err());
             assert!(matches!(result, Err(AppError::NotFound(_))));
+        }
+    }
+
+    /// Tests for check_product_with_notification retailer routing
+    mod check_with_notification_tests {
+        use super::*;
+        use crate::repositories::{
+            CreateProductRepoParams, CreateProductRetailerParams, ProductRetailerRepository,
+            RetailerRepository,
+        };
+
+        #[tokio::test]
+        async fn test_check_product_with_notification_uses_retailers_when_present() {
+            let conn = setup_availability_db().await;
+
+            // Create a product with NO URL (post-migration state)
+            let product_id = Uuid::new_v4();
+            ProductRepository::create(
+                &conn,
+                product_id,
+                CreateProductRepoParams {
+                    name: "Multi-Retailer Product".to_string(),
+                    url: None,
+                    description: None,
+                    notes: None,
+                },
+            )
+            .await
+            .unwrap();
+
+            // Create a retailer and link it to the product
+            let retailer = RetailerRepository::find_or_create_by_domain(&conn, "example.com")
+                .await
+                .unwrap();
+
+            ProductRetailerRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                retailer.id,
+                CreateProductRetailerParams {
+                    product_id,
+                    url: "https://example.com/product".to_string(),
+                    label: None,
+                },
+            )
+            .await
+            .unwrap();
+
+            // Should NOT fail with "Product has no URL set" — uses retailer path instead.
+            // The scraping will fail (no network in tests), but the error is caught and
+            // stored as a check result, so this should return Ok.
+            let result = AvailabilityService::check_product_with_notification(
+                &conn, product_id, false, false, false, 14,
+            )
+            .await;
+
+            assert!(
+                result.is_ok(),
+                "Expected Ok but got: {:?}",
+                result.unwrap_err()
+            );
+
+            // Verify a check was created (with error from failed scraping)
+            let latest = AvailabilityService::get_latest(&conn, product_id)
+                .await
+                .unwrap();
+            assert!(latest.is_some(), "A check record should have been created");
+        }
+
+        #[tokio::test]
+        async fn test_check_product_with_notification_no_url_no_retailers_fails() {
+            let conn = setup_availability_db().await;
+
+            // Create a product with NO URL and NO retailers
+            let product_id = Uuid::new_v4();
+            ProductRepository::create(
+                &conn,
+                product_id,
+                CreateProductRepoParams {
+                    name: "No URL Product".to_string(),
+                    url: None,
+                    description: None,
+                    notes: None,
+                },
+            )
+            .await
+            .unwrap();
+
+            // Should fail with the legacy "Product has no URL set" validation error
+            let result = AvailabilityService::check_product_with_notification(
+                &conn, product_id, false, false, false, 14,
+            )
+            .await;
+
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(
+                matches!(&err, AppError::Validation(msg) if msg.contains("no URL")),
+                "Expected Validation error about missing URL, got: {err:?}"
+            );
         }
     }
 
