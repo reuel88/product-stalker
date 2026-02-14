@@ -1,3 +1,4 @@
+use sea_orm::{DatabaseTransaction, Statement, TransactionTrait};
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
@@ -8,115 +9,130 @@ impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
 
-        // 1. Create retailers table
-        manager
-            .create_table(
-                Table::create()
-                    .table(Retailers::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(Retailers::Id)
-                            .string()
-                            .not_null()
-                            .primary_key(),
-                    )
-                    .col(
-                        ColumnDef::new(Retailers::Domain)
-                            .string()
-                            .not_null()
-                            .unique_key(),
-                    )
-                    .col(ColumnDef::new(Retailers::Name).string().not_null())
-                    .col(ColumnDef::new(Retailers::CreatedAt).text().not_null())
-                    .to_owned(),
-            )
+        // Use a transaction to pin all operations to a single database connection.
+        // SeaORM's DatabaseConnection for SQLite is a pool, and without a transaction,
+        // each execute_unprepared call may use a different connection, causing
+        // non-deterministic behavior during table rebuilds (DROP TABLE + RENAME).
+        let txn: DatabaseTransaction = db.begin().await?;
+
+        // 1. Preserve availability_checks data and remove its FK to products.
+        // This prevents CASCADE deletion when we rebuild the products table.
+        txn.execute_unprepared(
+            "CREATE TABLE availability_checks_backup AS SELECT * FROM availability_checks",
+        )
+        .await?;
+        txn.execute_unprepared("DROP TABLE availability_checks")
             .await?;
 
-        // 2. Create product_retailers table
-        manager
-            .create_table(
-                Table::create()
-                    .table(ProductRetailers::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(ProductRetailers::Id)
-                            .string()
-                            .not_null()
-                            .primary_key(),
-                    )
-                    .col(
-                        ColumnDef::new(ProductRetailers::ProductId)
-                            .string()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(ProductRetailers::RetailerId)
-                            .string()
-                            .not_null(),
-                    )
-                    .col(ColumnDef::new(ProductRetailers::Url).string().not_null())
-                    .col(ColumnDef::new(ProductRetailers::Label).string().null())
-                    .col(
-                        ColumnDef::new(ProductRetailers::CreatedAt)
-                            .text()
-                            .not_null(),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_product_retailers_product")
-                            .from(ProductRetailers::Table, ProductRetailers::ProductId)
-                            .to(Products::Table, Products::Id)
-                            .on_delete(ForeignKeyAction::Cascade),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_product_retailers_retailer")
-                            .from(ProductRetailers::Table, ProductRetailers::RetailerId)
-                            .to(Retailers::Table, Retailers::Id)
-                            .on_delete(ForeignKeyAction::Restrict),
-                    )
-                    .to_owned(),
+        // 2. Make products.url nullable (SQLite table rebuild).
+        // Safe: no foreign key references to products exist now.
+        txn.execute_unprepared(
+            r#"
+            CREATE TABLE products_new (
+                id TEXT NOT NULL PRIMARY KEY,
+                name TEXT NOT NULL,
+                url TEXT NULL,
+                description TEXT NULL,
+                notes TEXT NULL,
+                currency TEXT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             )
+            "#,
+        )
+        .await?;
+        txn.execute_unprepared(
+            "INSERT INTO products_new SELECT id, name, url, description, notes, currency, created_at, updated_at FROM products",
+        )
+        .await?;
+        txn.execute_unprepared("DROP TABLE products").await?;
+        txn.execute_unprepared("ALTER TABLE products_new RENAME TO products")
             .await?;
+        txn.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_products_name ON products (name)")
+            .await?;
+        txn.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_products_created_at ON products (created_at)",
+        )
+        .await?;
 
-        // Indexes for product_retailers
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_product_retailers_product_id")
-                    .table(ProductRetailers::Table)
-                    .col(ProductRetailers::ProductId)
-                    .to_owned(),
+        // 3. Recreate availability_checks with FK to products + new product_retailer_id column
+        txn.execute_unprepared(
+            r#"
+            CREATE TABLE availability_checks (
+                id TEXT NOT NULL PRIMARY KEY,
+                product_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                raw_availability TEXT NULL,
+                error_message TEXT NULL,
+                checked_at TEXT NOT NULL,
+                price_minor_units INTEGER NULL,
+                price_currency TEXT NULL,
+                raw_price TEXT NULL,
+                product_retailer_id TEXT NULL,
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
             )
+            "#,
+        )
+        .await?;
+        txn.execute_unprepared(
+            "INSERT INTO availability_checks (id, product_id, status, raw_availability, error_message, checked_at, price_minor_units, price_currency, raw_price) SELECT id, product_id, status, raw_availability, error_message, checked_at, price_minor_units, price_currency, raw_price FROM availability_checks_backup",
+        )
+        .await?;
+        txn.execute_unprepared("DROP TABLE availability_checks_backup")
             .await?;
+        txn.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_availability_checks_product_id ON availability_checks (product_id)",
+        )
+        .await?;
+        txn.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_availability_checks_checked_at ON availability_checks (checked_at)",
+        )
+        .await?;
 
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_product_retailers_retailer_id")
-                    .table(ProductRetailers::Table)
-                    .col(ProductRetailers::RetailerId)
-                    .to_owned(),
+        // 4. Create retailers table
+        txn.execute_unprepared(
+            r#"
+            CREATE TABLE IF NOT EXISTS retailers (
+                id TEXT NOT NULL PRIMARY KEY,
+                domain TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                created_at TEXT NOT NULL
             )
-            .await?;
+            "#,
+        )
+        .await?;
 
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_product_retailers_product_url")
-                    .table(ProductRetailers::Table)
-                    .col(ProductRetailers::ProductId)
-                    .col(ProductRetailers::Url)
-                    .unique()
-                    .to_owned(),
+        // 5. Create product_retailers table
+        txn.execute_unprepared(
+            r#"
+            CREATE TABLE IF NOT EXISTS product_retailers (
+                id TEXT NOT NULL PRIMARY KEY,
+                product_id TEXT NOT NULL,
+                retailer_id TEXT NOT NULL,
+                url TEXT NOT NULL,
+                label TEXT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                FOREIGN KEY (retailer_id) REFERENCES retailers(id) ON DELETE RESTRICT
             )
-            .await?;
+            "#,
+        )
+        .await?;
+        txn.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_product_retailers_product_id ON product_retailers (product_id)",
+        )
+        .await?;
+        txn.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_product_retailers_retailer_id ON product_retailers (retailer_id)",
+        )
+        .await?;
+        txn.execute_unprepared(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_product_retailers_product_url ON product_retailers (product_id, url)",
+        )
+        .await?;
 
-        // 3. Data migration: create retailers and product_retailers from existing products
-        db.execute_unprepared(
+        // 6. Data migration: create retailers and product_retailers from existing products
+        txn.execute_unprepared(
             r#"
             INSERT OR IGNORE INTO retailers (id, domain, name, created_at)
             SELECT
@@ -170,8 +186,7 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
-        // Create product_retailers from existing products
-        db.execute_unprepared(
+        txn.execute_unprepared(
             r#"
             INSERT INTO product_retailers (id, product_id, retailer_id, url, label, created_at)
             SELECT
@@ -208,14 +223,8 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
-        // 4. Add product_retailer_id column to availability_checks
-        db.execute_unprepared(
-            "ALTER TABLE availability_checks ADD COLUMN product_retailer_id TEXT NULL",
-        )
-        .await?;
-
-        // 5. Backfill product_retailer_id in availability_checks
-        db.execute_unprepared(
+        // 7. Backfill product_retailer_id in availability_checks
+        txn.execute_unprepared(
             r#"
             UPDATE availability_checks
             SET product_retailer_id = (
@@ -227,39 +236,22 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
-        // 6. Make products.url nullable (SQLite table rebuild)
-        db.execute_unprepared(
-            r#"
-            CREATE TABLE products_new (
-                id TEXT NOT NULL PRIMARY KEY,
-                name TEXT NOT NULL,
-                url TEXT NULL,
-                description TEXT NULL,
-                notes TEXT NULL,
-                currency TEXT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-            "#,
-        )
-        .await?;
+        txn.commit().await?;
 
-        db.execute_unprepared(
-            "INSERT INTO products_new SELECT id, name, url, description, notes, currency, created_at, updated_at FROM products",
-        )
-        .await?;
-
-        db.execute_unprepared("DROP TABLE products").await?;
-        db.execute_unprepared("ALTER TABLE products_new RENAME TO products")
+        // Verify foreign key integrity after commit
+        let violations = db
+            .query_all(Statement::from_string(
+                db.get_database_backend(),
+                "PRAGMA foreign_key_check".to_owned(),
+            ))
             .await?;
 
-        // Recreate product indexes
-        db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_products_name ON products (name)")
-            .await?;
-        db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_products_created_at ON products (created_at)",
-        )
-        .await?;
+        if !violations.is_empty() {
+            return Err(DbErr::Custom(format!(
+                "Foreign key constraint violations detected after migration: {} violations",
+                violations.len()
+            )));
+        }
 
         Ok(())
     }
@@ -267,9 +259,17 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
 
-        // Remove product_retailer_id from availability_checks
-        // SQLite doesn't support DROP COLUMN before 3.35, use table rebuild
-        db.execute_unprepared(
+        // Use a transaction to pin all operations to a single connection
+        let txn: DatabaseTransaction = db.begin().await?;
+
+        // 1. Drop product_retailers and retailers tables first
+        txn.execute_unprepared("DROP TABLE IF EXISTS product_retailers")
+            .await?;
+        txn.execute_unprepared("DROP TABLE IF EXISTS retailers")
+            .await?;
+
+        // 2. Rebuild availability_checks without product_retailer_id column
+        txn.execute_unprepared(
             r#"
             CREATE TABLE availability_checks_new (
                 id TEXT NOT NULL PRIMARY KEY,
@@ -286,28 +286,26 @@ impl MigrationTrait for Migration {
             "#,
         )
         .await?;
-
-        db.execute_unprepared(
+        txn.execute_unprepared(
             "INSERT INTO availability_checks_new SELECT id, product_id, status, raw_availability, error_message, checked_at, price_minor_units, price_currency, raw_price FROM availability_checks",
         )
         .await?;
-
-        db.execute_unprepared("DROP TABLE availability_checks")
+        txn.execute_unprepared("DROP TABLE availability_checks")
             .await?;
-        db.execute_unprepared("ALTER TABLE availability_checks_new RENAME TO availability_checks")
+        txn.execute_unprepared("ALTER TABLE availability_checks_new RENAME TO availability_checks")
             .await?;
-
-        db.execute_unprepared(
+        txn.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_availability_checks_product_id ON availability_checks (product_id)",
         )
         .await?;
-        db.execute_unprepared(
+        txn.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_availability_checks_checked_at ON availability_checks (checked_at)",
         )
         .await?;
 
-        // Make products.url NOT NULL again
-        db.execute_unprepared(
+        // 3. Make products.url NOT NULL again (table rebuild)
+        // Safe: availability_checks FK was removed above, no FK references to products.
+        txn.execute_unprepared(
             r#"
             CREATE TABLE products_new (
                 id TEXT NOT NULL PRIMARY KEY,
@@ -322,57 +320,74 @@ impl MigrationTrait for Migration {
             "#,
         )
         .await?;
-
-        db.execute_unprepared(
+        txn.execute_unprepared(
             "INSERT INTO products_new SELECT id, name, COALESCE(url, ''), description, notes, currency, created_at, updated_at FROM products",
         )
         .await?;
-
-        db.execute_unprepared("DROP TABLE products").await?;
-        db.execute_unprepared("ALTER TABLE products_new RENAME TO products")
+        txn.execute_unprepared("DROP TABLE products").await?;
+        txn.execute_unprepared("ALTER TABLE products_new RENAME TO products")
             .await?;
-
-        db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_products_name ON products (name)")
+        txn.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_products_name ON products (name)")
             .await?;
-        db.execute_unprepared(
+        txn.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_products_created_at ON products (created_at)",
         )
         .await?;
 
-        // Drop product_retailers and retailers tables
-        manager
-            .drop_table(Table::drop().table(ProductRetailers::Table).to_owned())
+        // 4. Recreate availability_checks with FK to rebuilt products
+        txn.execute_unprepared(
+            r#"
+            CREATE TABLE availability_checks_temp (
+                id TEXT NOT NULL PRIMARY KEY,
+                product_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                raw_availability TEXT NULL,
+                error_message TEXT NULL,
+                checked_at TEXT NOT NULL,
+                price_minor_units INTEGER NULL,
+                price_currency TEXT NULL,
+                raw_price TEXT NULL,
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+            )
+            "#,
+        )
+        .await?;
+        txn.execute_unprepared(
+            "INSERT INTO availability_checks_temp SELECT * FROM availability_checks",
+        )
+        .await?;
+        txn.execute_unprepared("DROP TABLE availability_checks")
             .await?;
-        manager
-            .drop_table(Table::drop().table(Retailers::Table).to_owned())
+        txn.execute_unprepared(
+            "ALTER TABLE availability_checks_temp RENAME TO availability_checks",
+        )
+        .await?;
+        txn.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_availability_checks_product_id ON availability_checks (product_id)",
+        )
+        .await?;
+        txn.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_availability_checks_checked_at ON availability_checks (checked_at)",
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        // Verify foreign key integrity after commit
+        let violations = db
+            .query_all(Statement::from_string(
+                db.get_database_backend(),
+                "PRAGMA foreign_key_check".to_owned(),
+            ))
             .await?;
+
+        if !violations.is_empty() {
+            return Err(DbErr::Custom(format!(
+                "Foreign key constraint violations detected after rollback: {} violations",
+                violations.len()
+            )));
+        }
 
         Ok(())
     }
-}
-
-#[derive(DeriveIden)]
-enum Retailers {
-    Table,
-    Id,
-    Domain,
-    Name,
-    CreatedAt,
-}
-
-#[derive(DeriveIden)]
-enum ProductRetailers {
-    Table,
-    Id,
-    ProductId,
-    RetailerId,
-    Url,
-    Label,
-    CreatedAt,
-}
-
-#[derive(DeriveIden)]
-enum Products {
-    Table,
-    Id,
 }
