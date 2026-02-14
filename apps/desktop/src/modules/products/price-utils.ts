@@ -238,6 +238,72 @@ export function formatPrice(
 	}).format(minorUnits / 10 ** exponent);
 }
 
+/** Latest price info for a single retailer */
+export interface RetailerPrice {
+	priceMinorUnits: number;
+	currency: string;
+	currencyExponent: number;
+}
+
+/**
+ * Get the latest valid price for each retailer from availability checks.
+ * Groups checks by `product_retailer_id`, picks the most recent check
+ * with a valid price for each retailer.
+ *
+ * @returns Map keyed by retailer ID → latest price info
+ */
+export function getLatestPriceByRetailer(
+	checks: AvailabilityCheckResponse[],
+	retailers: ProductRetailerResponse[],
+): Map<string, RetailerPrice> {
+	const retailerIds = new Set(retailers.map((r) => r.id));
+	const result = new Map<string, RetailerPrice>();
+
+	// Sort descending by checked_at so we encounter newest first
+	const sorted = [...checks]
+		.filter(hasValidPrice)
+		.sort(
+			(a, b) =>
+				new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime(),
+		);
+
+	for (const check of sorted) {
+		const retailerId = check.product_retailer_id;
+		if (!retailerId || !retailerIds.has(retailerId)) continue;
+		if (result.has(retailerId)) continue;
+
+		result.set(retailerId, {
+			priceMinorUnits: check.price_minor_units,
+			currency: check.price_currency,
+			currencyExponent: check.currency_exponent ?? 2,
+		});
+	}
+
+	return result;
+}
+
+/**
+ * Find the retailer ID with the lowest price from a retailer price map.
+ * Returns null if fewer than 2 retailers have prices (no comparison possible).
+ */
+export function findCheapestRetailerId(
+	priceMap: Map<string, RetailerPrice>,
+): string | null {
+	if (priceMap.size < 2) return null;
+
+	let cheapestId: string | null = null;
+	let cheapestPrice = Number.POSITIVE_INFINITY;
+
+	for (const [id, price] of priceMap) {
+		if (price.priceMinorUnits < cheapestPrice) {
+			cheapestPrice = price.priceMinorUnits;
+			cheapestId = id;
+		}
+	}
+
+	return cheapestId;
+}
+
 const CHART_SERIES_COLORS = [
 	"var(--chart-1)",
 	"var(--chart-2)",

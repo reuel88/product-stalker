@@ -3,11 +3,14 @@ import {
 	calculatePriceChangePercent,
 	extractDomain,
 	filterByTimeRange,
+	findCheapestRetailerId,
 	formatPrice,
 	formatPriceChangePercent,
 	getDateRangeLabel,
+	getLatestPriceByRetailer,
 	getPriceChangeDirection,
 	isRoundedZero,
+	type RetailerPrice,
 	transformToMultiRetailerChartData,
 	transformToPriceDataPoints,
 } from "@/modules/products/price-utils";
@@ -34,6 +37,9 @@ function createCheck(
 		today_average_price_minor_units: null,
 		yesterday_average_price_minor_units: null,
 		is_price_drop: false,
+		lowest_price_minor_units: null,
+		lowest_price_currency: null,
+		lowest_currency_exponent: null,
 		...overrides,
 	};
 }
@@ -618,5 +624,184 @@ describe("transformToMultiRetailerChartData", () => {
 		const result = transformToMultiRetailerChartData(checks, retailers);
 
 		expect(result.series[0].label).toBe("www.amazon.com (64GB)");
+	});
+});
+
+describe("getLatestPriceByRetailer", () => {
+	it("should return latest price for each retailer", () => {
+		const retailers = [
+			createRetailer({ id: "pr-1" }),
+			createRetailer({
+				id: "pr-2",
+				url: "https://www.bestbuy.com/product/123",
+			}),
+		];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-02T10:00:00Z",
+				price_minor_units: 8999,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c3",
+				product_retailer_id: "pr-2",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 10999,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+		];
+
+		const result = getLatestPriceByRetailer(checks, retailers);
+
+		expect(result.size).toBe(2);
+		expect(result.get("pr-1")).toEqual({
+			priceMinorUnits: 8999,
+			currency: "USD",
+			currencyExponent: 2,
+		});
+		expect(result.get("pr-2")).toEqual({
+			priceMinorUnits: 10999,
+			currency: "USD",
+			currencyExponent: 2,
+		});
+	});
+
+	it("should skip checks with null prices", () => {
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-02T10:00:00Z",
+				price_minor_units: null,
+				price_currency: null,
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+		];
+
+		const result = getLatestPriceByRetailer(checks, retailers);
+
+		expect(result.size).toBe(1);
+		expect(result.get("pr-1")?.priceMinorUnits).toBe(9999);
+	});
+
+	it("should ignore checks with null product_retailer_id", () => {
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: null,
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+			}),
+		];
+
+		const result = getLatestPriceByRetailer(checks, retailers);
+
+		expect(result.size).toBe(0);
+	});
+
+	it("should ignore checks for unknown retailer IDs", () => {
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-unknown",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+			}),
+		];
+
+		const result = getLatestPriceByRetailer(checks, retailers);
+
+		expect(result.size).toBe(0);
+	});
+
+	it("should return empty map for empty inputs", () => {
+		const result = getLatestPriceByRetailer([], []);
+
+		expect(result.size).toBe(0);
+	});
+
+	it("should use default exponent of 2 when currency_exponent is null", () => {
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+				currency_exponent: null,
+			}),
+		];
+
+		const result = getLatestPriceByRetailer(checks, retailers);
+
+		expect(result.get("pr-1")?.currencyExponent).toBe(2);
+	});
+});
+
+describe("findCheapestRetailerId", () => {
+	it("should return the cheapest retailer ID", () => {
+		const priceMap = new Map<string, RetailerPrice>([
+			["pr-1", { priceMinorUnits: 9999, currency: "USD", currencyExponent: 2 }],
+			["pr-2", { priceMinorUnits: 7999, currency: "USD", currencyExponent: 2 }],
+			[
+				"pr-3",
+				{ priceMinorUnits: 10999, currency: "USD", currencyExponent: 2 },
+			],
+		]);
+
+		expect(findCheapestRetailerId(priceMap)).toBe("pr-2");
+	});
+
+	it("should return null when fewer than 2 retailers have prices", () => {
+		const singlePrice = new Map<string, RetailerPrice>([
+			["pr-1", { priceMinorUnits: 9999, currency: "USD", currencyExponent: 2 }],
+		]);
+
+		expect(findCheapestRetailerId(singlePrice)).toBeNull();
+	});
+
+	it("should return null for empty map", () => {
+		expect(findCheapestRetailerId(new Map())).toBeNull();
+	});
+
+	it("should return first cheapest when prices are tied", () => {
+		const priceMap = new Map<string, RetailerPrice>([
+			["pr-1", { priceMinorUnits: 9999, currency: "USD", currencyExponent: 2 }],
+			["pr-2", { priceMinorUnits: 9999, currency: "USD", currencyExponent: 2 }],
+		]);
+
+		const result = findCheapestRetailerId(priceMap);
+		// Both have same price; first one wins since it's < not <=
+		expect(result).toBe("pr-1");
 	});
 });

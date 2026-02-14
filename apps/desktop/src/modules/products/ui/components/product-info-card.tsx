@@ -47,7 +47,18 @@ export function ProductInfoCard({
 	onCheck,
 }: ProductInfoCardProps) {
 	const { formatDate } = useDateFormat();
-	const hasPrice = latestCheck?.price_minor_units != null;
+
+	const displayPrice =
+		latestCheck?.lowest_price_minor_units ??
+		latestCheck?.price_minor_units ??
+		null;
+	const displayCurrency =
+		latestCheck?.lowest_price_currency ?? latestCheck?.price_currency ?? null;
+	const displayExponent =
+		latestCheck?.lowest_currency_exponent ??
+		latestCheck?.currency_exponent ??
+		2;
+	const hasPrice = displayPrice != null;
 
 	return (
 		<Card>
@@ -80,15 +91,15 @@ export function ProductInfoCard({
 					<div>
 						<p className="text-muted-foreground text-xs">Current Price</p>
 						<PriceChangeIndicator
-							currentPriceMinorUnits={latestCheck.price_minor_units}
+							currentPriceMinorUnits={displayPrice}
 							todayAverageMinorUnits={
-								latestCheck.today_average_price_minor_units
+								latestCheck?.today_average_price_minor_units ?? null
 							}
 							yesterdayAverageMinorUnits={
-								latestCheck.yesterday_average_price_minor_units
+								latestCheck?.yesterday_average_price_minor_units ?? null
 							}
-							currency={latestCheck.price_currency}
-							currencyExponent={latestCheck.currency_exponent ?? 2}
+							currency={displayCurrency}
+							currencyExponent={displayExponent}
 							variant="detailed"
 						/>
 					</div>

@@ -81,6 +81,12 @@ export interface AvailabilityCheckResponse {
 	yesterday_average_price_minor_units: number | null;
 	/** True if today's average price is lower than yesterday's average */
 	is_price_drop: boolean;
+	/** Lowest current price across all retailers (minor units) */
+	lowest_price_minor_units: number | null;
+	/** Currency of the lowest price */
+	lowest_price_currency: string | null;
+	/** Currency exponent for the lowest price */
+	lowest_currency_exponent: number | null;
 }
 
 /**

@@ -30,6 +30,12 @@ pub struct AvailabilityCheckResponse {
     pub yesterday_average_price_minor_units: Option<i64>,
     /// True if today's average price is lower than yesterday's average
     pub is_price_drop: bool,
+    /// Lowest current price across all retailers (minor units)
+    pub lowest_price_minor_units: Option<i64>,
+    /// Currency of the lowest price
+    pub lowest_price_currency: Option<String>,
+    /// Currency exponent for the lowest price
+    pub lowest_currency_exponent: Option<u32>,
 }
 
 impl AvailabilityCheckResponse {
@@ -61,7 +67,24 @@ impl AvailabilityCheckResponse {
             today_average_price_minor_units: daily_comparison.today_average_minor_units,
             yesterday_average_price_minor_units: daily_comparison.yesterday_average_minor_units,
             is_price_drop,
+            lowest_price_minor_units: None,
+            lowest_price_currency: None,
+            lowest_currency_exponent: None,
         }
+    }
+
+    /// Set the lowest price fields from a cheapest price query result
+    pub fn with_cheapest_price(
+        mut self,
+        cheapest: Option<crate::domain::repositories::CheapestPriceResult>,
+    ) -> Self {
+        if let Some(c) = cheapest {
+            let exponent = currency::currency_exponent(&c.price_currency);
+            self.lowest_price_minor_units = Some(c.price_minor_units);
+            self.lowest_price_currency = Some(c.price_currency);
+            self.lowest_currency_exponent = Some(exponent);
+        }
+        self
     }
 }
 
@@ -110,11 +133,14 @@ pub async fn get_latest_availability(
             // Get daily price comparison for today vs yesterday
             let daily_comparison =
                 AvailabilityService::get_daily_price_comparison(db.conn(), uuid).await?;
+            // Get cheapest current price across all retailers
+            let cheapest = AvailabilityService::get_cheapest_current_price(db.conn(), uuid).await?;
             Ok(Some(
                 AvailabilityCheckResponse::from_model_with_daily_comparison(
                     model,
                     daily_comparison,
-                ),
+                )
+                .with_cheapest_price(cheapest),
             ))
         }
         None => Ok(None),
@@ -202,6 +228,9 @@ mod tests {
         assert!(response.today_average_price_minor_units.is_none());
         assert!(response.yesterday_average_price_minor_units.is_none());
         assert!(!response.is_price_drop);
+        assert!(response.lowest_price_minor_units.is_none());
+        assert!(response.lowest_price_currency.is_none());
+        assert!(response.lowest_currency_exponent.is_none());
     }
 
     #[test]
@@ -227,6 +256,7 @@ mod tests {
         assert!(response.price_minor_units.is_none());
         assert!(response.currency_exponent.is_none());
         assert!(!response.is_price_drop);
+        assert!(response.lowest_price_minor_units.is_none());
     }
 
     #[test]
@@ -254,6 +284,9 @@ mod tests {
         assert!(json.contains("\"today_average_price_minor_units\":null"));
         assert!(json.contains("\"yesterday_average_price_minor_units\":null"));
         assert!(json.contains("\"is_price_drop\":false"));
+        assert!(json.contains("\"lowest_price_minor_units\":null"));
+        assert!(json.contains("\"lowest_price_currency\":null"));
+        assert!(json.contains("\"lowest_currency_exponent\":null"));
     }
 
     #[test]
@@ -320,5 +353,48 @@ mod tests {
         assert_eq!(response.today_average_price_minor_units, Some(78900));
         assert!(response.yesterday_average_price_minor_units.is_none());
         assert!(!response.is_price_drop);
+    }
+
+    #[test]
+    fn test_with_cheapest_price_sets_fields() {
+        use crate::domain::repositories::CheapestPriceResult;
+
+        let response = AvailabilityCheckResponse::from(test_model());
+        let cheapest = CheapestPriceResult {
+            price_minor_units: 3000,
+            price_currency: "AUD".to_string(),
+        };
+
+        let response = response.with_cheapest_price(Some(cheapest));
+
+        assert_eq!(response.lowest_price_minor_units, Some(3000));
+        assert_eq!(response.lowest_price_currency, Some("AUD".to_string()));
+        assert_eq!(response.lowest_currency_exponent, Some(2));
+    }
+
+    #[test]
+    fn test_with_cheapest_price_none_leaves_fields_null() {
+        let response = AvailabilityCheckResponse::from(test_model()).with_cheapest_price(None);
+
+        assert!(response.lowest_price_minor_units.is_none());
+        assert!(response.lowest_price_currency.is_none());
+        assert!(response.lowest_currency_exponent.is_none());
+    }
+
+    #[test]
+    fn test_with_cheapest_price_serializes() {
+        use crate::domain::repositories::CheapestPriceResult;
+
+        let response = AvailabilityCheckResponse::from(test_model()).with_cheapest_price(Some(
+            CheapestPriceResult {
+                price_minor_units: 5000,
+                price_currency: "JPY".to_string(),
+            },
+        ));
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"lowest_price_minor_units\":5000"));
+        assert!(json.contains("\"lowest_price_currency\":\"JPY\""));
+        assert!(json.contains("\"lowest_currency_exponent\":0"));
     }
 }
