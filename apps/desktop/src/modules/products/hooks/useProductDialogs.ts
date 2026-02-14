@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { CreateProductInput } from "@/modules/products/hooks/useProducts";
 import type { ProductResponse } from "@/modules/products/types";
+
+export interface RetailerEntry {
+	id: number;
+	url: string;
+	label: string;
+}
 
 /**
  * Discriminated union representing the current dialog state.
@@ -13,7 +19,11 @@ import type { ProductResponse } from "@/modules/products/types";
  */
 export type DialogState =
 	| { type: "closed" }
-	| { type: "create"; formData: CreateProductInput }
+	| {
+			type: "create";
+			formData: CreateProductInput;
+			retailerEntries: RetailerEntry[];
+	  }
 	| { type: "edit"; product: ProductResponse; formData: CreateProductInput }
 	| { type: "delete"; product: ProductResponse };
 
@@ -43,9 +53,14 @@ export function useProductDialogs() {
 	const [dialogState, setDialogState] = useState<DialogState>({
 		type: "closed",
 	});
+	const nextEntryId = useRef(0);
 
 	const openCreateDialog = () => {
-		setDialogState({ type: "create", formData: initialFormData });
+		setDialogState({
+			type: "create",
+			formData: initialFormData,
+			retailerEntries: [],
+		});
 	};
 
 	const openEditDialog = (product: ProductResponse) => {
@@ -70,10 +85,39 @@ export function useProductDialogs() {
 
 	const updateFormData = (formData: CreateProductInput) => {
 		if (dialogState.type === "create") {
-			setDialogState({ type: "create", formData });
+			setDialogState({ ...dialogState, formData });
 		} else if (dialogState.type === "edit") {
 			setDialogState({ ...dialogState, formData });
 		}
+	};
+
+	const addRetailerEntry = () => {
+		if (dialogState.type !== "create") return;
+		const id = nextEntryId.current++;
+		setDialogState({
+			...dialogState,
+			retailerEntries: [
+				...dialogState.retailerEntries,
+				{ id, url: "", label: "" },
+			],
+		});
+	};
+
+	const updateRetailerEntry = (index: number, entry: RetailerEntry) => {
+		if (dialogState.type !== "create") return;
+		const updated = [...dialogState.retailerEntries];
+		updated[index] = entry;
+		setDialogState({ ...dialogState, retailerEntries: updated });
+	};
+
+	const removeRetailerEntry = (index: number) => {
+		if (dialogState.type !== "create") return;
+		setDialogState({
+			...dialogState,
+			retailerEntries: dialogState.retailerEntries.filter(
+				(_, i) => i !== index,
+			),
+		});
 	};
 
 	return {
@@ -83,6 +127,9 @@ export function useProductDialogs() {
 		openDeleteDialog,
 		closeDialog,
 		updateFormData,
+		addRetailerEntry,
+		updateRetailerEntry,
+		removeRetailerEntry,
 		initialFormData,
 	};
 }

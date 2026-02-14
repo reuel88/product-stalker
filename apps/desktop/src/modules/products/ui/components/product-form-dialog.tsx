@@ -1,3 +1,4 @@
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -10,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { RetailerEntry } from "@/modules/products/hooks/useProductDialogs";
 import type { CreateProductInput } from "@/modules/products/hooks/useProducts";
 
 const MODE_CONFIG = {
@@ -35,6 +37,10 @@ interface ProductFormDialogProps {
 	onFormChange: (data: CreateProductInput) => void;
 	onSubmit: () => void;
 	isSubmitting: boolean;
+	retailerEntries?: RetailerEntry[];
+	onAddRetailerEntry?: () => void;
+	onUpdateRetailerEntry?: (index: number, entry: RetailerEntry) => void;
+	onRemoveRetailerEntry?: (index: number) => void;
 }
 
 export function ProductFormDialog({
@@ -45,6 +51,10 @@ export function ProductFormDialog({
 	onFormChange,
 	onSubmit,
 	isSubmitting,
+	retailerEntries,
+	onAddRetailerEntry,
+	onUpdateRetailerEntry,
+	onRemoveRetailerEntry,
 }: ProductFormDialogProps) {
 	const { title, description, submitLabel, submittingLabel } =
 		MODE_CONFIG[mode];
@@ -92,6 +102,65 @@ export function ProductFormDialog({
 							placeholder="Optional notes"
 						/>
 					</div>
+					{mode === "create" && retailerEntries && (
+						<div className="grid gap-2">
+							<div className="flex items-center justify-between">
+								<Label>Retailers</Label>
+								<Button
+									type="button"
+									variant="outline"
+									size="xs"
+									onClick={onAddRetailerEntry}
+								>
+									<Plus />
+									Add Retailer
+								</Button>
+							</div>
+							{retailerEntries.length === 0 ? (
+								<p className="text-muted-foreground text-sm">
+									No retailers added. You can add retailers after creation too.
+								</p>
+							) : (
+								<div className="grid gap-2">
+									{retailerEntries.map((entry, index) => (
+										<div key={entry.id} className="flex items-center gap-2">
+											<Input
+												data-testid={`retailer-url-${index}`}
+												value={entry.url}
+												onChange={(e) =>
+													onUpdateRetailerEntry?.(index, {
+														...entry,
+														url: e.target.value,
+													})
+												}
+												placeholder="https://example.com/product"
+											/>
+											<Input
+												data-testid={`retailer-label-${index}`}
+												value={entry.label}
+												onChange={(e) =>
+													onUpdateRetailerEntry?.(index, {
+														...entry,
+														label: e.target.value,
+													})
+												}
+												placeholder="Label (optional)"
+											/>
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon-sm"
+												data-testid={`retailer-remove-${index}`}
+												onClick={() => onRemoveRetailerEntry?.(index)}
+											>
+												<Trash2 />
+											</Button>
+										</div>
+									))}
+								</div>
+							)}
+						</div>
+					)}
 				</div>
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)}>

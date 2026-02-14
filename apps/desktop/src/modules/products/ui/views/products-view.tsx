@@ -1,4 +1,6 @@
+import { invoke } from "@tauri-apps/api/core";
 import { Plus, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,7 +10,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { MESSAGES } from "@/constants";
+import { COMMANDS, MESSAGES } from "@/constants";
 import { withToast, withToastVoid } from "@/lib/toast-helpers";
 import { cn } from "@/lib/utils";
 import {
@@ -17,7 +19,10 @@ import {
 } from "@/modules/products/hooks/useAvailability";
 import { useProductDialogs } from "@/modules/products/hooks/useProductDialogs";
 import { useProducts } from "@/modules/products/hooks/useProducts";
-import type { BulkCheckSummary } from "@/modules/products/types";
+import type {
+	BulkCheckSummary,
+	ProductRetailerResponse,
+} from "@/modules/products/types";
 import { DeleteConfirmDialog } from "@/modules/products/ui/components/delete-confirm-dialog";
 import { ProductFormDialog } from "@/modules/products/ui/components/product-form-dialog";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
@@ -89,7 +94,13 @@ export function ProductsView() {
 		openDeleteDialog,
 		closeDialog,
 		updateFormData,
+		addRetailerEntry,
+		updateRetailerEntry,
+		removeRetailerEntry,
 	} = useProductDialogs();
+
+	const [isSubmittingWithRetailers, setIsSubmittingWithRetailers] =
+		useState(false);
 
 	// Auto-subscribe to manual verification events
 	useManualVerificationListener();
@@ -106,23 +117,49 @@ export function ProductsView() {
 			notes: formData.notes || null,
 		};
 
-		const result = await withToast(
-			() =>
-				dialogState.type === "create"
-					? createProduct(input)
-					: updateProduct({ id: dialogState.product.id, input }),
-			{
-				success:
-					dialogState.type === "create"
-						? MESSAGES.PRODUCT.CREATED
-						: MESSAGES.PRODUCT.UPDATED,
-				error:
-					dialogState.type === "create"
-						? MESSAGES.PRODUCT.CREATE_FAILED
-						: MESSAGES.PRODUCT.UPDATE_FAILED,
-			},
+		if (dialogState.type === "edit") {
+			const result = await withToast(
+				() => updateProduct({ id: dialogState.product.id, input }),
+				{
+					success: MESSAGES.PRODUCT.UPDATED,
+					error: MESSAGES.PRODUCT.UPDATE_FAILED,
+				},
+			);
+			if (result) closeDialog();
+			return;
+		}
+
+		// Create mode: create product, then add retailers
+		const retailerEntries = dialogState.retailerEntries.filter(
+			(e) => e.url.trim() !== "",
 		);
-		if (result) closeDialog();
+
+		setIsSubmittingWithRetailers(true);
+		try {
+			const product = await withToast(() => createProduct(input), {
+				success: MESSAGES.PRODUCT.CREATED,
+				error: MESSAGES.PRODUCT.CREATE_FAILED,
+			});
+			if (!product) return;
+
+			for (const entry of retailerEntries) {
+				try {
+					await invoke<ProductRetailerResponse>(COMMANDS.ADD_PRODUCT_RETAILER, {
+						input: {
+							product_id: product.id,
+							url: entry.url.trim(),
+							label: entry.label.trim() || null,
+						},
+					});
+				} catch {
+					toast.error(`Failed to add retailer: ${entry.url}`);
+				}
+			}
+
+			closeDialog();
+		} finally {
+			setIsSubmittingWithRetailers(false);
+		}
 	};
 
 	const handleDelete = async () => {
@@ -202,7 +239,17 @@ export function ProductsView() {
 					formData={dialogState.formData}
 					onFormChange={updateFormData}
 					onSubmit={handleSubmit}
-					isSubmitting={dialogState.type === "create" ? isCreating : isUpdating}
+					isSubmitting={
+						dialogState.type === "create"
+							? isCreating || isSubmittingWithRetailers
+							: isUpdating
+					}
+					{...(dialogState.type === "create" && {
+						retailerEntries: dialogState.retailerEntries,
+						onAddRetailerEntry: addRetailerEntry,
+						onUpdateRetailerEntry: updateRetailerEntry,
+						onRemoveRetailerEntry: removeRetailerEntry,
+					})}
 				/>
 			)}
 
