@@ -86,9 +86,13 @@ describe("useReorderRetailers", () => {
 			initialRetailers,
 		);
 
-		mockInvokeMultiple({
-			[COMMANDS.REORDER_PRODUCT_RETAILERS]: undefined,
-			[COMMANDS.GET_PRODUCT_RETAILERS]: initialRetailers,
+		// Never resolve the reorder command so onSettled never fires
+		// and we can inspect the optimistic state set by onMutate
+		getMockedInvoke().mockImplementation((cmd: string) => {
+			if (cmd === COMMANDS.REORDER_PRODUCT_RETAILERS) {
+				return new Promise(() => {});
+			}
+			return Promise.resolve(initialRetailers);
 		});
 
 		function Wrapper({ children }: { children: ReactNode }) {

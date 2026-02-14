@@ -67,10 +67,13 @@ describe("useReorderProducts", () => {
 
 		queryClient.setQueryData(QUERY_KEYS.PRODUCTS, initialProducts);
 
-		// Make the invoke hang so we can inspect optimistic state
-		mockInvokeMultiple({
-			[COMMANDS.REORDER_PRODUCTS]: undefined,
-			[COMMANDS.GET_PRODUCTS]: initialProducts,
+		// Never resolve the reorder command so onSettled never fires
+		// and we can inspect the optimistic state set by onMutate
+		getMockedInvoke().mockImplementation((cmd: string) => {
+			if (cmd === COMMANDS.REORDER_PRODUCTS) {
+				return new Promise(() => {});
+			}
+			return Promise.resolve(initialProducts);
 		});
 
 		function Wrapper({ children }: { children: ReactNode }) {
