@@ -115,6 +115,46 @@ describe("ProductsTable DnD reorder mode", () => {
 		expect(screen.getByText("Product 15")).toBeInTheDocument();
 	});
 
+	it("should show all products when entering reorder mode from page 2", async () => {
+		const products = createMockProducts(15).map((p, i) => ({
+			...p,
+			name: `Product ${i + 1}`,
+		}));
+
+		const { user } = render(
+			<ProductsTable
+				products={products}
+				onEdit={mockOnEdit}
+				onDelete={mockOnDelete}
+			/>,
+		);
+
+		// Confirm we're on page 1 of 2
+		expect(screen.getByText("Page 1 of 2")).toBeInTheDocument();
+
+		// Find the next page button — the 3rd icon-sized button in the pagination row
+		const paginationButtons = screen
+			.getByText("Page 1 of 2")
+			.closest("div")!
+			.parentElement!.querySelectorAll("button");
+		const nextPageButton = paginationButtons[2];
+		await user.click(nextPageButton);
+
+		// Confirm we're on page 2
+		expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
+		// Page 2 should not have Product 1
+		expect(screen.queryByText("Product 1")).not.toBeInTheDocument();
+
+		// Enter reorder mode from page 2
+		await user.click(screen.getByTestId("reorder-toggle"));
+
+		// All products should be visible (not an empty page)
+		await waitFor(() => {
+			expect(screen.getByText("Product 1")).toBeInTheDocument();
+		});
+		expect(screen.getByText("Product 15")).toBeInTheDocument();
+	});
+
 	it("should hide drag handles when exiting reorder mode", async () => {
 		const products = [createMockProduct({ id: "prod-1" })];
 

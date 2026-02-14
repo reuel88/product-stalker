@@ -248,6 +248,7 @@ export function ProductsTable({
 			pagination: {
 				...pagination,
 				pageSize: effectivePageSize,
+				...(isReorderMode && { pageIndex: 0 }),
 			},
 		},
 		onPaginationChange: setPagination,
