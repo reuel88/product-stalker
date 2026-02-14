@@ -176,3 +176,30 @@ export interface PriceDataPoint {
 	/** Currency exponent for formatting (0 for JPY, 2 for USD, 3 for KWD) */
 	currencyExponent: number;
 }
+
+/**
+ * Metadata for a single retailer line in the price history chart.
+ */
+export interface RetailerChartSeries {
+	/** product_retailer_id used as the data key */
+	id: string;
+	/** Human-readable label (e.g., "amazon.com" or "amazon.com (64GB)") */
+	label: string;
+	/** CSS color for the line stroke */
+	color: string;
+}
+
+/**
+ * Pivoted chart data for multi-retailer price history.
+ * Each row has `{ date, [seriesId]: price, ... }` for Recharts.
+ */
+export interface MultiRetailerChartData {
+	/** Pivoted data rows keyed by date + retailer ID */
+	data: Array<Record<string, string | number>>;
+	/** One entry per retailer line */
+	series: RetailerChartSeries[];
+	/** ISO 4217 currency code for formatting */
+	currency: string;
+	/** Currency exponent for formatting */
+	currencyExponent: number;
+}
