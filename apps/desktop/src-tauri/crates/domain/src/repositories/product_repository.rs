@@ -17,7 +17,7 @@ use crate::entities::prelude::*;
 #[derive(Default)]
 pub struct ProductUpdateInput {
     pub name: Option<String>,
-    pub url: Option<String>,
+    pub url: Option<Option<String>>,
     pub description: Option<Option<String>>,
     pub notes: Option<Option<String>>,
     pub currency: Option<Option<String>>,
@@ -26,7 +26,7 @@ pub struct ProductUpdateInput {
 /// Parameters for creating a new product at the repository level
 pub struct CreateProductRepoParams {
     pub name: String,
-    pub url: String,
+    pub url: Option<String>,
     pub description: Option<String>,
     pub notes: Option<String>,
 }
@@ -74,6 +74,24 @@ impl ProductRepository {
 
         let product = active_model.insert(conn).await?;
         Ok(product)
+    }
+
+    /// Find all product IDs that have no associated product_retailers
+    pub async fn find_all_without_retailers(
+        conn: &DatabaseConnection,
+    ) -> Result<Vec<ProductModel>, AppError> {
+        use crate::entities::prelude::ProductRetailerColumn;
+        use sea_orm::{ColumnTrait, JoinType, QueryFilter, QuerySelect, RelationTrait};
+
+        let products = Product::find()
+            .join(
+                JoinType::LeftJoin,
+                crate::entities::product::Relation::ProductRetailers.def(),
+            )
+            .filter(ProductRetailerColumn::Id.is_null())
+            .all(conn)
+            .await?;
+        Ok(products)
     }
 
     /// Update an existing product.
@@ -125,7 +143,7 @@ mod tests {
     fn params(name: &str, url: &str) -> CreateProductRepoParams {
         CreateProductRepoParams {
             name: name.to_string(),
-            url: url.to_string(),
+            url: Some(url.to_string()),
             description: None,
             notes: None,
         }
@@ -192,7 +210,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(updated.name, "Updated");
-        assert_eq!(updated.url, "https://original.com");
+        assert_eq!(updated.url, Some("https://original.com".to_string()));
     }
 
     #[tokio::test]
@@ -244,7 +262,7 @@ mod tests {
             id,
             CreateProductRepoParams {
                 name: "Full Product".to_string(),
-                url: "https://full.com".to_string(),
+                url: Some("https://full.com".to_string()),
                 description: Some("A description".to_string()),
                 notes: Some("Some notes".to_string()),
             },
@@ -253,7 +271,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(created.name, "Full Product");
-        assert_eq!(created.url, "https://full.com");
+        assert_eq!(created.url, Some("https://full.com".to_string()));
         assert_eq!(created.description, Some("A description".to_string()));
         assert_eq!(created.notes, Some("Some notes".to_string()));
     }
@@ -273,7 +291,7 @@ mod tests {
             created,
             ProductUpdateInput {
                 name: Some("New Name".to_string()),
-                url: Some("https://new.com".to_string()),
+                url: Some(Some("https://new.com".to_string())),
                 description: Some(Some("New description".to_string())),
                 notes: Some(Some("New notes".to_string())),
                 currency: None,
@@ -283,7 +301,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(updated.name, "New Name");
-        assert_eq!(updated.url, "https://new.com");
+        assert_eq!(updated.url, Some("https://new.com".to_string()));
         assert_eq!(updated.description, Some("New description".to_string()));
         assert_eq!(updated.notes, Some("New notes".to_string()));
     }
@@ -298,7 +316,7 @@ mod tests {
             id,
             CreateProductRepoParams {
                 name: "Product".to_string(),
-                url: "https://product.com".to_string(),
+                url: Some("https://product.com".to_string()),
                 description: Some("Has description".to_string()),
                 notes: Some("Has notes".to_string()),
             },

@@ -15,8 +15,8 @@ pub struct Model {
     /// Product name
     pub name: String,
 
-    /// Product URL (where to fetch price data)
-    pub url: String,
+    /// Product URL (deprecated — use product_retailers instead)
+    pub url: Option<String>,
 
     /// Optional description
     pub description: Option<String>,
@@ -38,11 +38,20 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::availability_check::Entity")]
     AvailabilityChecks,
+
+    #[sea_orm(has_many = "super::product_retailer::Entity")]
+    ProductRetailers,
 }
 
 impl Related<super::availability_check::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::AvailabilityChecks.def()
+    }
+}
+
+impl Related<super::product_retailer::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ProductRetailers.def()
     }
 }
 
@@ -59,7 +68,7 @@ mod tests {
         let model = Model {
             id: Uuid::new_v4(),
             name: "Test Product".to_string(),
-            url: "https://example.com".to_string(),
+            url: Some("https://example.com".to_string()),
             description: Some("A description".to_string()),
             notes: None,
             currency: None,
@@ -77,7 +86,7 @@ mod tests {
         let model = Model {
             id: Uuid::new_v4(),
             name: "Debug Test".to_string(),
-            url: "https://debug.test".to_string(),
+            url: Some("https://debug.test".to_string()),
             description: None,
             notes: None,
             currency: None,
@@ -96,7 +105,7 @@ mod tests {
         let model1 = Model {
             id,
             name: "Product".to_string(),
-            url: "https://product.com".to_string(),
+            url: Some("https://product.com".to_string()),
             description: None,
             notes: None,
             currency: None,
@@ -106,7 +115,7 @@ mod tests {
         let model2 = Model {
             id,
             name: "Product".to_string(),
-            url: "https://product.com".to_string(),
+            url: Some("https://product.com".to_string()),
             description: None,
             notes: None,
             currency: None,
@@ -122,7 +131,7 @@ mod tests {
         let model1 = Model {
             id: Uuid::new_v4(),
             name: "Product".to_string(),
-            url: "https://product.com".to_string(),
+            url: Some("https://product.com".to_string()),
             description: None,
             notes: None,
             currency: None,
@@ -132,7 +141,7 @@ mod tests {
         let model2 = Model {
             id: Uuid::new_v4(),
             name: "Product".to_string(),
-            url: "https://product.com".to_string(),
+            url: Some("https://product.com".to_string()),
             description: None,
             notes: None,
             currency: None,
@@ -148,7 +157,7 @@ mod tests {
         let model = Model {
             id,
             name: "Serializable Product".to_string(),
-            url: "https://serial.test".to_string(),
+            url: Some("https://serial.test".to_string()),
             description: Some("desc".to_string()),
             notes: Some("notes".to_string()),
             currency: None,
@@ -158,7 +167,7 @@ mod tests {
         let json = serde_json::to_string(&model).unwrap();
         assert!(json.contains("550e8400-e29b-41d4-a716-446655440000"));
         assert!(json.contains("Serializable Product"));
-        assert!(json.contains("https://serial.test"));
+        assert!(json.contains("serial.test"));
         assert!(json.contains("desc"));
         assert!(json.contains("notes"));
     }
@@ -168,7 +177,7 @@ mod tests {
         let model = Model {
             id: Uuid::new_v4(),
             name: "Full Product".to_string(),
-            url: "https://full.com".to_string(),
+            url: Some("https://full.com".to_string()),
             description: Some("Full description with details".to_string()),
             notes: Some("Important notes about this product".to_string()),
             currency: None,
@@ -184,7 +193,7 @@ mod tests {
         let model = Model {
             id: Uuid::new_v4(),
             name: "Minimal Product".to_string(),
-            url: "https://minimal.com".to_string(),
+            url: Some("https://minimal.com".to_string()),
             description: None,
             notes: None,
             currency: None,
@@ -202,7 +211,7 @@ mod tests {
         let model = Model {
             id: Uuid::new_v4(),
             name: "Time Test".to_string(),
-            url: "https://time.test".to_string(),
+            url: Some("https://time.test".to_string()),
             description: None,
             notes: None,
             currency: None,

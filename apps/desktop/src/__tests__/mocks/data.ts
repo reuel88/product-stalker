@@ -19,7 +19,6 @@ export function createMockProduct(
 	return {
 		id,
 		name: `Test Product ${id}`,
-		url: `https://example.com/product/${id}`,
 		description: null,
 		notes: null,
 		currency: null,
@@ -108,6 +107,7 @@ export function createMockAvailabilityCheck(
 	return {
 		id,
 		product_id: `product-${id}`,
+		product_retailer_id: null,
 		status: "in_stock",
 		raw_availability: null,
 		error_message: null,

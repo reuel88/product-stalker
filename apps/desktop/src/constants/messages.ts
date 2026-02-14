@@ -31,8 +31,15 @@ export const MESSAGES = {
 		NO_PRICE: "-",
 		PRICE_DROP: "Price drop!",
 	},
+	RETAILER: {
+		ADDED: "Retailer added",
+		REMOVED: "Retailer removed",
+		ADD_FAILED: "Failed to add retailer",
+		REMOVE_FAILED: "Failed to remove retailer",
+	},
 	VALIDATION: {
-		NAME_URL_REQUIRED: "Name and URL are required",
+		NAME_REQUIRED: "Name is required",
+		URL_REQUIRED: "URL is required",
 	},
 	// === INFRASTRUCTURE ===
 	SETTINGS: {

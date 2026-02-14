@@ -11,7 +11,6 @@ use crate::utils::parse_uuid;
 #[derive(Debug, Deserialize)]
 pub struct CreateProductInput {
     pub name: String,
-    pub url: String,
     pub description: Option<String>,
     pub notes: Option<String>,
 }
@@ -20,7 +19,6 @@ pub struct CreateProductInput {
 #[derive(Debug, Deserialize)]
 pub struct UpdateProductInput {
     pub name: Option<String>,
-    pub url: Option<String>,
     pub description: Option<String>,
     pub notes: Option<String>,
 }
@@ -30,7 +28,6 @@ pub struct UpdateProductInput {
 pub struct ProductResponse {
     pub id: String,
     pub name: String,
-    pub url: String,
     pub description: Option<String>,
     pub notes: Option<String>,
     pub currency: Option<String>,
@@ -43,7 +40,6 @@ impl From<ProductModel> for ProductResponse {
         Self {
             id: model.id.to_string(),
             name: model.name,
-            url: model.url,
             description: model.description,
             notes: model.notes,
             currency: model.currency,
@@ -82,7 +78,6 @@ pub async fn create_product(
         db.conn(),
         CreateProductParams {
             name: input.name,
-            url: input.url,
             description: input.description,
             notes: input.notes,
         },
@@ -106,7 +101,6 @@ pub async fn update_product(
         uuid,
         UpdateProductParams {
             name: input.name,
-            url: input.url,
             description: input.description,
             notes: input.notes,
         },
@@ -138,7 +132,7 @@ mod tests {
         let model = ProductModel {
             id,
             name: "Test Product".to_string(),
-            url: "https://example.com".to_string(),
+            url: Some("https://example.com".to_string()),
             description: Some("A description".to_string()),
             notes: None,
             currency: None,
@@ -150,7 +144,6 @@ mod tests {
 
         assert_eq!(response.id, id.to_string());
         assert_eq!(response.name, "Test Product");
-        assert_eq!(response.url, "https://example.com");
         assert_eq!(response.description, Some("A description".to_string()));
         assert!(response.notes.is_none());
     }
@@ -162,7 +155,7 @@ mod tests {
         let model = ProductModel {
             id,
             name: "Full Product".to_string(),
-            url: "https://full.example.com".to_string(),
+            url: Some("https://full.example.com".to_string()),
             description: Some("Full description".to_string()),
             notes: Some("Some notes".to_string()),
             currency: None,
@@ -174,7 +167,6 @@ mod tests {
 
         assert_eq!(response.id, id.to_string());
         assert_eq!(response.name, "Full Product");
-        assert_eq!(response.url, "https://full.example.com");
         assert_eq!(response.description, Some("Full description".to_string()));
         assert_eq!(response.notes, Some("Some notes".to_string()));
         assert!(!response.created_at.is_empty());
@@ -188,7 +180,7 @@ mod tests {
         let model = ProductModel {
             id,
             name: "Minimal Product".to_string(),
-            url: "https://minimal.example.com".to_string(),
+            url: Some("https://minimal.example.com".to_string()),
             description: None,
             notes: None,
             currency: None,
@@ -210,7 +202,7 @@ mod tests {
         let model = ProductModel {
             id,
             name: "JSON Test".to_string(),
-            url: "https://json.test".to_string(),
+            url: Some("https://json.test".to_string()),
             description: Some("Test desc".to_string()),
             notes: None,
             currency: None,
@@ -222,29 +214,25 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
 
         assert!(json.contains("JSON Test"));
-        assert!(json.contains("https://json.test"));
         assert!(json.contains(&id.to_string()));
     }
 
     #[test]
     fn test_create_product_input_deserializes() {
-        let json =
-            r#"{"name":"Test","url":"https://test.com","description":"desc","notes":"note"}"#;
+        let json = r#"{"name":"Test","description":"desc","notes":"note"}"#;
         let input: CreateProductInput = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.name, "Test");
-        assert_eq!(input.url, "https://test.com");
         assert_eq!(input.description, Some("desc".to_string()));
         assert_eq!(input.notes, Some("note".to_string()));
     }
 
     #[test]
     fn test_create_product_input_deserializes_minimal() {
-        let json = r#"{"name":"Test","url":"https://test.com"}"#;
+        let json = r#"{"name":"Test"}"#;
         let input: CreateProductInput = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.name, "Test");
-        assert_eq!(input.url, "https://test.com");
         assert!(input.description.is_none());
         assert!(input.notes.is_none());
     }
@@ -255,19 +243,16 @@ mod tests {
         let input: UpdateProductInput = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.name, Some("Updated Name".to_string()));
-        assert!(input.url.is_none());
         assert!(input.description.is_none());
         assert!(input.notes.is_none());
     }
 
     #[test]
     fn test_update_product_input_deserializes_all_fields() {
-        let json =
-            r#"{"name":"Name","url":"https://url.com","description":"desc","notes":"notes"}"#;
+        let json = r#"{"name":"Name","description":"desc","notes":"notes"}"#;
         let input: UpdateProductInput = serde_json::from_str(json).unwrap();
 
         assert_eq!(input.name, Some("Name".to_string()));
-        assert_eq!(input.url, Some("https://url.com".to_string()));
         assert_eq!(input.description, Some("desc".to_string()));
         assert_eq!(input.notes, Some("notes".to_string()));
     }
@@ -278,7 +263,6 @@ mod tests {
         let input: UpdateProductInput = serde_json::from_str(json).unwrap();
 
         assert!(input.name.is_none());
-        assert!(input.url.is_none());
         assert!(input.description.is_none());
         assert!(input.notes.is_none());
     }
@@ -290,7 +274,7 @@ mod tests {
         let model = ProductModel {
             id,
             name: "Timestamp Test".to_string(),
-            url: "https://time.test".to_string(),
+            url: Some("https://time.test".to_string()),
             description: None,
             notes: None,
             currency: None,

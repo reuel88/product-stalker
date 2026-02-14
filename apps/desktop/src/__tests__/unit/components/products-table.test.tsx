@@ -36,7 +36,7 @@ describe("ProductsTable", () => {
 			);
 
 			expect(screen.getByText("Name")).toBeInTheDocument();
-			expect(screen.getByText("URL")).toBeInTheDocument();
+			expect(screen.getByText("Retailers")).toBeInTheDocument();
 			expect(screen.getByText("Availability")).toBeInTheDocument();
 			expect(screen.getByText("Price")).toBeInTheDocument();
 			expect(screen.getByText("Description")).toBeInTheDocument();
@@ -57,8 +57,8 @@ describe("ProductsTable", () => {
 
 		it("should render products in table rows", () => {
 			const products = [
-				createMockProduct({ name: "Product A", url: "https://example.com/a" }),
-				createMockProduct({ name: "Product B", url: "https://example.com/b" }),
+				createMockProduct({ name: "Product A" }),
+				createMockProduct({ name: "Product B" }),
 			];
 
 			render(
@@ -133,75 +133,6 @@ describe("ProductsTable", () => {
 
 			const nameCell = screen.getByText("Styled Product");
 			expect(nameCell).toHaveClass("font-medium");
-		});
-	});
-
-	describe("URL display", () => {
-		it("should truncate long URLs", () => {
-			const longUrl =
-				"https://example.com/very/long/path/that/exceeds/the/limit/and/should/be/truncated";
-			const product = createMockProduct({ url: longUrl });
-
-			render(
-				<ProductsTable
-					products={[product]}
-					onEdit={mockOnEdit}
-					onDelete={mockOnDelete}
-				/>,
-			);
-
-			const truncated = `${longUrl.slice(0, UI.TRUNCATE.URL_LENGTH)}...`;
-			expect(screen.getByText(truncated)).toBeInTheDocument();
-		});
-
-		it("should not truncate short URLs", () => {
-			const shortUrl = "https://example.com";
-			const product = createMockProduct({ url: shortUrl });
-
-			render(
-				<ProductsTable
-					products={[product]}
-					onEdit={mockOnEdit}
-					onDelete={mockOnDelete}
-				/>,
-			);
-
-			expect(screen.getByText(shortUrl)).toBeInTheDocument();
-		});
-
-		it("should render URL as a button with external link icon", () => {
-			const product = createMockProduct({ url: "https://example.com" });
-
-			render(
-				<ProductsTable
-					products={[product]}
-					onEdit={mockOnEdit}
-					onDelete={mockOnDelete}
-				/>,
-			);
-
-			const urlButton = screen
-				.getByText("https://example.com")
-				.closest("button");
-			expect(urlButton).toBeInTheDocument();
-			expect(urlButton).toHaveClass("text-primary", "hover:underline");
-		});
-
-		it("should have full URL as title attribute for truncated URLs", () => {
-			const longUrl =
-				"https://example.com/very/long/path/that/exceeds/the/limit/and/should/be/truncated";
-			const product = createMockProduct({ url: longUrl });
-
-			render(
-				<ProductsTable
-					products={[product]}
-					onEdit={mockOnEdit}
-					onDelete={mockOnDelete}
-				/>,
-			);
-
-			const urlButton = screen.getByTitle(longUrl);
-			expect(urlButton).toBeInTheDocument();
 		});
 	});
 

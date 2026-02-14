@@ -6,6 +6,8 @@ export const QUERY_KEYS = {
 	PRODUCTS: ["products"],
 	AVAILABILITY_PREFIX,
 	product: (id: string) => ["product", id] as const,
+	productRetailers: (productId: string) =>
+		["productRetailers", productId] as const,
 	availability: (productId: string) =>
 		[AVAILABILITY_PREFIX, productId] as const,
 	availabilityHistory: (productId: string, limit?: number) =>

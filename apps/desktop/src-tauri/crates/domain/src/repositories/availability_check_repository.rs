@@ -27,6 +27,7 @@ pub struct CreateCheckParams {
     pub price_minor_units: Option<i64>,
     pub price_currency: Option<String>,
     pub raw_price: Option<String>,
+    pub product_retailer_id: Option<Uuid>,
 }
 
 impl AvailabilityCheckRepository {
@@ -42,6 +43,7 @@ impl AvailabilityCheckRepository {
         let active_model = AvailabilityCheckActiveModel {
             id: Set(id),
             product_id: Set(product_id),
+            product_retailer_id: Set(params.product_retailer_id),
             status: Set(params.status.as_str().to_string()),
             raw_availability: Set(params.raw_availability),
             error_message: Set(params.error_message),
@@ -120,6 +122,69 @@ impl AvailabilityCheckRepository {
 
         Ok(result.and_then(|r| r.avg_price.map(|avg| avg.round() as i64)))
     }
+
+    /// Find the most recent availability check for a product-retailer link
+    pub async fn find_latest_for_product_retailer(
+        conn: &DatabaseConnection,
+        product_retailer_id: Uuid,
+    ) -> Result<Option<AvailabilityCheckModel>, AppError> {
+        let check = AvailabilityCheck::find()
+            .filter(AvailabilityCheckColumn::ProductRetailerId.eq(product_retailer_id))
+            .order_by_desc(AvailabilityCheckColumn::CheckedAt)
+            .one(conn)
+            .await?;
+        Ok(check)
+    }
+
+    /// Find all availability checks for a product-retailer link
+    pub async fn find_all_for_product_retailer(
+        conn: &DatabaseConnection,
+        product_retailer_id: Uuid,
+        limit: Option<u64>,
+    ) -> Result<Vec<AvailabilityCheckModel>, AppError> {
+        let mut query = AvailabilityCheck::find()
+            .filter(AvailabilityCheckColumn::ProductRetailerId.eq(product_retailer_id))
+            .order_by_desc(AvailabilityCheckColumn::CheckedAt);
+
+        if let Some(limit) = limit {
+            use sea_orm::QuerySelect;
+            query = query.limit(limit);
+        }
+
+        let checks = query.all(conn).await?;
+        Ok(checks)
+    }
+
+    /// Get average price for a product-retailer within a time period [from, to)
+    pub async fn get_average_price_for_period_by_product_retailer(
+        conn: &DatabaseConnection,
+        product_retailer_id: Uuid,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Option<i64>, AppError> {
+        use sea_orm::Value;
+
+        let result = AveragePriceResult::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            r#"
+                SELECT AVG(price_minor_units) as avg_price
+                FROM availability_checks
+                WHERE product_retailer_id = ?
+                  AND checked_at >= ?
+                  AND checked_at < ?
+                  AND price_minor_units IS NOT NULL
+            "#,
+            [
+                Value::Uuid(Some(Box::new(product_retailer_id))),
+                from.into(),
+                to.into(),
+            ],
+        ))
+        .one(conn)
+        .await?;
+
+        Ok(result.and_then(|r| r.avg_price.map(|avg| avg.round() as i64)))
+    }
 }
 
 #[cfg(test)]
@@ -134,6 +199,7 @@ impl AvailabilityCheckRepository {
         let active_model = AvailabilityCheckActiveModel {
             id: Set(Uuid::new_v4()),
             product_id: Set(product_id),
+            product_retailer_id: Set(None),
             status: Set("in_stock".to_string()),
             raw_availability: Set(None),
             error_message: Set(None),

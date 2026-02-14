@@ -58,9 +58,9 @@ function getCheckButtonText(
  *
  * @returns true if valid, false otherwise
  */
-function isFormDataValid(formData: { name: string; url: string }): boolean {
-	if (!formData.name || !formData.url) {
-		toast.error(MESSAGES.VALIDATION.NAME_URL_REQUIRED);
+function isFormDataValid(formData: { name: string }): boolean {
+	if (!formData.name) {
+		toast.error(MESSAGES.VALIDATION.NAME_REQUIRED);
 		return false;
 	}
 	return true;
@@ -102,7 +102,6 @@ export function ProductsView() {
 
 		const input = {
 			name: formData.name,
-			url: formData.url,
 			description: formData.description || null,
 			notes: formData.notes || null,
 		};

@@ -12,6 +12,8 @@ use product_stalker_core::services::notification_helpers::NotificationData;
 pub struct BulkCheckResult {
     pub product_id: String,
     pub product_name: String,
+    pub product_retailer_id: Option<String>,
+    pub url: Option<String>,
     pub status: AvailabilityStatus,
     pub previous_status: Option<AvailabilityStatus>,
     pub is_back_in_stock: bool,
@@ -90,6 +92,8 @@ impl BulkCheckResult {
         Self {
             product_id: product.id.to_string(),
             product_name: product.name.clone(),
+            product_retailer_id: None,
+            url: None,
             status: result.status.clone(),
             previous_status: context.previous_status.clone(),
             is_back_in_stock: result.is_back_in_stock,
@@ -218,6 +222,7 @@ mod tests {
             let check = AvailabilityCheckModel {
                 id: Uuid::new_v4(),
                 product_id: Uuid::new_v4(),
+                product_retailer_id: None,
                 status: "in_stock".to_string(),
                 raw_availability: Some("http://schema.org/InStock".to_string()),
                 error_message: None,
@@ -247,6 +252,7 @@ mod tests {
             let check = AvailabilityCheckModel {
                 id: Uuid::new_v4(),
                 product_id: Uuid::new_v4(),
+                product_retailer_id: None,
                 status: "out_of_stock".to_string(),
                 raw_availability: None,
                 error_message: None,

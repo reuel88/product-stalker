@@ -121,10 +121,8 @@ describe("ProductsComponent", () => {
 			await user.click(screen.getByText("Add Product"));
 
 			const nameInput = screen.getByLabelText("Name");
-			const urlInput = screen.getByLabelText("URL");
 
 			await user.type(nameInput, "New Product");
-			await user.type(urlInput, "https://example.com/new");
 
 			await user.click(screen.getByRole("button", { name: "Create" }));
 
@@ -133,7 +131,7 @@ describe("ProductsComponent", () => {
 			});
 		});
 
-		it("should show validation error when name or URL missing", async () => {
+		it("should show validation error when name is missing", async () => {
 			mockInvokeMultiple({
 				[COMMANDS.GET_PRODUCTS]: [],
 			});
@@ -149,7 +147,7 @@ describe("ProductsComponent", () => {
 
 			await waitFor(() => {
 				expect(toast.error).toHaveBeenCalledWith(
-					MESSAGES.VALIDATION.NAME_URL_REQUIRED,
+					MESSAGES.VALIDATION.NAME_REQUIRED,
 				);
 			});
 		});
@@ -171,10 +169,8 @@ describe("ProductsComponent", () => {
 			await user.click(screen.getByText("Add Product"));
 
 			const nameInput = screen.getByLabelText("Name");
-			const urlInput = screen.getByLabelText("URL");
 
 			await user.type(nameInput, "Test");
-			await user.type(urlInput, "https://test.com");
 			await user.click(screen.getByRole("button", { name: "Create" }));
 
 			await waitFor(() => {
@@ -189,7 +185,6 @@ describe("ProductsComponent", () => {
 		it("should open edit dialog with product data", async () => {
 			const product = createMockProduct({
 				name: "Existing Product",
-				url: "https://existing.com",
 				description: "A description",
 			});
 			mockInvokeMultiple({

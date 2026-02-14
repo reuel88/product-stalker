@@ -8,7 +8,6 @@ const defaultProps = {
 	mode: "create" as const,
 	formData: {
 		name: "",
-		url: "",
 		description: null,
 		notes: null,
 	},
@@ -35,7 +34,6 @@ describe("ProductFormDialog", () => {
 			render(<ProductFormDialog {...defaultProps} />);
 
 			expect(screen.getByLabelText("Name")).toBeInTheDocument();
-			expect(screen.getByLabelText("URL")).toBeInTheDocument();
 			expect(screen.getByLabelText("Description")).toBeInTheDocument();
 			expect(screen.getByLabelText("Notes")).toBeInTheDocument();
 		});
@@ -43,14 +41,12 @@ describe("ProductFormDialog", () => {
 		it("should render form fields with initial values", () => {
 			const formData = {
 				name: "Test Product",
-				url: "https://example.com",
 				description: "A description",
 				notes: "Some notes",
 			};
 			render(<ProductFormDialog {...defaultProps} formData={formData} />);
 
 			expect(screen.getByLabelText("Name")).toHaveValue("Test Product");
-			expect(screen.getByLabelText("URL")).toHaveValue("https://example.com");
 			expect(screen.getByLabelText("Description")).toHaveValue("A description");
 			expect(screen.getByLabelText("Notes")).toHaveValue("Some notes");
 		});
@@ -91,22 +87,6 @@ describe("ProductFormDialog", () => {
 			expect(onFormChange).toHaveBeenCalled();
 			expect(onFormChange).toHaveBeenCalledWith(
 				expect.objectContaining({ name: "T" }),
-			);
-		});
-
-		it("should call onFormChange when url input changes", async () => {
-			const onFormChange = vi.fn();
-			const { user } = render(
-				<ProductFormDialog {...defaultProps} onFormChange={onFormChange} />,
-			);
-
-			const urlInput = await screen.findByLabelText("URL");
-			await user.click(urlInput);
-			await user.type(urlInput, "h");
-
-			expect(onFormChange).toHaveBeenCalled();
-			expect(onFormChange).toHaveBeenCalledWith(
-				expect.objectContaining({ url: "h" }),
 			);
 		});
 
@@ -202,7 +182,6 @@ describe("ProductFormDialog", () => {
 			render(<ProductFormDialog {...defaultProps} mode="edit" />);
 
 			expect(screen.getByLabelText("Name")).toHaveAttribute("id", "edit-name");
-			expect(screen.getByLabelText("URL")).toHaveAttribute("id", "edit-url");
 			expect(screen.getByLabelText("Description")).toHaveAttribute(
 				"id",
 				"edit-description",

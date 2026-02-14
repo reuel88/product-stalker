@@ -59,7 +59,6 @@ describe("ProductDetailView", () => {
 			const product = createMockProduct({
 				id: "product-1",
 				name: "Test Product",
-				url: "https://example.com/product",
 				description: "A great product",
 				notes: "Buy when on sale",
 			});
@@ -74,9 +73,6 @@ describe("ProductDetailView", () => {
 			await waitFor(() => {
 				expect(screen.getByText("Test Product")).toBeInTheDocument();
 			});
-			expect(
-				screen.getByText("https://example.com/product"),
-			).toBeInTheDocument();
 			expect(screen.getByText("A great product")).toBeInTheDocument();
 			expect(screen.getByText("Buy when on sale")).toBeInTheDocument();
 		});

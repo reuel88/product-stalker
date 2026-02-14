@@ -69,18 +69,6 @@ export function ProductFormDialog({
 						/>
 					</div>
 					<div className="grid gap-2">
-						<Label htmlFor={`${mode}-url`}>URL</Label>
-						<Input
-							id={`${mode}-url`}
-							data-testid="product-url-input"
-							value={formData.url}
-							onChange={(e) =>
-								onFormChange({ ...formData, url: e.target.value })
-							}
-							placeholder="https://example.com/product"
-						/>
-					</div>
-					<div className="grid gap-2">
 						<Label htmlFor={`${mode}-description`}>Description</Label>
 						<Textarea
 							id={`${mode}-description`}
