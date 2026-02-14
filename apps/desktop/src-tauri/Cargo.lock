@@ -3913,6 +3913,7 @@ version = "0.3.0"
 dependencies = [
  "chrono",
  "log",
+ "reqwest",
  "sea-orm",
  "sea-orm-migration",
  "serde",

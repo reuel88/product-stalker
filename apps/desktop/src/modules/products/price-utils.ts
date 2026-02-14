@@ -238,6 +238,22 @@ export function formatPrice(
 	}).format(minorUnits / 10 ** exponent);
 }
 
+/**
+ * Get the effective price from an availability check, preferring normalized over original.
+ * Used for cross-currency comparisons where prices have been normalized to the preferred currency.
+ */
+export function getEffectivePrice(check: AvailabilityCheckResponse): {
+	minorUnits: number | null;
+	currency: string | null;
+	exponent: number | null;
+} {
+	return {
+		minorUnits: check.normalized_price_minor_units ?? check.price_minor_units,
+		currency: check.normalized_currency ?? check.price_currency,
+		exponent: check.normalized_currency_exponent ?? check.currency_exponent,
+	};
+}
+
 /** Display price resolved from an availability check, preferring multi-retailer lowest price */
 export interface DisplayPrice {
 	price: number | null;
@@ -270,6 +286,7 @@ export interface RetailerPrice {
  * Get the latest valid price for each retailer from availability checks.
  * Groups checks by `product_retailer_id`, picks the most recent check
  * with a valid price for each retailer.
+ * Uses normalized (effective) prices for cross-currency comparisons.
  *
  * @returns Map keyed by retailer ID → latest price info
  */
@@ -293,10 +310,11 @@ export function getLatestPriceByRetailer(
 		if (!retailerId || !retailerIds.has(retailerId)) continue;
 		if (result.has(retailerId)) continue;
 
+		const effective = getEffectivePrice(check);
 		result.set(retailerId, {
-			priceMinorUnits: check.price_minor_units,
-			currency: check.price_currency,
-			currencyExponent: check.currency_exponent ?? 2,
+			priceMinorUnits: effective.minorUnits ?? check.price_minor_units,
+			currency: effective.currency ?? check.price_currency,
+			currencyExponent: effective.exponent ?? check.currency_exponent ?? 2,
 		});
 	}
 

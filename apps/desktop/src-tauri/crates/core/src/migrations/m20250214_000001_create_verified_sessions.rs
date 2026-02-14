@@ -66,6 +66,7 @@ impl MigrationTrait for Migration {
 
 #[derive(Iden)]
 pub enum VerifiedSession {
+    #[iden = "verified_sessions"]
     Table,
     Id,
     Domain,

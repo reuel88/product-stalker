@@ -4,6 +4,7 @@ mod product_retailers;
 mod products;
 
 // === INFRASTRUCTURE ===
+mod exchange_rates;
 mod notifications;
 mod settings;
 mod updater;
@@ -15,6 +16,7 @@ pub use product_retailers::*;
 pub use products::*;
 
 // === INFRASTRUCTURE ===
+pub use exchange_rates::*;
 pub use notifications::*;
 pub use settings::*;
 pub use updater::*;

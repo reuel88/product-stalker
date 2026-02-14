@@ -265,6 +265,8 @@ mod tests {
                 price_minor_units: Some(78900),
                 price_currency: Some("USD".to_string()),
                 raw_price: Some("789.00".to_string()),
+                normalized_price_minor_units: None,
+                normalized_currency: None,
             };
             let result = CheckResultWithNotification {
                 check,
@@ -295,6 +297,8 @@ mod tests {
                 price_minor_units: None,
                 price_currency: None,
                 raw_price: None,
+                normalized_price_minor_units: None,
+                normalized_currency: None,
             };
             let result = CheckResultWithNotification {
                 check,
