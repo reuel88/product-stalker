@@ -109,6 +109,20 @@ pub fn run() {
             #[cfg(desktop)]
             configure_autostart(app, settings.launch_at_login);
 
+            // Refresh exchange rates if stale (>24h) or missing
+            let preferred = settings.preferred_currency.clone();
+            let conn_for_rates = conn.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = core::services::ExchangeRateService::refresh_if_stale(
+                    &conn_for_rates,
+                    &preferred,
+                )
+                .await
+                {
+                    log::warn!("Failed to refresh exchange rates on startup: {}", e);
+                }
+            });
+
             // === DOMAIN === Spawn background availability checker
             let conn_arc = Arc::new(conn);
             background::spawn_background_checker(app.handle().clone(), conn_arc);
@@ -146,6 +160,10 @@ pub fn run() {
             // === INFRASTRUCTURE ===
             commands::get_settings,
             commands::update_settings,
+            commands::refresh_exchange_rates,
+            commands::get_exchange_rates,
+            commands::set_manual_exchange_rate,
+            commands::delete_exchange_rate,
             commands::are_notifications_enabled,
             commands::send_notification,
             commands::close_splashscreen,

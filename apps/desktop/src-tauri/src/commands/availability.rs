@@ -36,6 +36,12 @@ pub struct AvailabilityCheckResponse {
     pub lowest_price_currency: Option<String>,
     /// Currency exponent for the lowest price
     pub lowest_currency_exponent: Option<u32>,
+    /// Price normalized to the user's preferred currency (minor units)
+    pub normalized_price_minor_units: Option<i64>,
+    /// Currency code of the normalized price
+    pub normalized_currency: Option<String>,
+    /// Currency exponent for the normalized price
+    pub normalized_currency_exponent: Option<u32>,
 }
 
 impl AvailabilityCheckResponse {
@@ -50,6 +56,10 @@ impl AvailabilityCheckResponse {
         );
         let currency_exponent = model
             .price_currency
+            .as_deref()
+            .map(currency::currency_exponent);
+        let normalized_currency_exponent = model
+            .normalized_currency
             .as_deref()
             .map(currency::currency_exponent);
         Self {
@@ -70,6 +80,9 @@ impl AvailabilityCheckResponse {
             lowest_price_minor_units: None,
             lowest_price_currency: None,
             lowest_currency_exponent: None,
+            normalized_price_minor_units: model.normalized_price_minor_units,
+            normalized_currency: model.normalized_currency,
+            normalized_currency_exponent,
         }
     }
 
@@ -201,6 +214,8 @@ mod tests {
             price_minor_units: Some(78900),
             price_currency: Some("USD".to_string()),
             raw_price: Some("789.00".to_string()),
+            normalized_price_minor_units: None,
+            normalized_currency: None,
         }
     }
 
@@ -231,6 +246,9 @@ mod tests {
         assert!(response.lowest_price_minor_units.is_none());
         assert!(response.lowest_price_currency.is_none());
         assert!(response.lowest_currency_exponent.is_none());
+        assert!(response.normalized_price_minor_units.is_none());
+        assert!(response.normalized_currency.is_none());
+        assert!(response.normalized_currency_exponent.is_none());
     }
 
     #[test]
@@ -287,6 +305,9 @@ mod tests {
         assert!(json.contains("\"lowest_price_minor_units\":null"));
         assert!(json.contains("\"lowest_price_currency\":null"));
         assert!(json.contains("\"lowest_currency_exponent\":null"));
+        assert!(json.contains("\"normalized_price_minor_units\":null"));
+        assert!(json.contains("\"normalized_currency\":null"));
+        assert!(json.contains("\"normalized_currency_exponent\":null"));
     }
 
     #[test]

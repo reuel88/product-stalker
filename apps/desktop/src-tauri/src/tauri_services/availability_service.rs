@@ -12,7 +12,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
-use crate::core::services::{SettingService, SettingsCache};
+use crate::core::services::{ExchangeRateService, SettingService, SettingsCache};
 use crate::core::AppError;
 use crate::domain::repositories::ProductRetailerRepository;
 use crate::domain::services::{
@@ -62,6 +62,7 @@ impl TauriAvailabilityService {
             settings.enable_notifications,
             domain_settings.allow_manual_verification,
             domain_settings.session_cache_duration_days,
+            &settings.preferred_currency,
         )
         .await
     }
@@ -82,6 +83,12 @@ impl TauriAvailabilityService {
         let enable_headless = domain_cache.enable_headless_browser();
         let allow_manual_verification = domain_cache.allow_manual_verification();
         let session_cache_duration = domain_cache.session_cache_duration_days();
+
+        // Refresh exchange rates if stale before bulk check
+        let preferred = settings_cache.preferred_currency().to_string();
+        if let Err(e) = ExchangeRateService::refresh_if_stale(conn, &preferred).await {
+            log::warn!("Failed to refresh exchange rates before bulk check: {}", e);
+        }
 
         // Gather all product-retailer links (with their associated products)
         let product_retailers = ProductRetailerRepository::find_all_with_product(conn).await?;
@@ -130,6 +137,7 @@ impl TauriAvailabilityService {
                     enable_headless,
                     allow_manual_verification,
                     session_cache_duration,
+                    &preferred,
                 )
                 .await;
 
@@ -159,6 +167,7 @@ impl TauriAvailabilityService {
                 enable_headless,
                 allow_manual_verification,
                 session_cache_duration,
+                &preferred,
             )
             .await;
 

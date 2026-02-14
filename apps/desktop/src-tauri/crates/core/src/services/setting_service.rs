@@ -18,6 +18,7 @@ pub mod keys {
     pub const COLOR_PALETTE: &str = "color_palette";
     pub const DISPLAY_TIMEZONE: &str = "display_timezone";
     pub const DATE_FORMAT: &str = "date_format";
+    pub const PREFERRED_CURRENCY: &str = "preferred_currency";
 }
 
 /// Default values for settings
@@ -32,6 +33,7 @@ pub mod defaults {
     pub const COLOR_PALETTE: &str = "default";
     pub const DISPLAY_TIMEZONE: &str = "auto";
     pub const DATE_FORMAT: &str = "system";
+    pub const PREFERRED_CURRENCY: &str = "AUD";
 }
 
 /// Settings model returned by the service
@@ -50,6 +52,7 @@ pub struct Settings {
     pub color_palette: String,
     pub display_timezone: String,
     pub date_format: String,
+    pub preferred_currency: String,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -66,6 +69,7 @@ impl Default for Settings {
             color_palette: defaults::COLOR_PALETTE.to_string(),
             display_timezone: defaults::DISPLAY_TIMEZONE.to_string(),
             date_format: defaults::DATE_FORMAT.to_string(),
+            preferred_currency: defaults::PREFERRED_CURRENCY.to_string(),
             updated_at: Utc::now(),
         }
     }
@@ -84,6 +88,7 @@ pub struct UpdateSettingsParams {
     pub color_palette: Option<String>,
     pub display_timezone: Option<String>,
     pub date_format: Option<String>,
+    pub preferred_currency: Option<String>,
 }
 
 /// Cached settings for bulk operations.
@@ -146,6 +151,11 @@ impl SettingsCache {
         &self.settings.log_level
     }
 
+    /// Get the preferred currency
+    pub fn preferred_currency(&self) -> &str {
+        &self.settings.preferred_currency
+    }
+
     /// Get when these settings were loaded
     pub fn loaded_at(&self) -> DateTime<Utc> {
         self.loaded_at
@@ -191,6 +201,9 @@ impl SettingService {
                 .string(keys::DISPLAY_TIMEZONE, defaults::DISPLAY_TIMEZONE)
                 .await?,
             date_format: r.string(keys::DATE_FORMAT, defaults::DATE_FORMAT).await?,
+            preferred_currency: r
+                .string(keys::PREFERRED_CURRENCY, defaults::PREFERRED_CURRENCY)
+                .await?,
             updated_at: Utc::now(),
         })
     }
@@ -218,6 +231,9 @@ impl SettingService {
         }
         if let Some(ref format) = params.date_format {
             Self::validate_date_format(format)?;
+        }
+        if let Some(ref currency) = params.preferred_currency {
+            Self::validate_preferred_currency(currency)?;
         }
 
         let scope = SettingScope::Global;
@@ -262,6 +278,15 @@ impl SettingService {
         )
         .await?;
         Self::persist_optional_string(conn, &scope, keys::DATE_FORMAT, params.date_format).await?;
+
+        // Currency
+        Self::persist_optional_string(
+            conn,
+            &scope,
+            keys::PREFERRED_CURRENCY,
+            params.preferred_currency,
+        )
+        .await?;
 
         Self::get(conn).await
     }
@@ -361,6 +386,20 @@ impl SettingService {
         }
     }
 
+    fn validate_preferred_currency(currency: &str) -> Result<(), AppError> {
+        match currency {
+            "USD" | "EUR" | "GBP" | "JPY" | "AUD" | "CAD" | "NZD" | "CHF" | "CNY" | "HKD"
+            | "SGD" | "SEK" | "NOK" | "DKK" | "KRW" | "INR" | "BRL" | "ZAR" | "MXN" | "TWD"
+            | "THB" | "MYR" | "PHP" | "IDR" | "PLN" | "CZK" | "HUF" | "ILS" | "TRY" | "AED" => {
+                Ok(())
+            }
+            _ => Err(AppError::Validation(format!(
+                "Invalid currency: {}. Must be a supported ISO 4217 code",
+                currency
+            ))),
+        }
+    }
+
     fn validate_date_format(format: &str) -> Result<(), AppError> {
         match format {
             "system" | "MM/DD/YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD" => Ok(()),
@@ -425,6 +464,7 @@ mod tests {
         assert_eq!(settings.color_palette, "default");
         assert_eq!(settings.display_timezone, "auto");
         assert_eq!(settings.date_format, "system");
+        assert_eq!(settings.preferred_currency, "AUD");
     }
 
     #[test]
@@ -441,6 +481,30 @@ mod tests {
         assert!(json.contains("\"color_palette\":\"default\""));
         assert!(json.contains("\"display_timezone\":\"auto\""));
         assert!(json.contains("\"date_format\":\"system\""));
+        assert!(json.contains("\"preferred_currency\":\"AUD\""));
+    }
+
+    #[test]
+    fn test_validate_preferred_currency_accepts_all_valid_codes() {
+        let valid = [
+            "USD", "EUR", "GBP", "JPY", "AUD", "CAD", "NZD", "CHF", "CNY", "HKD", "SGD", "SEK",
+            "NOK", "DKK", "KRW", "INR", "BRL", "ZAR", "MXN", "TWD", "THB", "MYR", "PHP", "IDR",
+            "PLN", "CZK", "HUF", "ILS", "TRY", "AED",
+        ];
+        for code in valid.iter() {
+            assert!(
+                SettingService::validate_preferred_currency(code).is_ok(),
+                "Currency {} should be valid",
+                code
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_preferred_currency_rejects_invalid() {
+        assert!(SettingService::validate_preferred_currency("XYZ").is_err());
+        assert!(SettingService::validate_preferred_currency("usd").is_err());
+        assert!(SettingService::validate_preferred_currency("").is_err());
     }
 
     #[test]
@@ -585,6 +649,7 @@ mod integration_tests {
         assert_eq!(settings.color_palette, "default");
         assert_eq!(settings.display_timezone, "auto");
         assert_eq!(settings.date_format, "system");
+        assert_eq!(settings.preferred_currency, "AUD");
     }
 
     #[tokio::test]
@@ -675,6 +740,7 @@ mod integration_tests {
             color_palette: Some("ocean".to_string()),
             display_timezone: Some("Asia/Tokyo".to_string()),
             date_format: Some("YYYY-MM-DD".to_string()),
+            preferred_currency: Some("USD".to_string()),
         };
 
         let result = SettingService::update(&conn, params).await;
@@ -690,6 +756,7 @@ mod integration_tests {
         assert_eq!(settings.color_palette, "ocean");
         assert_eq!(settings.display_timezone, "Asia/Tokyo");
         assert_eq!(settings.date_format, "YYYY-MM-DD");
+        assert_eq!(settings.preferred_currency, "USD");
     }
 
     #[tokio::test]
@@ -869,5 +936,58 @@ mod integration_tests {
         let settings = SettingService::get(&conn).await.unwrap();
         assert_eq!(settings.display_timezone, "Europe/London");
         assert_eq!(settings.date_format, "DD/MM/YYYY");
+    }
+
+    #[tokio::test]
+    async fn test_update_validates_preferred_currency() {
+        let conn = setup_app_settings_db().await;
+        let params = UpdateSettingsParams {
+            preferred_currency: Some("XYZ".to_string()),
+            ..Default::default()
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_update_preferred_currency_success() {
+        let conn = setup_app_settings_db().await;
+        let params = UpdateSettingsParams {
+            preferred_currency: Some("USD".to_string()),
+            ..Default::default()
+        };
+
+        let result = SettingService::update(&conn, params).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().preferred_currency, "USD");
+    }
+
+    #[tokio::test]
+    async fn test_preferred_currency_persists_across_calls() {
+        let conn = setup_app_settings_db().await;
+
+        let params = UpdateSettingsParams {
+            preferred_currency: Some("EUR".to_string()),
+            ..Default::default()
+        };
+        SettingService::update(&conn, params).await.unwrap();
+
+        let settings = SettingService::get(&conn).await.unwrap();
+        assert_eq!(settings.preferred_currency, "EUR");
+    }
+
+    #[tokio::test]
+    async fn test_settings_cache_reflects_preferred_currency() {
+        let conn = setup_app_settings_db().await;
+
+        let params = UpdateSettingsParams {
+            preferred_currency: Some("GBP".to_string()),
+            ..Default::default()
+        };
+        SettingService::update(&conn, params).await.unwrap();
+
+        let cache = SettingsCache::load(&conn).await.unwrap();
+        assert_eq!(cache.preferred_currency(), "GBP");
     }
 }

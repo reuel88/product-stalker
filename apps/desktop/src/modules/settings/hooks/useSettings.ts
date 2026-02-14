@@ -24,6 +24,7 @@ export interface Settings {
 	color_palette: string;
 	display_timezone: string;
 	date_format: string;
+	preferred_currency: string;
 	updated_at: string;
 }
 

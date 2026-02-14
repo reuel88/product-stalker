@@ -28,6 +28,7 @@ pub struct SettingsResponse {
     pub color_palette: String,
     pub display_timezone: String,
     pub date_format: String,
+    pub preferred_currency: String,
     pub updated_at: String,
 }
 
@@ -49,6 +50,7 @@ impl SettingsResponse {
             color_palette: settings.color_palette,
             display_timezone: settings.display_timezone,
             date_format: settings.date_format,
+            preferred_currency: settings.preferred_currency,
             updated_at: settings.updated_at.to_rfc3339(),
         }
     }
@@ -75,6 +77,7 @@ pub struct CombinedUpdateParams {
     pub color_palette: Option<String>,
     pub display_timezone: Option<String>,
     pub date_format: Option<String>,
+    pub preferred_currency: Option<String>,
 }
 
 /// Get current settings
@@ -125,6 +128,7 @@ pub async fn update_settings(
         color_palette: input.color_palette,
         display_timezone: input.display_timezone,
         date_format: input.date_format,
+        preferred_currency: input.preferred_currency,
     };
 
     let domain_params = UpdateDomainSettingsParams {
@@ -162,6 +166,7 @@ mod tests {
             color_palette: "default".to_string(),
             display_timezone: "auto".to_string(),
             date_format: "system".to_string(),
+            preferred_currency: "AUD".to_string(),
             updated_at: Utc::now(),
         }
     }
@@ -193,6 +198,7 @@ mod tests {
         assert_eq!(response.color_palette, "default");
         assert_eq!(response.display_timezone, "auto");
         assert_eq!(response.date_format, "system");
+        assert_eq!(response.preferred_currency, "AUD");
     }
 
     #[test]
@@ -208,6 +214,7 @@ mod tests {
             color_palette: "ocean".to_string(),
             display_timezone: "America/New_York".to_string(),
             date_format: "MM/DD/YYYY".to_string(),
+            preferred_currency: "USD".to_string(),
             updated_at: Utc::now(),
         };
         let domain = DomainSettings {
@@ -233,6 +240,7 @@ mod tests {
         assert_eq!(response.color_palette, "ocean");
         assert_eq!(response.display_timezone, "America/New_York");
         assert_eq!(response.date_format, "MM/DD/YYYY");
+        assert_eq!(response.preferred_currency, "USD");
     }
 
     #[test]
@@ -265,6 +273,7 @@ mod tests {
         assert!(json.contains("\"color_palette\":\"default\""));
         assert!(json.contains("\"display_timezone\":\"auto\""));
         assert!(json.contains("\"date_format\":\"system\""));
+        assert!(json.contains("\"preferred_currency\":\"AUD\""));
     }
 
     #[test]
@@ -293,6 +302,7 @@ mod tests {
         assert!(input.color_palette.is_none());
         assert!(input.display_timezone.is_none());
         assert!(input.date_format.is_none());
+        assert!(input.preferred_currency.is_none());
     }
 
     #[test]
@@ -310,7 +320,8 @@ mod tests {
             "enable_headless_browser": false,
             "color_palette": "ocean",
             "display_timezone": "Europe/London",
-            "date_format": "DD/MM/YYYY"
+            "date_format": "DD/MM/YYYY",
+            "preferred_currency": "EUR"
         }"#;
         let input: CombinedUpdateParams = serde_json::from_str(json).unwrap();
 
@@ -327,6 +338,7 @@ mod tests {
         assert_eq!(input.color_palette, Some("ocean".to_string()));
         assert_eq!(input.display_timezone, Some("Europe/London".to_string()));
         assert_eq!(input.date_format, Some("DD/MM/YYYY".to_string()));
+        assert_eq!(input.preferred_currency, Some("EUR".to_string()));
     }
 
     #[test]
@@ -347,6 +359,7 @@ mod tests {
         assert!(input.color_palette.is_none());
         assert!(input.display_timezone.is_none());
         assert!(input.date_format.is_none());
+        assert!(input.preferred_currency.is_none());
     }
 
     #[test]

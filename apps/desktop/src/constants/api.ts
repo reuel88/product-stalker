@@ -17,6 +17,10 @@ export const COMMANDS = {
 	// === INFRASTRUCTURE ===
 	GET_SETTINGS: "get_settings",
 	UPDATE_SETTINGS: "update_settings",
+	REFRESH_EXCHANGE_RATES: "refresh_exchange_rates",
+	GET_EXCHANGE_RATES: "get_exchange_rates",
+	SET_MANUAL_EXCHANGE_RATE: "set_manual_exchange_rate",
+	DELETE_EXCHANGE_RATE: "delete_exchange_rate",
 	SEND_NOTIFICATION: "send_notification",
 	CLOSE_SPLASHSCREEN: "close_splashscreen",
 	CHECK_FOR_UPDATE: "check_for_update",

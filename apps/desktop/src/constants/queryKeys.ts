@@ -16,5 +16,6 @@ export const QUERY_KEYS = {
 			: ([AVAILABILITY_PREFIX, productId, "history"] as const),
 	// === INFRASTRUCTURE ===
 	SETTINGS: ["settings"],
+	EXCHANGE_RATES: ["exchange_rates"],
 	CURRENT_VERSION: ["currentVersion"],
 } as const;

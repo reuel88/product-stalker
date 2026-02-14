@@ -35,6 +35,8 @@ pub struct CreateCheckParams {
     pub price_currency: Option<String>,
     pub raw_price: Option<String>,
     pub product_retailer_id: Option<Uuid>,
+    pub normalized_price_minor_units: Option<i64>,
+    pub normalized_currency: Option<String>,
 }
 
 impl AvailabilityCheckRepository {
@@ -58,6 +60,8 @@ impl AvailabilityCheckRepository {
             price_minor_units: Set(params.price_minor_units),
             price_currency: Set(params.price_currency),
             raw_price: Set(params.raw_price),
+            normalized_price_minor_units: Set(params.normalized_price_minor_units),
+            normalized_currency: Set(params.normalized_currency),
         };
 
         let check = active_model.insert(conn).await?;
@@ -111,12 +115,12 @@ impl AvailabilityCheckRepository {
         let result = AveragePriceResult::find_by_statement(Statement::from_sql_and_values(
             DbBackend::Sqlite,
             r#"
-                SELECT AVG(price_minor_units) as avg_price
+                SELECT AVG(COALESCE(normalized_price_minor_units, price_minor_units)) as avg_price
                 FROM availability_checks
                 WHERE product_id = ?
                   AND checked_at >= ?
                   AND checked_at < ?
-                  AND price_minor_units IS NOT NULL
+                  AND COALESCE(normalized_price_minor_units, price_minor_units) IS NOT NULL
             "#,
             [
                 Value::Uuid(Some(Box::new(product_id))),
@@ -177,7 +181,8 @@ impl AvailabilityCheckRepository {
             DbBackend::Sqlite,
             r#"
                 WITH latest_per_retailer AS (
-                    SELECT price_minor_units, price_currency,
+                    SELECT COALESCE(normalized_price_minor_units, price_minor_units) as price_minor_units,
+                           COALESCE(normalized_currency, price_currency) as price_currency,
                            ROW_NUMBER() OVER (
                                PARTITION BY product_retailer_id
                                ORDER BY checked_at DESC
@@ -185,7 +190,7 @@ impl AvailabilityCheckRepository {
                     FROM availability_checks
                     WHERE product_id = ?
                       AND product_retailer_id IS NOT NULL
-                      AND price_minor_units IS NOT NULL
+                      AND COALESCE(normalized_price_minor_units, price_minor_units) IS NOT NULL
                 )
                 SELECT price_minor_units, price_currency
                 FROM latest_per_retailer
@@ -213,12 +218,12 @@ impl AvailabilityCheckRepository {
         let result = AveragePriceResult::find_by_statement(Statement::from_sql_and_values(
             DbBackend::Sqlite,
             r#"
-                SELECT AVG(price_minor_units) as avg_price
+                SELECT AVG(COALESCE(normalized_price_minor_units, price_minor_units)) as avg_price
                 FROM availability_checks
                 WHERE product_retailer_id = ?
                   AND checked_at >= ?
                   AND checked_at < ?
-                  AND price_minor_units IS NOT NULL
+                  AND COALESCE(normalized_price_minor_units, price_minor_units) IS NOT NULL
             "#,
             [
                 Value::Uuid(Some(Box::new(product_retailer_id))),
@@ -253,6 +258,8 @@ impl AvailabilityCheckRepository {
             price_minor_units: Set(price_minor_units),
             price_currency: Set(Some("USD".to_string())),
             raw_price: Set(None),
+            normalized_price_minor_units: Set(None),
+            normalized_currency: Set(None),
         };
         active_model.insert(conn).await.unwrap()
     }
@@ -277,6 +284,8 @@ impl AvailabilityCheckRepository {
             price_minor_units: Set(price_minor_units),
             price_currency: Set(price_currency.map(|s| s.to_string())),
             raw_price: Set(None),
+            normalized_price_minor_units: Set(None),
+            normalized_currency: Set(None),
         };
         active_model.insert(conn).await.unwrap()
     }
