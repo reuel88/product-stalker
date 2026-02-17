@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { UI } from "@/constants";
 import { formatDate } from "@/lib/format-date";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
 import { createMockProduct, createMockProducts } from "../../mocks/data";
@@ -39,7 +38,6 @@ describe("ProductsTable", () => {
 			expect(screen.getByText("Retailers")).toBeInTheDocument();
 			expect(screen.getByText("Availability")).toBeInTheDocument();
 			expect(screen.getByText("Price")).toBeInTheDocument();
-			expect(screen.getByText("Description")).toBeInTheDocument();
 			expect(screen.getByText("Created")).toBeInTheDocument();
 		});
 
@@ -73,35 +71,6 @@ describe("ProductsTable", () => {
 			expect(screen.getByText("Product B")).toBeInTheDocument();
 		});
 
-		it("should render product description or dash for null", () => {
-			const productWithDesc = createMockProduct({
-				id: "prod-with-desc",
-				name: "With desc",
-				description: "Test description",
-			});
-			const productNoDesc = createMockProduct({
-				id: "prod-no-desc",
-				name: "No desc",
-				description: null,
-			});
-			const products = [productWithDesc, productNoDesc];
-
-			render(
-				<ProductsTable
-					products={products}
-					onEdit={mockOnEdit}
-					onDelete={mockOnDelete}
-				/>,
-			);
-
-			expect(
-				screen.getByTestId("description-prod-with-desc"),
-			).toHaveTextContent("Test description");
-			expect(screen.getByTestId("description-prod-no-desc")).toHaveTextContent(
-				"-",
-			);
-		});
-
 		it("should format created date", () => {
 			const product = createMockProduct({
 				created_at: "2024-01-15T10:30:00Z",
@@ -133,55 +102,6 @@ describe("ProductsTable", () => {
 
 			const nameCell = screen.getByText("Styled Product");
 			expect(nameCell).toHaveClass("font-medium");
-		});
-	});
-
-	describe("description truncation", () => {
-		it("should truncate long descriptions", () => {
-			const longDesc = "A".repeat(100);
-			const product = createMockProduct({ description: longDesc });
-
-			render(
-				<ProductsTable
-					products={[product]}
-					onEdit={mockOnEdit}
-					onDelete={mockOnDelete}
-				/>,
-			);
-
-			const truncated = `${longDesc.slice(0, UI.TRUNCATE.DESCRIPTION_LENGTH)}...`;
-			expect(screen.getByText(truncated)).toBeInTheDocument();
-		});
-
-		it("should not truncate short descriptions", () => {
-			const shortDesc = "Short description";
-			const product = createMockProduct({ description: shortDesc });
-
-			render(
-				<ProductsTable
-					products={[product]}
-					onEdit={mockOnEdit}
-					onDelete={mockOnDelete}
-				/>,
-			);
-
-			expect(screen.getByText(shortDesc)).toBeInTheDocument();
-		});
-
-		it("should have full description as title attribute for truncated descriptions", () => {
-			const longDesc = "A".repeat(100);
-			const product = createMockProduct({ description: longDesc });
-
-			render(
-				<ProductsTable
-					products={[product]}
-					onEdit={mockOnEdit}
-					onDelete={mockOnDelete}
-				/>,
-			);
-
-			const descElement = screen.getByTitle(longDesc);
-			expect(descElement).toBeInTheDocument();
 		});
 	});
 

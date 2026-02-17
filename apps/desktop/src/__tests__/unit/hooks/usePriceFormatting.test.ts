@@ -46,8 +46,8 @@ describe("usePriceFormatting", () => {
 			const { result } = renderHook(() =>
 				usePriceFormatting({
 					currentPriceMinorUnits: 79900,
-					todayAverageMinorUnits: 79900,
-					yesterdayAverageMinorUnits: 89900,
+					todayComparisonMinorUnits: 79900,
+					yesterdayComparisonMinorUnits: 89900,
 					currency: "USD",
 					currencyExponent: 2,
 				}),
@@ -63,8 +63,8 @@ describe("usePriceFormatting", () => {
 			const { result } = renderHook(() =>
 				usePriceFormatting({
 					currentPriceMinorUnits: 89900,
-					todayAverageMinorUnits: 89900,
-					yesterdayAverageMinorUnits: 79900,
+					todayComparisonMinorUnits: 89900,
+					yesterdayComparisonMinorUnits: 79900,
 					currency: "USD",
 					currencyExponent: 2,
 				}),
@@ -80,8 +80,8 @@ describe("usePriceFormatting", () => {
 			const { result } = renderHook(() =>
 				usePriceFormatting({
 					currentPriceMinorUnits: 79900,
-					todayAverageMinorUnits: 79900,
-					yesterdayAverageMinorUnits: 79900,
+					todayComparisonMinorUnits: 79900,
+					yesterdayComparisonMinorUnits: 79900,
 					currency: "USD",
 					currencyExponent: 2,
 				}),
@@ -96,8 +96,8 @@ describe("usePriceFormatting", () => {
 			const { result } = renderHook(() =>
 				usePriceFormatting({
 					currentPriceMinorUnits: 79900,
-					todayAverageMinorUnits: null,
-					yesterdayAverageMinorUnits: null,
+					todayComparisonMinorUnits: null,
+					yesterdayComparisonMinorUnits: null,
 					currency: "USD",
 					currencyExponent: 2,
 				}),
@@ -114,8 +114,8 @@ describe("usePriceFormatting", () => {
 			const { result } = renderHook(() =>
 				usePriceFormatting({
 					currentPriceMinorUnits: 79900,
-					todayAverageMinorUnits: 79900,
-					yesterdayAverageMinorUnits: 89900,
+					todayComparisonMinorUnits: 79900,
+					yesterdayComparisonMinorUnits: 89900,
 					currency: "USD",
 					currencyExponent: 2,
 				}),
@@ -128,8 +128,8 @@ describe("usePriceFormatting", () => {
 			const { result } = renderHook(() =>
 				usePriceFormatting({
 					currentPriceMinorUnits: 79900,
-					todayAverageMinorUnits: 79900,
-					yesterdayAverageMinorUnits: null,
+					todayComparisonMinorUnits: 79900,
+					yesterdayComparisonMinorUnits: null,
 					currency: "USD",
 					currencyExponent: 2,
 				}),
@@ -146,8 +146,8 @@ describe("usePriceFormatting", () => {
 				{
 					initialProps: {
 						currentPriceMinorUnits: 79900,
-						todayAverageMinorUnits: 79900,
-						yesterdayAverageMinorUnits: 89900,
+						todayComparisonMinorUnits: 79900,
+						yesterdayComparisonMinorUnits: 89900,
 						currency: "USD",
 						currencyExponent: 2,
 					},
@@ -159,8 +159,8 @@ describe("usePriceFormatting", () => {
 			// Re-render with same props
 			rerender({
 				currentPriceMinorUnits: 79900,
-				todayAverageMinorUnits: 79900,
-				yesterdayAverageMinorUnits: 89900,
+				todayComparisonMinorUnits: 79900,
+				yesterdayComparisonMinorUnits: 89900,
 				currency: "USD",
 				currencyExponent: 2,
 			});

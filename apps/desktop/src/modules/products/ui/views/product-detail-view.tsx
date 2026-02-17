@@ -24,7 +24,8 @@ import { useReorderRetailers } from "@/modules/products/hooks/useReorderRetailer
 import {
 	filterByTimeRange,
 	findCheapestRetailerId,
-	getLatestPriceByRetailer,
+	getLowestPriceComparison,
+	getRetailerDetails,
 	transformToMultiRetailerChartData,
 } from "@/modules/products/price-utils";
 import type { TimeRange } from "@/modules/products/types";
@@ -95,11 +96,9 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 		filteredHistory,
 		retailers ?? [],
 	);
-	const retailerPrices = getLatestPriceByRetailer(
-		history ?? [],
-		retailers ?? [],
-	);
-	const cheapestRetailerId = findCheapestRetailerId(retailerPrices);
+	const retailerDetailsMap = getRetailerDetails(history ?? [], retailers ?? []);
+	const cheapestRetailerId = findCheapestRetailerId(retailerDetailsMap);
+	const lowestPriceComparison = getLowestPriceComparison(history ?? []);
 
 	const handleAddRetailer = async (url: string, label: string | null) => {
 		if (!url) {
@@ -138,6 +137,7 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 				latestCheck={latestCheck}
 				isChecking={isChecking}
 				onCheck={checkWithToast}
+				lowestPriceComparison={lowestPriceComparison}
 			/>
 
 			<Card>
@@ -156,7 +156,7 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
 						retailers={retailers ?? []}
 						onRemove={handleRemoveRetailer}
 						isRemoving={isRemoving}
-						retailerPrices={retailerPrices}
+						retailerDetails={retailerDetailsMap}
 						cheapestRetailerId={cheapestRetailerId}
 						onReorder={reorderMutation.mutate}
 					/>

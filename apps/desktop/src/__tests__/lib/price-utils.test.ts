@@ -9,8 +9,11 @@ import {
 	getDateRangeLabel,
 	getDisplayPrice,
 	getLatestPriceByRetailer,
+	getLowestPriceComparison,
 	getPriceChangeDirection,
+	getRetailerDetails,
 	isRoundedZero,
+	type RetailerDetails,
 	type RetailerPrice,
 	transformToMultiRetailerChartData,
 	transformToPriceDataPoints,
@@ -670,6 +673,53 @@ describe("transformToMultiRetailerChartData", () => {
 		);
 	});
 
+	it("should use normalized prices when available", () => {
+		const retailers = [
+			createRetailer({
+				id: "pr-1",
+				url: "https://www.amazon.com/dp/B123",
+			}),
+			createRetailer({
+				id: "pr-2",
+				url: "https://www.bestbuy.com/product/123",
+				retailer_id: "bestbuy.com",
+			}),
+		];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:05Z",
+				price_minor_units: 5000,
+				price_currency: "CHF",
+				currency_exponent: 2,
+				normalized_price_minor_units: 8500,
+				normalized_currency: "AUD",
+				normalized_currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: "pr-2",
+				checked_at: "2024-01-01T10:00:10Z",
+				price_minor_units: 7000,
+				price_currency: "CHF",
+				currency_exponent: 2,
+				normalized_price_minor_units: 11900,
+				normalized_currency: "AUD",
+				normalized_currency_exponent: 2,
+			}),
+		];
+
+		const result = transformToMultiRetailerChartData(checks, retailers);
+
+		expect(result.currency).toBe("AUD");
+		expect(result.currencyExponent).toBe(2);
+		expect(result.data).toHaveLength(1);
+		expect(result.data[0]["pr-1"]).toBe(8500);
+		expect(result.data[0]["pr-2"]).toBe(11900);
+	});
+
 	it("should include label in series when retailer has a label", () => {
 		const retailers = [
 			createRetailer({
@@ -834,6 +884,84 @@ describe("getLatestPriceByRetailer", () => {
 
 		expect(result.get("pr-1")?.currencyExponent).toBe(2);
 	});
+
+	it("should include original price when normalized currency differs from original", () => {
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 1430000,
+				price_currency: "JPY",
+				currency_exponent: 0,
+				normalized_price_minor_units: 14250,
+				normalized_currency: "AUD",
+				normalized_currency_exponent: 2,
+			}),
+		];
+
+		const result = getLatestPriceByRetailer(checks, retailers);
+
+		const price = result.get("pr-1");
+		expect(price?.priceMinorUnits).toBe(14250);
+		expect(price?.currency).toBe("AUD");
+		expect(price?.originalPriceMinorUnits).toBe(1430000);
+		expect(price?.originalCurrency).toBe("JPY");
+		expect(price?.originalCurrencyExponent).toBe(0);
+	});
+
+	it("should not include original price when currencies match", () => {
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 18995,
+				price_currency: "AUD",
+				currency_exponent: 2,
+				normalized_price_minor_units: 18995,
+				normalized_currency: "AUD",
+				normalized_currency_exponent: 2,
+			}),
+		];
+
+		const result = getLatestPriceByRetailer(checks, retailers);
+
+		const price = result.get("pr-1");
+		expect(price?.priceMinorUnits).toBe(18995);
+		expect(price?.currency).toBe("AUD");
+		expect(price?.originalCurrency).toBeUndefined();
+		expect(price?.originalPriceMinorUnits).toBeUndefined();
+	});
+
+	it("should not include original price when normalized is null", () => {
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+				currency_exponent: 2,
+				normalized_price_minor_units: null,
+				normalized_currency: null,
+				normalized_currency_exponent: null,
+			}),
+		];
+
+		const result = getLatestPriceByRetailer(checks, retailers);
+
+		const price = result.get("pr-1");
+		expect(price?.priceMinorUnits).toBe(9999);
+		expect(price?.currency).toBe("USD");
+		expect(price?.originalCurrency).toBeUndefined();
+	});
 });
 
 describe("findCheapestRetailerId", () => {
@@ -871,5 +999,380 @@ describe("findCheapestRetailerId", () => {
 		const result = findCheapestRetailerId(priceMap);
 		// Both have same price; first one wins since it's < not <=
 		expect(result).toBe("pr-1");
+	});
+
+	it("should skip entries with null priceMinorUnits", () => {
+		const priceMap = new Map<string, RetailerDetails>([
+			[
+				"pr-1",
+				{
+					priceMinorUnits: null,
+					currency: null,
+					currencyExponent: 2,
+					status: "unknown",
+					checkedAt: null,
+					todayAverageMinorUnits: null,
+					yesterdayAverageMinorUnits: null,
+				},
+			],
+			[
+				"pr-2",
+				{
+					priceMinorUnits: 9999,
+					currency: "USD",
+					currencyExponent: 2,
+					status: "in_stock",
+					checkedAt: new Date().toISOString(),
+					todayAverageMinorUnits: null,
+					yesterdayAverageMinorUnits: null,
+				},
+			],
+			[
+				"pr-3",
+				{
+					priceMinorUnits: 7999,
+					currency: "USD",
+					currencyExponent: 2,
+					status: "in_stock",
+					checkedAt: new Date().toISOString(),
+					todayAverageMinorUnits: null,
+					yesterdayAverageMinorUnits: null,
+				},
+			],
+		]);
+
+		expect(findCheapestRetailerId(priceMap)).toBe("pr-3");
+	});
+
+	it("should return null when only one entry has a valid price", () => {
+		const priceMap = new Map<string, RetailerDetails>([
+			[
+				"pr-1",
+				{
+					priceMinorUnits: null,
+					currency: null,
+					currencyExponent: 2,
+					status: "unknown",
+					checkedAt: null,
+					todayAverageMinorUnits: null,
+					yesterdayAverageMinorUnits: null,
+				},
+			],
+			[
+				"pr-2",
+				{
+					priceMinorUnits: 9999,
+					currency: "USD",
+					currencyExponent: 2,
+					status: "in_stock",
+					checkedAt: new Date().toISOString(),
+					todayAverageMinorUnits: null,
+					yesterdayAverageMinorUnits: null,
+				},
+			],
+		]);
+
+		expect(findCheapestRetailerId(priceMap)).toBeNull();
+	});
+});
+
+describe("getRetailerDetails", () => {
+	it("should return latest status and price for each retailer", () => {
+		const now = new Date();
+		const retailers = [
+			createRetailer({ id: "pr-1" }),
+			createRetailer({
+				id: "pr-2",
+				url: "https://www.bestbuy.com/product/123",
+			}),
+		];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+				status: "in_stock",
+				price_minor_units: 9999,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: "pr-1",
+				checked_at: new Date(now.getTime() - 60 * 60 * 1000).toISOString(),
+				status: "out_of_stock",
+				price_minor_units: 8999,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c3",
+				product_retailer_id: "pr-2",
+				checked_at: new Date(now.getTime() - 60 * 60 * 1000).toISOString(),
+				status: "in_stock",
+				price_minor_units: 10999,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+		];
+
+		const result = getRetailerDetails(checks, retailers);
+
+		expect(result.size).toBe(2);
+
+		const pr1 = result.get("pr-1");
+		expect(pr1?.status).toBe("out_of_stock");
+		expect(pr1?.priceMinorUnits).toBe(8999);
+		expect(pr1?.currency).toBe("USD");
+
+		const pr2 = result.get("pr-2");
+		expect(pr2?.status).toBe("in_stock");
+		expect(pr2?.priceMinorUnits).toBe(10999);
+	});
+
+	it("should set status from most recent check even without valid price", () => {
+		const now = new Date();
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+				status: "in_stock",
+				price_minor_units: 9999,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: "pr-1",
+				checked_at: new Date(now.getTime() - 60 * 60 * 1000).toISOString(),
+				status: "out_of_stock",
+				price_minor_units: null,
+				price_currency: null,
+			}),
+		];
+
+		const result = getRetailerDetails(checks, retailers);
+
+		const pr1 = result.get("pr-1");
+		expect(pr1?.status).toBe("out_of_stock");
+		expect(pr1?.priceMinorUnits).toBe(9999);
+	});
+
+	it("should compute today and yesterday averages", () => {
+		const now = new Date();
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+				status: "in_stock",
+				price_minor_units: 10000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: "pr-1",
+				checked_at: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(),
+				status: "in_stock",
+				price_minor_units: 12000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c3",
+				product_retailer_id: "pr-1",
+				checked_at: new Date(now.getTime() - 30 * 60 * 60 * 1000).toISOString(),
+				status: "in_stock",
+				price_minor_units: 15000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c4",
+				product_retailer_id: "pr-1",
+				checked_at: new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString(),
+				status: "in_stock",
+				price_minor_units: 13000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+		];
+
+		const result = getRetailerDetails(checks, retailers);
+
+		const pr1 = result.get("pr-1");
+		expect(pr1?.todayAverageMinorUnits).toBe(11000); // (10000 + 12000) / 2
+		expect(pr1?.yesterdayAverageMinorUnits).toBe(14000); // (15000 + 13000) / 2
+	});
+
+	it("should return null averages when no checks in time window", () => {
+		const now = new Date();
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString(),
+				status: "in_stock",
+				price_minor_units: 10000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+		];
+
+		const result = getRetailerDetails(checks, retailers);
+
+		const pr1 = result.get("pr-1");
+		expect(pr1?.todayAverageMinorUnits).toBeNull();
+		expect(pr1?.yesterdayAverageMinorUnits).toBeNull();
+	});
+
+	it("should ignore checks for unknown retailer IDs", () => {
+		const retailers = [createRetailer({ id: "pr-1" })];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-unknown",
+				checked_at: new Date().toISOString(),
+				status: "in_stock",
+				price_minor_units: 9999,
+				price_currency: "USD",
+			}),
+		];
+
+		const result = getRetailerDetails(checks, retailers);
+		expect(result.size).toBe(0);
+	});
+
+	it("should return empty map for empty inputs", () => {
+		const result = getRetailerDetails([], []);
+		expect(result.size).toBe(0);
+	});
+});
+
+describe("getLowestPriceComparison", () => {
+	it("should find cheapest price in today and yesterday windows", () => {
+		const now = new Date();
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				checked_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 10000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c2",
+				checked_at: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 8000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c3",
+				checked_at: new Date(now.getTime() - 30 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 12000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+			createCheck({
+				id: "c4",
+				checked_at: new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 9000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+		];
+
+		const result = getLowestPriceComparison(checks);
+
+		expect(result.todayLowestMinorUnits).toBe(8000);
+		expect(result.yesterdayLowestMinorUnits).toBe(9000);
+		expect(result.currency).toBe("USD");
+		expect(result.currencyExponent).toBe(2);
+	});
+
+	it("should return nulls when no valid checks exist", () => {
+		const result = getLowestPriceComparison([]);
+
+		expect(result.todayLowestMinorUnits).toBeNull();
+		expect(result.yesterdayLowestMinorUnits).toBeNull();
+		expect(result.currency).toBeNull();
+		expect(result.currencyExponent).toBe(2);
+	});
+
+	it("should return null for yesterday when no checks in that window", () => {
+		const now = new Date();
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				checked_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 10000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+		];
+
+		const result = getLowestPriceComparison(checks);
+
+		expect(result.todayLowestMinorUnits).toBe(10000);
+		expect(result.yesterdayLowestMinorUnits).toBeNull();
+	});
+
+	it("should skip checks with null prices", () => {
+		const now = new Date();
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				checked_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: null,
+				price_currency: null,
+			}),
+			createCheck({
+				id: "c2",
+				checked_at: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 8000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			}),
+		];
+
+		const result = getLowestPriceComparison(checks);
+
+		expect(result.todayLowestMinorUnits).toBe(8000);
+	});
+
+	it("should use normalized prices when available", () => {
+		const now = new Date();
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				checked_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 5000,
+				price_currency: "CHF",
+				currency_exponent: 2,
+				normalized_price_minor_units: 8500,
+				normalized_currency: "AUD",
+				normalized_currency_exponent: 2,
+			}),
+		];
+
+		const result = getLowestPriceComparison(checks);
+
+		expect(result.todayLowestMinorUnits).toBe(8500);
+		expect(result.currency).toBe("AUD");
 	});
 });

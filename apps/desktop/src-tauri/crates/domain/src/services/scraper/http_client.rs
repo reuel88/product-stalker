@@ -78,26 +78,10 @@ pub async fn fetch_html_with_fallback(
             Err(e) => {
                 log::warn!("Headless browser failed for {}: {}", url, e);
 
-                // Check if it's a CAPTCHA challenge that requires manual verification
-                if let AppError::External(ref msg) = e {
-                    if msg.contains("CAPTCHA") || msg.contains("challenge") {
-                        if allow_manual_verification {
-                            log::info!(
-                                "CAPTCHA detected, attempting manual verification for {}",
-                                url
-                            );
-                            return fetch_with_manual_verification(
-                                url,
-                                conn,
-                                session_cache_duration_days,
-                            )
-                            .await;
-                        } else {
-                            return Err(AppError::External(
-                                "This site requires manual CAPTCHA verification. Enable manual verification in settings.".to_string()
-                            ));
-                        }
-                    }
+                if allow_manual_verification {
+                    log::info!("Attempting manual verification for {}", url);
+                    return fetch_with_manual_verification(url, conn, session_cache_duration_days)
+                        .await;
                 }
 
                 return Err(e);
@@ -120,12 +104,25 @@ pub async fn fetch_html_with_fallback(
 /// to avoid blocking the async runtime.
 async fn fetch_with_headless(url: &str) -> Result<String, AppError> {
     let url_owned = url.to_string();
-    tokio::task::spawn_blocking(move || {
+    let task = tokio::task::spawn_blocking(move || {
         let mut headless = HeadlessService::new();
         headless.fetch_page(&url_owned)
-    })
+    });
+
+    // 30s margin above PAGE_TIMEOUT_SECS so the outer timeout outlasts the inner page load timeout
+    match tokio::time::timeout(
+        Duration::from_secs(HeadlessService::PAGE_TIMEOUT_SECS + 30),
+        task,
+    )
     .await
-    .map_err(|e| AppError::Internal(format!("Headless task failed: {}", e)))?
+    {
+        Ok(join_result) => {
+            join_result.map_err(|e| AppError::Internal(format!("Headless task failed: {}", e)))?
+        }
+        Err(_) => Err(AppError::External(
+            "Headless browser timed out. The site may require manual verification.".to_string(),
+        )),
+    }
 }
 
 /// Fetch page with manual verification workflow

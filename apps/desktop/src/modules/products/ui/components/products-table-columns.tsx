@@ -8,29 +8,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { UI } from "@/constants";
 import type { ProductResponse } from "@/modules/products/types";
-
-/** Renders text truncated to maxLength with a title tooltip showing full text */
-function TruncatedText({
-	text,
-	maxLength,
-	className,
-	testId,
-}: {
-	text: string;
-	maxLength: number;
-	className?: string;
-	testId?: string;
-}) {
-	const truncated =
-		text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
-	return (
-		<span data-testid={testId} className={className} title={text}>
-			{truncated}
-		</span>
-	);
-}
 
 interface ColumnOptions {
 	onEdit?: (product: ProductResponse) => void;
@@ -81,29 +59,6 @@ export function createProductColumns(
 			id: "price",
 			header: "Price",
 			cell: ({ row }) => <PriceCell productId={row.original.id} />,
-		},
-		{
-			accessorKey: "description",
-			header: "Description",
-			cell: ({ row }) => {
-				const description = row.original.description;
-				if (!description)
-					return (
-						<span
-							data-testid={`description-${row.original.id}`}
-							className="text-muted-foreground"
-						>
-							-
-						</span>
-					);
-				return (
-					<TruncatedText
-						text={description}
-						maxLength={UI.TRUNCATE.DESCRIPTION_LENGTH}
-						testId={`description-${row.original.id}`}
-					/>
-				);
-			},
 		},
 		{
 			accessorKey: "created_at",

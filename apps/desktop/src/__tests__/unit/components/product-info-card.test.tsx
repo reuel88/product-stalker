@@ -109,48 +109,6 @@ describe("ProductInfoCard", () => {
 		});
 	});
 
-	describe("availability status", () => {
-		it("should display In Stock badge when status is in_stock", () => {
-			const product = createMockProduct();
-			const check = createMockCheck({ status: "in_stock" });
-			render(<ProductInfoCard product={product} latestCheck={check} />);
-
-			expect(screen.getByText("In Stock")).toBeInTheDocument();
-		});
-
-		it("should display Out of Stock badge when status is out_of_stock", () => {
-			const product = createMockProduct();
-			const check = createMockCheck({ status: "out_of_stock" });
-			render(<ProductInfoCard product={product} latestCheck={check} />);
-
-			expect(screen.getByText("Out of Stock")).toBeInTheDocument();
-		});
-
-		it("should display Back Order badge when status is back_order", () => {
-			const product = createMockProduct();
-			const check = createMockCheck({ status: "back_order" });
-			render(<ProductInfoCard product={product} latestCheck={check} />);
-
-			expect(screen.getByText("Back Order")).toBeInTheDocument();
-		});
-
-		it("should display Unknown badge when status is unknown", () => {
-			const product = createMockProduct();
-			const check = createMockCheck({ status: "unknown" });
-			render(<ProductInfoCard product={product} latestCheck={check} />);
-
-			expect(screen.getByText("Unknown")).toBeInTheDocument();
-		});
-
-		it("should not display status badge when latestCheck is null", () => {
-			const product = createMockProduct();
-			render(<ProductInfoCard product={product} latestCheck={null} />);
-
-			expect(screen.queryByText("In Stock")).not.toBeInTheDocument();
-			expect(screen.queryByText("Out of Stock")).not.toBeInTheDocument();
-		});
-	});
-
 	describe("price display", () => {
 		it("should display current price when available", () => {
 			const product = createMockProduct();

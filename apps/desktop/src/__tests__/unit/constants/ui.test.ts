@@ -24,16 +24,6 @@ describe("UI constant", () => {
 			expect(UI.TRUNCATE.URL_LENGTH).toBeGreaterThanOrEqual(20);
 			expect(UI.TRUNCATE.URL_LENGTH).toBeLessThanOrEqual(100);
 		});
-
-		it("should have DESCRIPTION_LENGTH defined", () => {
-			expect(UI.TRUNCATE).toHaveProperty("DESCRIPTION_LENGTH");
-			expect(typeof UI.TRUNCATE.DESCRIPTION_LENGTH).toBe("number");
-		});
-
-		it("should have reasonable DESCRIPTION_LENGTH (20-200 characters)", () => {
-			expect(UI.TRUNCATE.DESCRIPTION_LENGTH).toBeGreaterThanOrEqual(20);
-			expect(UI.TRUNCATE.DESCRIPTION_LENGTH).toBeLessThanOrEqual(200);
-		});
 	});
 
 	describe("PAGINATION config", () => {
