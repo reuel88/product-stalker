@@ -16,7 +16,7 @@ use crate::core::services::{ExchangeRateService, SettingService, SettingsCache};
 use crate::core::AppError;
 use crate::domain::repositories::ProductRetailerRepository;
 use crate::domain::services::{
-    AvailabilityService, BulkCheckSummary, DomainSettingService, DomainSettingsCache,
+    AvailabilityService, BulkCheckSummary, CheckConfig, DomainSettingService, DomainSettingsCache,
     NotificationData, ProductService,
 };
 
@@ -55,14 +55,17 @@ impl TauriAvailabilityService {
     ) -> Result<CheckResultWithNotification, AppError> {
         let settings = SettingService::get(conn).await?;
         let domain_settings = DomainSettingService::get(conn).await?;
+        let config = CheckConfig {
+            enable_headless: domain_settings.enable_headless_browser,
+            allow_manual_verification: domain_settings.allow_manual_verification,
+            session_cache_duration_days: domain_settings.session_cache_duration_days,
+            preferred_currency: &settings.preferred_currency,
+        };
         AvailabilityService::check_product_with_notification(
             conn,
             product_id,
-            domain_settings.enable_headless_browser,
             settings.enable_notifications,
-            domain_settings.allow_manual_verification,
-            domain_settings.session_cache_duration_days,
-            &settings.preferred_currency,
+            &config,
         )
         .await
     }
@@ -89,6 +92,13 @@ impl TauriAvailabilityService {
         if let Err(e) = ExchangeRateService::refresh_if_stale(conn, &preferred).await {
             log::warn!("Failed to refresh exchange rates before bulk check: {}", e);
         }
+
+        let config = CheckConfig {
+            enable_headless,
+            allow_manual_verification,
+            session_cache_duration_days: session_cache_duration,
+            preferred_currency: &preferred,
+        };
 
         // Gather all product-retailer links (with their associated products)
         let product_retailers = ProductRetailerRepository::find_all_with_product(conn).await?;
@@ -130,16 +140,8 @@ impl TauriAvailabilityService {
             };
 
             let (bulk_result, processing_result) =
-                AvailabilityService::check_single_product_retailer(
-                    conn,
-                    product,
-                    pr,
-                    enable_headless,
-                    allow_manual_verification,
-                    session_cache_duration,
-                    &preferred,
-                )
-                .await;
+                AvailabilityService::check_single_product_retailer(conn, product, pr, &config)
+                    .await;
 
             let _ = app.emit(
                 "availability:check-progress",
@@ -161,15 +163,8 @@ impl TauriAvailabilityService {
                 tokio::time::sleep(Duration::from_millis(RATE_LIMIT_BETWEEN_CHECKS_MS)).await;
             }
 
-            let (bulk_result, processing_result) = AvailabilityService::check_single_product(
-                conn,
-                product,
-                enable_headless,
-                allow_manual_verification,
-                session_cache_duration,
-                &preferred,
-            )
-            .await;
+            let (bulk_result, processing_result) =
+                AvailabilityService::check_single_product(conn, product, &config).await;
 
             let _ = app.emit(
                 "availability:check-progress",

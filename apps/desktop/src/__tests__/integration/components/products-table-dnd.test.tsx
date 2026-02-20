@@ -135,9 +135,11 @@ describe("ProductsTable DnD reorder mode", () => {
 		// Find the next page button — the 3rd icon-sized button in the pagination row
 		const paginationButtons = screen
 			.getByText("Page 1 of 2")
-			.closest("div")!
-			.parentElement!.querySelectorAll("button");
-		const nextPageButton = paginationButtons[2];
+			.closest("div")
+			?.parentElement?.querySelectorAll("button");
+		const nextPageButton = (
+			paginationButtons as NodeListOf<HTMLButtonElement>
+		)[2];
 		await user.click(nextPageButton);
 
 		// Confirm we're on page 2

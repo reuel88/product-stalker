@@ -13,10 +13,16 @@ use crate::services::{NotificationService, ScraperService};
 use product_stalker_core::AppError;
 
 use super::types::{
-    BulkCheckResult, CheckProcessingResult, CheckResultWithNotification, DailyPriceComparison,
-    ProductCheckContext,
+    BulkCheckResult, CheckConfig, CheckProcessingResult, CheckResultWithNotification,
+    DailyPriceComparison, ProductCheckContext,
 };
 use super::AvailabilityService;
+
+/// Result of normalizing a price to the preferred currency.
+struct NormalizedPrice {
+    minor_units: Option<i64>,
+    currency: Option<String>,
+}
 
 impl AvailabilityService {
     /// Build CreateCheckParams from a successful scraping result
@@ -44,20 +50,26 @@ impl AvailabilityService {
 
     /// Normalize price to the user's preferred currency.
     ///
-    /// Returns `(normalized_minor_units, normalized_currency)`.
-    /// Returns `(None, None)` if conversion is not needed (same currency) or fails gracefully.
+    /// Returns `NormalizedPrice` with `(None, None)` if conversion is not needed
+    /// (same currency) or fails gracefully.
     async fn normalize_price(
         conn: &DatabaseConnection,
         price_minor_units: Option<i64>,
         price_currency: Option<&str>,
         preferred_currency: &str,
-    ) -> (Option<i64>, Option<String>) {
+    ) -> NormalizedPrice {
         let (Some(amount), Some(from_currency)) = (price_minor_units, price_currency) else {
-            return (None, None);
+            return NormalizedPrice {
+                minor_units: None,
+                currency: None,
+            };
         };
 
         if from_currency.eq_ignore_ascii_case(preferred_currency) {
-            return (Some(amount), Some(preferred_currency.to_string()));
+            return NormalizedPrice {
+                minor_units: Some(amount),
+                currency: Some(preferred_currency.to_string()),
+            };
         }
 
         match product_stalker_core::services::ExchangeRateService::get_rate(
@@ -74,7 +86,10 @@ impl AvailabilityService {
                     product_stalker_core::services::ExchangeRateService::convert_minor_units(
                         amount, rate, from_exp, to_exp,
                     );
-                (Some(normalized), Some(preferred_currency.to_string()))
+                NormalizedPrice {
+                    minor_units: Some(normalized),
+                    currency: Some(preferred_currency.to_string()),
+                }
             }
             Err(e) => {
                 log::warn!(
@@ -84,9 +99,47 @@ impl AvailabilityService {
                     preferred_currency,
                     e
                 );
-                (None, None)
+                NormalizedPrice {
+                    minor_units: None,
+                    currency: None,
+                }
             }
         }
+    }
+
+    /// Process a scraping result: build params, auto-set currency, normalize price.
+    async fn process_scraping_result(
+        conn: &DatabaseConnection,
+        result: Result<crate::services::scraper::ScrapingResult, AppError>,
+        product: &ProductModel,
+        check_url: Option<&str>,
+        preferred_currency: &str,
+    ) -> CreateCheckParams {
+        let mut params = match result {
+            Ok(scraping_result) => {
+                let params = Self::params_from_success(scraping_result);
+                Self::auto_set_product_currency(
+                    conn,
+                    product,
+                    params.price_currency.as_deref(),
+                    check_url,
+                )
+                .await;
+                params
+            }
+            Err(e) => Self::params_from_error(&e),
+        };
+
+        let normalized = Self::normalize_price(
+            conn,
+            params.price_minor_units,
+            params.price_currency.as_deref(),
+            preferred_currency,
+        )
+        .await;
+        params.normalized_price_minor_units = normalized.minor_units;
+        params.normalized_currency = normalized.currency;
+        params
     }
 
     /// Check the availability of a product by its ID using its deprecated URL field.
@@ -97,10 +150,7 @@ impl AvailabilityService {
     pub async fn check_product(
         conn: &DatabaseConnection,
         product_id: Uuid,
-        enable_headless: bool,
-        allow_manual_verification: bool,
-        session_cache_duration_days: i32,
-        preferred_currency: &str,
+        config: &CheckConfig<'_>,
     ) -> Result<AvailabilityCheckModel, AppError> {
         let product = ProductRepository::find_by_id(conn, product_id)
             .await?
@@ -113,37 +163,16 @@ impl AvailabilityService {
 
         let result = ScraperService::check_availability_with_headless(
             url,
-            enable_headless,
-            allow_manual_verification,
+            config.enable_headless,
+            config.allow_manual_verification,
             conn,
-            session_cache_duration_days,
+            config.session_cache_duration_days,
         )
         .await;
 
-        let mut params = match result {
-            Ok(scraping_result) => {
-                let params = Self::params_from_success(scraping_result);
-                Self::auto_set_product_currency(
-                    conn,
-                    &product,
-                    params.price_currency.as_deref(),
-                    None,
-                )
+        let params =
+            Self::process_scraping_result(conn, result, &product, None, config.preferred_currency)
                 .await;
-                params
-            }
-            Err(e) => Self::params_from_error(&e),
-        };
-
-        let (normalized_minor, normalized_curr) = Self::normalize_price(
-            conn,
-            params.price_minor_units,
-            params.price_currency.as_deref(),
-            preferred_currency,
-        )
-        .await;
-        params.normalized_price_minor_units = normalized_minor;
-        params.normalized_currency = normalized_curr;
 
         AvailabilityCheckRepository::create(conn, Uuid::new_v4(), product_id, params).await
     }
@@ -154,10 +183,7 @@ impl AvailabilityService {
     pub async fn check_product_retailer(
         conn: &DatabaseConnection,
         product_retailer_id: Uuid,
-        enable_headless: bool,
-        allow_manual_verification: bool,
-        session_cache_duration_days: i32,
-        preferred_currency: &str,
+        config: &CheckConfig<'_>,
     ) -> Result<AvailabilityCheckModel, AppError> {
         let pr =
             crate::repositories::ProductRetailerRepository::find_by_id(conn, product_retailer_id)
@@ -175,39 +201,22 @@ impl AvailabilityService {
 
         let result = ScraperService::check_availability_with_headless(
             &pr.url,
-            enable_headless,
-            allow_manual_verification,
+            config.enable_headless,
+            config.allow_manual_verification,
             conn,
-            session_cache_duration_days,
+            config.session_cache_duration_days,
         )
         .await;
 
-        let mut params = match result {
-            Ok(scraping_result) => {
-                let params = Self::params_from_success(scraping_result);
-                Self::auto_set_product_currency(
-                    conn,
-                    &product,
-                    params.price_currency.as_deref(),
-                    Some(&pr.url),
-                )
-                .await;
-                params
-            }
-            Err(e) => Self::params_from_error(&e),
-        };
-
+        let mut params = Self::process_scraping_result(
+            conn,
+            result,
+            &product,
+            Some(&pr.url),
+            config.preferred_currency,
+        )
+        .await;
         params.product_retailer_id = Some(product_retailer_id);
-
-        let (normalized_minor, normalized_curr) = Self::normalize_price(
-            conn,
-            params.price_minor_units,
-            params.price_currency.as_deref(),
-            preferred_currency,
-        )
-        .await;
-        params.normalized_price_minor_units = normalized_minor;
-        params.normalized_currency = normalized_curr;
 
         AvailabilityCheckRepository::create(conn, Uuid::new_v4(), pr.product_id, params).await
     }
@@ -349,10 +358,7 @@ impl AvailabilityService {
     pub async fn check_single_product(
         conn: &DatabaseConnection,
         product: &ProductModel,
-        enable_headless: bool,
-        allow_manual_verification: bool,
-        session_cache_duration_days: i32,
-        preferred_currency: &str,
+        config: &CheckConfig<'_>,
     ) -> (BulkCheckResult, CheckProcessingResult) {
         // Step 1: Get previous check context
         let context = match Self::get_product_check_context(conn, product.id).await {
@@ -361,15 +367,7 @@ impl AvailabilityService {
         };
 
         // Step 2: Perform the availability check
-        let check_result = Self::check_product(
-            conn,
-            product.id,
-            enable_headless,
-            allow_manual_verification,
-            session_cache_duration_days,
-            preferred_currency,
-        )
-        .await;
+        let check_result = Self::check_product(conn, product.id, config).await;
 
         // Step 3: Get daily price comparison (includes the new check in today's average)
         let daily_comparison = match Self::get_daily_price_comparison(conn, product.id).await {
@@ -395,10 +393,7 @@ impl AvailabilityService {
         conn: &DatabaseConnection,
         product: &ProductModel,
         product_retailer: &crate::entities::prelude::ProductRetailerModel,
-        enable_headless: bool,
-        allow_manual_verification: bool,
-        session_cache_duration_days: i32,
-        preferred_currency: &str,
+        config: &CheckConfig<'_>,
     ) -> (BulkCheckResult, CheckProcessingResult) {
         // Step 1: Get previous check context (based on product_retailer_id)
         let previous_check = AvailabilityCheckRepository::find_latest_for_product_retailer(
@@ -414,15 +409,7 @@ impl AvailabilityService {
         };
 
         // Step 2: Perform the check via product_retailer
-        let check_result = Self::check_product_retailer(
-            conn,
-            product_retailer.id,
-            enable_headless,
-            allow_manual_verification,
-            session_cache_duration_days,
-            preferred_currency,
-        )
-        .await;
+        let check_result = Self::check_product_retailer(conn, product_retailer.id, config).await;
 
         // Step 3: Get daily price comparison for this product_retailer
         let daily_comparison =
@@ -509,11 +496,8 @@ impl AvailabilityService {
     pub async fn check_product_with_notification(
         conn: &DatabaseConnection,
         product_id: Uuid,
-        enable_headless: bool,
         enable_notifications: bool,
-        allow_manual_verification: bool,
-        session_cache_duration_days: i32,
-        preferred_currency: &str,
+        config: &CheckConfig<'_>,
     ) -> Result<CheckResultWithNotification, AppError> {
         // Step 1: Get previous status before checking
         let previous_check = Self::get_latest(conn, product_id).await?;
@@ -524,15 +508,7 @@ impl AvailabilityService {
 
         let (check, any_back_in_stock) = if retailers.is_empty() {
             // Legacy path: product has no retailer links, use product.url
-            let check = Self::check_product(
-                conn,
-                product_id,
-                enable_headless,
-                allow_manual_verification,
-                session_cache_duration_days,
-                preferred_currency,
-            )
-            .await?;
+            let check = Self::check_product(conn, product_id, config).await?;
             let is_back = Self::is_back_in_stock(&previous_status, &check.status_enum());
             (check, is_back)
         } else {
@@ -548,15 +524,7 @@ impl AvailabilityService {
                     .await?
                     .map(|c| c.status_enum());
 
-                let result = Self::check_product_retailer(
-                    conn,
-                    retailer.id,
-                    enable_headless,
-                    allow_manual_verification,
-                    session_cache_duration_days,
-                    preferred_currency,
-                )
-                .await?;
+                let result = Self::check_product_retailer(conn, retailer.id, config).await?;
 
                 if Self::is_back_in_stock(&retailer_previous, &result.status_enum()) {
                     back_in_stock = true;
@@ -716,8 +684,13 @@ mod tests {
             let conn = setup_availability_db().await;
             let fake_id = Uuid::new_v4();
 
-            let result =
-                AvailabilityService::check_product(&conn, fake_id, false, false, 14, "AUD").await;
+            let config = CheckConfig {
+                enable_headless: false,
+                allow_manual_verification: false,
+                session_cache_duration_days: 14,
+                preferred_currency: "AUD",
+            };
+            let result = AvailabilityService::check_product(&conn, fake_id, &config).await;
 
             assert!(result.is_err());
             assert!(matches!(result, Err(AppError::NotFound(_))));
@@ -772,8 +745,14 @@ mod tests {
             // Should NOT fail with "Product has no URL set" — uses retailer path instead.
             // The scraping will fail (no network in tests), but the error is caught and
             // stored as a check result, so this should return Ok.
+            let config = CheckConfig {
+                enable_headless: false,
+                allow_manual_verification: false,
+                session_cache_duration_days: 14,
+                preferred_currency: "AUD",
+            };
             let result = AvailabilityService::check_product_with_notification(
-                &conn, product_id, false, false, false, 14, "AUD",
+                &conn, product_id, false, &config,
             )
             .await;
 
@@ -846,8 +825,14 @@ mod tests {
             .unwrap();
 
             // Run the check — scraping fails for both, but both should get check records
+            let config = CheckConfig {
+                enable_headless: false,
+                allow_manual_verification: false,
+                session_cache_duration_days: 14,
+                preferred_currency: "AUD",
+            };
             let result = AvailabilityService::check_product_with_notification(
-                &conn, product_id, false, false, false, 14, "AUD",
+                &conn, product_id, false, &config,
             )
             .await;
 
@@ -962,8 +947,14 @@ mod tests {
             .unwrap();
 
             // Run the check — scraping fails (Unknown status), neither retailer transitions to InStock
+            let config = CheckConfig {
+                enable_headless: false,
+                allow_manual_verification: false,
+                session_cache_duration_days: 14,
+                preferred_currency: "AUD",
+            };
             let result = AvailabilityService::check_product_with_notification(
-                &conn, product_id, false, true, false, 14, "AUD",
+                &conn, product_id, true, &config,
             )
             .await;
 
@@ -1002,8 +993,14 @@ mod tests {
             .unwrap();
 
             // Should fail with the legacy "Product has no URL set" validation error
+            let config = CheckConfig {
+                enable_headless: false,
+                allow_manual_verification: false,
+                session_cache_duration_days: 14,
+                preferred_currency: "AUD",
+            };
             let result = AvailabilityService::check_product_with_notification(
-                &conn, product_id, false, false, false, 14, "AUD",
+                &conn, product_id, false, &config,
             )
             .await;
 

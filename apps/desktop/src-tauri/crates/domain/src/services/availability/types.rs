@@ -60,6 +60,17 @@ pub struct ProductCheckContext {
     pub previous_status: Option<AvailabilityStatus>,
 }
 
+/// Configuration for availability check operations.
+///
+/// Groups the settings that are threaded through check calls,
+/// avoiding long positional parameter lists.
+pub struct CheckConfig<'a> {
+    pub enable_headless: bool,
+    pub allow_manual_verification: bool,
+    pub session_cache_duration_days: i32,
+    pub preferred_currency: &'a str,
+}
+
 /// Accumulated counters for bulk check results
 #[derive(Default)]
 pub struct BulkCheckCounters {

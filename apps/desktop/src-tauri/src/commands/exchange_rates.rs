@@ -1,6 +1,7 @@
 use serde::Serialize;
 use tauri::State;
 
+use crate::core::entities::exchange_rate;
 use crate::core::services::{ExchangeRateService, SettingService};
 use crate::db::DbState;
 use crate::tauri_error::CommandError;
@@ -13,6 +14,19 @@ pub struct ExchangeRateResponse {
     pub rate: f64,
     pub source: String,
     pub fetched_at: String,
+}
+
+impl From<exchange_rate::Model> for ExchangeRateResponse {
+    fn from(model: exchange_rate::Model) -> Self {
+        Self {
+            id: model.id,
+            from_currency: model.from_currency,
+            to_currency: model.to_currency,
+            rate: model.rate,
+            source: model.source,
+            fetched_at: model.fetched_at.to_rfc3339(),
+        }
+    }
 }
 
 /// Refresh exchange rates from the API
@@ -29,17 +43,7 @@ pub async fn get_exchange_rates(
     db: State<'_, DbState>,
 ) -> Result<Vec<ExchangeRateResponse>, CommandError> {
     let rates = ExchangeRateService::get_all(db.conn()).await?;
-    Ok(rates
-        .into_iter()
-        .map(|r| ExchangeRateResponse {
-            id: r.id,
-            from_currency: r.from_currency,
-            to_currency: r.to_currency,
-            rate: r.rate,
-            source: r.source,
-            fetched_at: r.fetched_at.to_rfc3339(),
-        })
-        .collect())
+    Ok(rates.into_iter().map(ExchangeRateResponse::from).collect())
 }
 
 /// Set a manual exchange rate override
@@ -67,7 +71,20 @@ pub async fn delete_exchange_rate(
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
+
     use super::*;
+
+    fn sample_model() -> exchange_rate::Model {
+        exchange_rate::Model {
+            id: 1,
+            from_currency: "USD".to_string(),
+            to_currency: "AUD".to_string(),
+            rate: 1.587,
+            source: "api".to_string(),
+            fetched_at: Utc::now(),
+        }
+    }
 
     #[test]
     fn test_exchange_rate_response_serializes() {
@@ -84,5 +101,36 @@ mod tests {
         assert!(json.contains("\"from_currency\":\"USD\""));
         assert!(json.contains("\"to_currency\":\"AUD\""));
         assert!(json.contains("\"source\":\"api\""));
+    }
+
+    #[test]
+    fn test_exchange_rate_response_from_model() {
+        let model = sample_model();
+        let response = ExchangeRateResponse::from(model);
+
+        assert_eq!(response.id, 1);
+        assert_eq!(response.from_currency, "USD");
+        assert_eq!(response.to_currency, "AUD");
+        assert_eq!(response.rate, 1.587);
+        assert_eq!(response.source, "api");
+    }
+
+    #[test]
+    fn test_exchange_rate_response_from_model_timestamp_is_rfc3339() {
+        let model = sample_model();
+        let fetched_at = model.fetched_at;
+        let response = ExchangeRateResponse::from(model);
+
+        assert_eq!(response.fetched_at, fetched_at.to_rfc3339());
+    }
+
+    #[test]
+    fn test_exchange_rate_response_from_model_manual_source() {
+        let mut model = sample_model();
+        model.source = "manual".to_string();
+
+        let response = ExchangeRateResponse::from(model);
+
+        assert_eq!(response.source, "manual");
     }
 }

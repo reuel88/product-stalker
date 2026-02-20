@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
@@ -12,14 +13,29 @@ struct FrankfurterResponse {
     rates: HashMap<String, f64>,
 }
 
+const EXCHANGE_RATE_TIMEOUT_SECS: u64 = 10;
+
 /// Service for managing exchange rates
 pub struct ExchangeRateService;
 
 impl ExchangeRateService {
-    /// Fetch latest rates from frankfurter.app for a base currency
-    pub async fn fetch_from_api(base: &str) -> Result<HashMap<String, f64>, AppError> {
+    /// Build a configured HTTP client for exchange rate API calls.
+    fn build_client() -> Result<reqwest::Client, AppError> {
+        reqwest::Client::builder()
+            .timeout(Duration::from_secs(EXCHANGE_RATE_TIMEOUT_SECS))
+            .build()
+            .map_err(|e| AppError::External(format!("Failed to build HTTP client: {}", e)))
+    }
+
+    /// Fetch latest rates from frankfurter.app for a base currency.
+    pub async fn fetch_from_api(
+        client: &reqwest::Client,
+        base: &str,
+    ) -> Result<HashMap<String, f64>, AppError> {
         let url = format!("https://api.frankfurter.app/latest?base={}", base);
-        let response: FrankfurterResponse = reqwest::get(&url)
+        let response: FrankfurterResponse = client
+            .get(&url)
+            .send()
             .await
             .map_err(|e| AppError::External(format!("Failed to fetch exchange rates: {}", e)))?
             .json()
@@ -38,9 +54,19 @@ impl ExchangeRateService {
         conn: &DatabaseConnection,
         preferred_currency: &str,
     ) -> Result<(), AppError> {
-        let rates = Self::fetch_from_api(preferred_currency).await?;
+        let client = Self::build_client()?;
+        let rates = Self::fetch_from_api(&client, preferred_currency).await?;
 
         for (currency, rate) in rates {
+            if rate <= 0.0 {
+                log::warn!(
+                    "Skipping invalid exchange rate for {}: {} (must be positive)",
+                    currency,
+                    rate
+                );
+                continue;
+            }
+
             // Store: from=other_currency to=preferred, rate = 1/api_rate
             // e.g., USD->AUD = 1/0.63 ≈ 1.587
             ExchangeRateRepository::upsert_rate(
@@ -92,22 +118,26 @@ impl ExchangeRateService {
 
     /// Get rate for a currency pair. Checks manual override first, then API rate.
     /// Identity (same currency) returns 1.0.
+    /// Currency codes are normalized to uppercase before DB lookups.
     pub async fn get_rate(
         conn: &DatabaseConnection,
         from: &str,
         to: &str,
     ) -> Result<f64, AppError> {
-        if from.eq_ignore_ascii_case(to) {
+        let from = from.to_ascii_uppercase();
+        let to = to.to_ascii_uppercase();
+
+        if from == to {
             return Ok(1.0);
         }
 
         // Check manual override first
-        if let Some(manual) = ExchangeRateRepository::find_manual_rate(conn, from, to).await? {
+        if let Some(manual) = ExchangeRateRepository::find_manual_rate(conn, &from, &to).await? {
             return Ok(manual.rate);
         }
 
         // Fall back to API rate
-        if let Some(api_rate) = ExchangeRateRepository::find_rate(conn, from, to).await? {
+        if let Some(api_rate) = ExchangeRateRepository::find_rate(conn, &from, &to).await? {
             return Ok(api_rate.rate);
         }
 
@@ -137,7 +167,9 @@ impl ExchangeRateService {
                 "Exchange rate must be positive".to_string(),
             ));
         }
-        ExchangeRateRepository::upsert_rate(conn, from, to, rate, "manual").await?;
+        let from = from.to_ascii_uppercase();
+        let to = to.to_ascii_uppercase();
+        ExchangeRateRepository::upsert_rate(conn, &from, &to, rate, "manual").await?;
         Ok(())
     }
 
@@ -147,7 +179,9 @@ impl ExchangeRateService {
         from: &str,
         to: &str,
     ) -> Result<(), AppError> {
-        ExchangeRateRepository::delete_by_pair(conn, from, to).await
+        let from = from.to_ascii_uppercase();
+        let to = to.to_ascii_uppercase();
+        ExchangeRateRepository::delete_by_pair(conn, &from, &to).await
     }
 
     /// Get all exchange rates
@@ -219,6 +253,20 @@ mod integration_tests {
             .await
             .unwrap();
         assert!((rate - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[tokio::test]
+    async fn test_get_rate_case_insensitive_cross_currency() {
+        let conn = setup_app_settings_db().await;
+        ExchangeRateRepository::upsert_rate(&conn, "USD", "AUD", 1.587, "api")
+            .await
+            .unwrap();
+
+        // Query with lowercase — should still find the rate stored as uppercase
+        let rate = ExchangeRateService::get_rate(&conn, "usd", "aud")
+            .await
+            .unwrap();
+        assert!((rate - 1.587).abs() < 0.001);
     }
 
     #[tokio::test]

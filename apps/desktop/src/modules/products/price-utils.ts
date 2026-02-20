@@ -437,6 +437,17 @@ export function getRetailerDetails(
 	}
 
 	// --- Phase 2: Compute daily averages from collected price buckets ---
+	computeDailyAverages(result, todayPrices, yesterdayPrices);
+
+	return result;
+}
+
+/** Compute today/yesterday average prices from collected price buckets and write into entries. */
+function computeDailyAverages(
+	result: Map<string, RetailerDetails>,
+	todayPrices: Map<string, number[]>,
+	yesterdayPrices: Map<string, number[]>,
+): void {
 	for (const [retailerId, entry] of result) {
 		const today = todayPrices.get(retailerId);
 		if (today && today.length > 0) {
@@ -452,8 +463,6 @@ export function getRetailerDetails(
 			);
 		}
 	}
-
-	return result;
 }
 
 /** Lowest price comparison across all retailers for today vs yesterday */
