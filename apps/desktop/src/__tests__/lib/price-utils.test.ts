@@ -667,6 +667,66 @@ describe("transformToMultiRetailerChartData", () => {
 		);
 	});
 
+	it("should exclude orphaned checks (null product_retailer_id) when active retailers exist", () => {
+		const retailers = [
+			createRetailer({
+				id: "pr-1",
+				url: "https://www.amazon.com/dp/B123",
+			}),
+		];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: null,
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 8999,
+				price_currency: "USD",
+			}),
+		];
+
+		const result = transformToMultiRetailerChartData(checks, retailers);
+
+		expect(result.series).toHaveLength(1);
+		expect(result.series[0].id).toBe("pr-1");
+		expect(result.data).toHaveLength(1);
+		expect(result.data[0]["pr-1"]).toBe(9999);
+		expect(result.data[0]).not.toHaveProperty("legacy");
+	});
+
+	it("should preserve legacy checks (null product_retailer_id) when no retailers exist", () => {
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: null,
+				checked_at: "2024-01-01T10:00:00Z",
+				price_minor_units: 9999,
+				price_currency: "USD",
+			}),
+			createCheck({
+				id: "c2",
+				product_retailer_id: null,
+				checked_at: "2024-01-02T10:00:00Z",
+				price_minor_units: 8999,
+				price_currency: "USD",
+			}),
+		];
+
+		const result = transformToMultiRetailerChartData(checks, []);
+
+		expect(result.series).toHaveLength(1);
+		expect(result.series[0].id).toBe("legacy");
+		expect(result.series[0].label).toBe("Price");
+		expect(result.data).toHaveLength(2);
+	});
+
 	it("should include label in series when retailer has a label", () => {
 		const retailers = [
 			createRetailer({

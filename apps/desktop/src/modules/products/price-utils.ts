@@ -374,7 +374,10 @@ export function transformToMultiRetailerChartData(
 	checks: AvailabilityCheckResponse[],
 	retailers: ProductRetailerResponse[],
 ): MultiRetailerChartData {
-	const validChecks = checks.filter(hasValidPrice);
+	const hasRetailers = retailers.length > 0;
+	const validChecks = checks
+		.filter(hasValidPrice)
+		.filter((check) => !hasRetailers || check.product_retailer_id !== null);
 
 	if (validChecks.length === 0) {
 		return { data: [], series: [], currency: "", currencyExponent: 2 };
