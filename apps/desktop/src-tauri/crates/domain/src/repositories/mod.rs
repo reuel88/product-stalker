@@ -6,7 +6,7 @@ mod product_retailer_repository;
 mod retailer_repository;
 
 pub use availability_check_repository::{
-    AvailabilityCheckRepository, CheapestPriceResult, CreateCheckParams,
+    AvailabilityCheckRepository, CheapestPriceResult, CreateCheckParams, CurrencyAverageResult,
 };
 pub use product_repository::{CreateProductRepoParams, ProductRepository, ProductUpdateInput};
 pub use product_retailer_repository::{CreateProductRetailerParams, ProductRetailerRepository};

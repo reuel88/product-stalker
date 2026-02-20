@@ -1,6 +1,7 @@
 use serde::Serialize;
 use tauri::State;
 
+use crate::core::services::SettingService;
 use crate::db::DbState;
 use crate::domain::entities::prelude::AvailabilityCheckModel;
 use crate::domain::services::currency;
@@ -143,9 +144,14 @@ pub async fn get_latest_availability(
 
     match check {
         Some(model) => {
-            // Get daily price comparison for today vs yesterday
-            let daily_comparison =
-                AvailabilityService::get_daily_price_comparison(db.conn(), uuid).await?;
+            // Get daily price comparison for today vs yesterday (re-normalized with today's rates)
+            let settings = SettingService::get(db.conn()).await?;
+            let daily_comparison = AvailabilityService::get_daily_price_comparison(
+                db.conn(),
+                uuid,
+                &settings.preferred_currency,
+            )
+            .await?;
             // Get cheapest current price across all retailers
             let cheapest = AvailabilityService::get_cheapest_current_price(db.conn(), uuid).await?;
             Ok(Some(
