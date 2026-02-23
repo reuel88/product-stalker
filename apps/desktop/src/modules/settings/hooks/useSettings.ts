@@ -58,8 +58,21 @@ export function useSettings(): UseSettingsReturn {
 	const updateSettingsMutation = useMutation({
 		mutationFn: (input: UpdateSettingsInput) =>
 			invoke<Settings>(COMMANDS.UPDATE_SETTINGS, { input }),
-		onSuccess: (data) => {
+		onSuccess: (data, variables) => {
 			queryClient.setQueryData(QUERY_KEYS.SETTINGS, data);
+
+			if (variables.preferred_currency) {
+				queryClient.invalidateQueries({
+					predicate: (query) =>
+						query.queryKey[0] === QUERY_KEYS.AVAILABILITY_PREFIX,
+				});
+				queryClient.invalidateQueries({
+					queryKey: QUERY_KEYS.PRODUCTS,
+				});
+				queryClient.invalidateQueries({
+					queryKey: QUERY_KEYS.EXCHANGE_RATES,
+				});
+			}
 		},
 	});
 

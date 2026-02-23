@@ -743,6 +743,55 @@ describe("transformToMultiRetailerChartData", () => {
 
 		expect(result.series[0].label).toBe("www.amazon.com (64GB)");
 	});
+
+	it("should exclude checks with mismatched currency from chart data", () => {
+		const retailers = [
+			createRetailer({
+				id: "pr-1",
+				url: "https://www.amazon.com.au/dp/B123",
+			}),
+			createRetailer({
+				id: "pr-2",
+				url: "https://www.exotic-shop.xof/product/123",
+				retailer_id: "exotic-shop.xof",
+			}),
+		];
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				product_retailer_id: "pr-1",
+				checked_at: "2024-01-01T10:00:05Z",
+				price_minor_units: 5000,
+				price_currency: "CHF",
+				currency_exponent: 2,
+				normalized_price_minor_units: 8500,
+				normalized_currency: "AUD",
+				normalized_currency_exponent: 2,
+			}),
+			// Normalization failed for this check — falls back to XOF
+			createCheck({
+				id: "c2",
+				product_retailer_id: "pr-2",
+				checked_at: "2024-01-01T10:00:10Z",
+				price_minor_units: 350000,
+				price_currency: "XOF",
+				currency_exponent: 0,
+				normalized_price_minor_units: null,
+				normalized_currency: null,
+				normalized_currency_exponent: null,
+			}),
+		];
+
+		const result = transformToMultiRetailerChartData(checks, retailers);
+
+		expect(result.currency).toBe("AUD");
+		expect(result.series).toHaveLength(1);
+		expect(result.series[0].id).toBe("pr-1");
+		expect(result.data).toHaveLength(1);
+		expect(result.data[0]["pr-1"]).toBe(8500);
+		expect(result.data[0]["pr-2"]).toBeUndefined();
+	});
 });
 
 describe("getLatestPriceByRetailer", () => {
@@ -1372,6 +1421,50 @@ describe("getLowestPriceComparison", () => {
 
 		const result = getLowestPriceComparison(checks);
 
+		expect(result.todayLowestMinorUnits).toBe(8500);
+		expect(result.currency).toBe("AUD");
+	});
+
+	it("should skip checks with mismatched currency", () => {
+		const now = new Date();
+
+		const checks = [
+			createCheck({
+				id: "c1",
+				checked_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 5000,
+				price_currency: "CHF",
+				currency_exponent: 2,
+				normalized_price_minor_units: 8500,
+				normalized_currency: "AUD",
+				normalized_currency_exponent: 2,
+			}),
+			// Normalization failed — falls back to XOF original currency
+			createCheck({
+				id: "c2",
+				checked_at: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 350000,
+				price_currency: "XOF",
+				currency_exponent: 0,
+				normalized_price_minor_units: null,
+				normalized_currency: null,
+				normalized_currency_exponent: null,
+			}),
+			createCheck({
+				id: "c3",
+				checked_at: new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 6000,
+				price_currency: "CHF",
+				currency_exponent: 2,
+				normalized_price_minor_units: 10200,
+				normalized_currency: "AUD",
+				normalized_currency_exponent: 2,
+			}),
+		];
+
+		const result = getLowestPriceComparison(checks);
+
+		// XOF check (c2) should be skipped; lowest today is c1's 8500 AUD
 		expect(result.todayLowestMinorUnits).toBe(8500);
 		expect(result.currency).toBe("AUD");
 	});

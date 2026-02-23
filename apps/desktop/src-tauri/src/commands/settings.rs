@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
-use crate::core::services::{SettingService, Settings, UpdateSettingsParams};
+use crate::core::services::{ExchangeRateService, SettingService, Settings, UpdateSettingsParams};
 use crate::db::DbState;
-use crate::domain::services::{DomainSettingService, DomainSettings, UpdateDomainSettingsParams};
+use crate::domain::services::{
+    AvailabilityService, DomainSettingService, DomainSettings, UpdateDomainSettingsParams,
+};
 use crate::tauri_error::CommandError;
 use crate::TrayState;
 
@@ -115,6 +117,14 @@ pub async fn update_settings(
     db: State<'_, DbState>,
 ) -> Result<SettingsResponse, CommandError> {
     let show_in_tray_value = input.show_in_tray;
+    let new_currency = input.preferred_currency.clone();
+
+    // Capture old preferred currency before update (only if currency is changing)
+    let old_currency = if new_currency.is_some() {
+        Some(SettingService::get(db.conn()).await?.preferred_currency)
+    } else {
+        None
+    };
 
     // Split into core and domain params
     let core_params = UpdateSettingsParams {
@@ -144,6 +154,14 @@ pub async fn update_settings(
 
     if let Some(show_in_tray) = show_in_tray_value {
         update_tray_visibility(&app, show_in_tray);
+    }
+
+    // Re-normalize historical checks if currency changed
+    if let (Some(old), Some(ref new)) = (old_currency, &new_currency) {
+        if old != *new {
+            ExchangeRateService::refresh_rates(db.conn(), new).await?;
+            AvailabilityService::renormalize_all_checks(db.conn(), new).await?;
+        }
     }
 
     Ok(SettingsResponse::from_merged(settings, domain))

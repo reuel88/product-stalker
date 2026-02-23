@@ -501,6 +501,8 @@ export function getLowestPriceComparison(
 		if (currency === null) {
 			currency = effective.currency;
 			currencyExponent = effective.exponent ?? 2;
+		} else if (effective.currency !== currency) {
+			continue;
 		}
 
 		if (checkTime >= todayCutoff) {
@@ -606,9 +608,14 @@ export function transformToMultiRetailerChartData(
 	const currency = firstEffective.currency ?? "";
 	const currencyExponent = firstEffective.exponent ?? 2;
 
+	// Skip checks whose effective currency doesn't match the canonical currency
+	const currencyMatchedChecks = validChecks.filter(
+		(check) => getEffectivePrice(check).currency === currency,
+	);
+
 	// Group by product_retailer_id (null → "legacy" fallback)
 	const grouped = new Map<string, typeof validChecks>();
-	for (const check of validChecks) {
+	for (const check of currencyMatchedChecks) {
 		const key = check.product_retailer_id ?? "legacy";
 		const list = grouped.get(key);
 		if (list) {
@@ -637,7 +644,7 @@ export function transformToMultiRetailerChartData(
 
 	// Build pivoted data rows bucketed by minute
 	const rowMap = new Map<string, Record<string, string | number>>();
-	for (const check of validChecks) {
+	for (const check of currencyMatchedChecks) {
 		const bucketDate = bucketToMinute(check.checked_at);
 		const retailerId = check.product_retailer_id ?? "legacy";
 

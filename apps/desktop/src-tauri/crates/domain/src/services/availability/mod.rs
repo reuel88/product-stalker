@@ -8,6 +8,7 @@
 
 mod checker;
 mod comparison;
+mod renormalize;
 mod summary;
 mod types;
 
