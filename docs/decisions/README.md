@@ -39,3 +39,4 @@ What are the trade-offs? What becomes easier or harder?
 <!-- Add new ADRs here -->
 
 - [0001. Availability Checker Stays in Tauri Layer](0001-availability-checker-stays-in-tauri-layer.md)
+- [0002. Currency Normalization — Dual Price Strategy](0002-currency-normalization-dual-price-strategy.md)

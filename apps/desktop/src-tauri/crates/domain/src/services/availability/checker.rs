@@ -370,10 +370,13 @@ impl AvailabilityService {
         let check_result = Self::check_product(conn, product.id, config).await;
 
         // Step 3: Get daily price comparison (includes the new check in today's average)
-        let daily_comparison = match Self::get_daily_price_comparison(conn, product.id).await {
-            Ok(dc) => dc,
-            Err(e) => return Self::build_context_error_result(product, e),
-        };
+        let daily_comparison =
+            match Self::get_daily_price_comparison(conn, product.id, config.preferred_currency)
+                .await
+            {
+                Ok(dc) => dc,
+                Err(e) => return Self::build_context_error_result(product, e),
+            };
 
         // Step 4: Process the result
         let result =
@@ -535,7 +538,8 @@ impl AvailabilityService {
         };
 
         // Step 3: Get daily price comparison (includes the new check in today's average)
-        let daily_comparison = Self::get_daily_price_comparison(conn, product_id).await?;
+        let daily_comparison =
+            Self::get_daily_price_comparison(conn, product_id, config.preferred_currency).await?;
 
         // Step 4: Determine if back in stock
         let is_back_in_stock = any_back_in_stock;

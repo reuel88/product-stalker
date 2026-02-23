@@ -420,18 +420,19 @@ export function getRetailerDetails(
 
 		if (hasValidPrice(check)) {
 			const checkTime = new Date(check.checked_at).getTime();
-			const effective = getEffectivePrice(check);
-			const price = effective.minorUnits;
+			// Use original price (not normalized) for daily comparison buckets.
+			// Each retailer operates in a single currency, so using original prices
+			// produces rate-stable percentage changes that reflect actual price
+			// changes rather than exchange rate fluctuations.
+			const price = check.price_minor_units;
 
-			if (price !== null) {
-				if (checkTime >= todayCutoff) {
-					if (!todayPrices.has(retailerId)) todayPrices.set(retailerId, []);
-					todayPrices.get(retailerId)?.push(price);
-				} else if (checkTime >= yesterdayCutoff) {
-					if (!yesterdayPrices.has(retailerId))
-						yesterdayPrices.set(retailerId, []);
-					yesterdayPrices.get(retailerId)?.push(price);
-				}
+			if (checkTime >= todayCutoff) {
+				if (!todayPrices.has(retailerId)) todayPrices.set(retailerId, []);
+				todayPrices.get(retailerId)?.push(price);
+			} else if (checkTime >= yesterdayCutoff) {
+				if (!yesterdayPrices.has(retailerId))
+					yesterdayPrices.set(retailerId, []);
+				yesterdayPrices.get(retailerId)?.push(price);
 			}
 		}
 	}

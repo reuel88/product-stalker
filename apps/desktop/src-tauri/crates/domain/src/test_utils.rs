@@ -92,6 +92,32 @@ pub async fn setup_product_retailer_db() -> DatabaseConnection {
     conn
 }
 
+/// Creates an in-memory SQLite test database with products, retailers,
+/// product_retailers, availability_checks, AND exchange_rates tables.
+///
+/// Used for tests that need both availability data and exchange rate lookups
+/// (e.g., re-normalization tests for daily price comparison).
+pub async fn setup_availability_db_with_exchange_rates() -> DatabaseConnection {
+    use product_stalker_core::entities::exchange_rate::Entity as ExchangeRateEntity;
+
+    let conn = setup_availability_db().await;
+    let schema = Schema::new(DatabaseBackend::Sqlite);
+
+    let stmt = schema.create_table_from_entity(ExchangeRateEntity);
+    conn.execute(conn.get_database_backend().build(&stmt))
+        .await
+        .unwrap();
+
+    // Create the unique index needed for upsert operations
+    conn.execute_unprepared(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_exchange_rates_currency_pair ON exchange_rates (from_currency, to_currency)",
+    )
+    .await
+    .unwrap();
+
+    conn
+}
+
 /// Creates a test product with the given URL
 pub async fn create_test_product(conn: &DatabaseConnection, url: &str) -> Uuid {
     let id = Uuid::new_v4();
