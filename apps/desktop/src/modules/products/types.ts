@@ -91,6 +91,12 @@ export interface AvailabilityCheckResponse {
 	lowest_price_currency: string | null;
 	/** Currency exponent for the lowest price */
 	lowest_currency_exponent: number | null;
+	/** Price normalized to the user's preferred currency (minor units) */
+	normalized_price_minor_units: number | null;
+	/** Currency code of the normalized price */
+	normalized_currency: string | null;
+	/** Currency exponent for the normalized price */
+	normalized_currency_exponent: number | null;
 }
 
 /**

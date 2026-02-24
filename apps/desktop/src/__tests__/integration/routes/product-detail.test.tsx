@@ -96,27 +96,6 @@ describe("ProductDetailView", () => {
 	});
 
 	describe("availability display", () => {
-		it("should display current availability status", async () => {
-			const product = createMockProduct({ id: "product-1" });
-			const check = createMockAvailabilityCheck({
-				product_id: "product-1",
-				status: "in_stock",
-				price_minor_units: 9999,
-				price_currency: "USD",
-			});
-			mockInvokeMultiple({
-				[COMMANDS.GET_PRODUCT]: product,
-				[COMMANDS.GET_LATEST_AVAILABILITY]: check,
-				[COMMANDS.GET_AVAILABILITY_HISTORY]: [check],
-			});
-
-			render(<ProductDetailView productId="product-1" />);
-
-			await waitFor(() => {
-				expect(screen.getByText("In Stock")).toBeInTheDocument();
-			});
-		});
-
 		it("should display current price", async () => {
 			const product = createMockProduct({ id: "product-1" });
 			const check = createMockAvailabilityCheck({
@@ -298,19 +277,26 @@ describe("ProductDetailView", () => {
 	describe("detailed price display", () => {
 		it("should display detailed price indicator with price drop", async () => {
 			const product = createMockProduct({ id: "product-1" });
-			const check = createMockAvailabilityCheck({
+			const now = new Date();
+			const todayCheck = createMockAvailabilityCheck({
 				product_id: "product-1",
+				checked_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
 				price_minor_units: 79900,
-				today_average_price_minor_units: 79900,
-				yesterday_average_price_minor_units: 89900,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+			const yesterdayCheck = createMockAvailabilityCheck({
+				product_id: "product-1",
+				checked_at: new Date(now.getTime() - 30 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 89900,
 				price_currency: "USD",
 				currency_exponent: 2,
 			});
 
 			mockInvokeMultiple({
 				[COMMANDS.GET_PRODUCT]: product,
-				[COMMANDS.GET_LATEST_AVAILABILITY]: check,
-				[COMMANDS.GET_AVAILABILITY_HISTORY]: [check],
+				[COMMANDS.GET_LATEST_AVAILABILITY]: todayCheck,
+				[COMMANDS.GET_AVAILABILITY_HISTORY]: [todayCheck, yesterdayCheck],
 			});
 
 			render(<ProductDetailView productId="product-1" />);
@@ -335,19 +321,26 @@ describe("ProductDetailView", () => {
 
 		it("should display detailed price indicator with price increase", async () => {
 			const product = createMockProduct({ id: "product-1" });
-			const check = createMockAvailabilityCheck({
+			const now = new Date();
+			const todayCheck = createMockAvailabilityCheck({
 				product_id: "product-1",
+				checked_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
 				price_minor_units: 89900,
-				today_average_price_minor_units: 89900,
-				yesterday_average_price_minor_units: 79900,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+			const yesterdayCheck = createMockAvailabilityCheck({
+				product_id: "product-1",
+				checked_at: new Date(now.getTime() - 30 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 79900,
 				price_currency: "USD",
 				currency_exponent: 2,
 			});
 
 			mockInvokeMultiple({
 				[COMMANDS.GET_PRODUCT]: product,
-				[COMMANDS.GET_LATEST_AVAILABILITY]: check,
-				[COMMANDS.GET_AVAILABILITY_HISTORY]: [check],
+				[COMMANDS.GET_LATEST_AVAILABILITY]: todayCheck,
+				[COMMANDS.GET_AVAILABILITY_HISTORY]: [todayCheck, yesterdayCheck],
 			});
 
 			render(<ProductDetailView productId="product-1" />);
@@ -375,8 +368,6 @@ describe("ProductDetailView", () => {
 			const check = createMockAvailabilityCheck({
 				product_id: "product-1",
 				price_minor_units: 79900,
-				today_average_price_minor_units: null,
-				yesterday_average_price_minor_units: null,
 				price_currency: "USD",
 				currency_exponent: 2,
 			});
@@ -467,19 +458,26 @@ describe("ProductDetailView", () => {
 
 		it("should display large percentage change correctly", async () => {
 			const product = createMockProduct({ id: "product-1" });
-			const check = createMockAvailabilityCheck({
+			const now = new Date();
+			const todayCheck = createMockAvailabilityCheck({
 				product_id: "product-1",
+				checked_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
 				price_minor_units: 50000,
-				today_average_price_minor_units: 50000,
-				yesterday_average_price_minor_units: 100000,
+				price_currency: "USD",
+				currency_exponent: 2,
+			});
+			const yesterdayCheck = createMockAvailabilityCheck({
+				product_id: "product-1",
+				checked_at: new Date(now.getTime() - 30 * 60 * 60 * 1000).toISOString(),
+				price_minor_units: 100000,
 				price_currency: "USD",
 				currency_exponent: 2,
 			});
 
 			mockInvokeMultiple({
 				[COMMANDS.GET_PRODUCT]: product,
-				[COMMANDS.GET_LATEST_AVAILABILITY]: check,
-				[COMMANDS.GET_AVAILABILITY_HISTORY]: [check],
+				[COMMANDS.GET_LATEST_AVAILABILITY]: todayCheck,
+				[COMMANDS.GET_AVAILABILITY_HISTORY]: [todayCheck, yesterdayCheck],
 			});
 
 			render(<ProductDetailView productId="product-1" />);

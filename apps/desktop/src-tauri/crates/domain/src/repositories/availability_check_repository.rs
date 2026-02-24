@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use product_stalker_core::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbBackend, EntityTrait, FromQueryResult,
-    QueryFilter, QueryOrder, Set, Statement,
+    IntoActiveModel, QueryFilter, QueryOrder, Set, Statement,
 };
 use uuid::Uuid;
 
@@ -13,6 +13,19 @@ use crate::entities::prelude::*;
 #[derive(Debug, FromQueryResult)]
 struct AveragePriceResult {
     avg_price: Option<f64>,
+}
+
+/// Per-currency average price for re-normalization of daily comparisons.
+///
+/// Used to compute exchange-rate-stable daily comparisons:
+/// instead of averaging already-normalized prices (which bakes in different
+/// exchange rates from different days), we average original prices per currency,
+/// then convert each average with today's rate.
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct CurrencyAverageResult {
+    pub price_currency: String,
+    pub avg_price: f64,
+    pub check_count: i64,
 }
 
 /// Result of finding the cheapest current price across retailers
@@ -35,6 +48,8 @@ pub struct CreateCheckParams {
     pub price_currency: Option<String>,
     pub raw_price: Option<String>,
     pub product_retailer_id: Option<Uuid>,
+    pub normalized_price_minor_units: Option<i64>,
+    pub normalized_currency: Option<String>,
 }
 
 impl AvailabilityCheckRepository {
@@ -58,6 +73,8 @@ impl AvailabilityCheckRepository {
             price_minor_units: Set(params.price_minor_units),
             price_currency: Set(params.price_currency),
             raw_price: Set(params.raw_price),
+            normalized_price_minor_units: Set(params.normalized_price_minor_units),
+            normalized_currency: Set(params.normalized_currency),
         };
 
         let check = active_model.insert(conn).await?;
@@ -111,12 +128,12 @@ impl AvailabilityCheckRepository {
         let result = AveragePriceResult::find_by_statement(Statement::from_sql_and_values(
             DbBackend::Sqlite,
             r#"
-                SELECT AVG(price_minor_units) as avg_price
+                SELECT AVG(COALESCE(normalized_price_minor_units, price_minor_units)) as avg_price
                 FROM availability_checks
                 WHERE product_id = ?
                   AND checked_at >= ?
                   AND checked_at < ?
-                  AND price_minor_units IS NOT NULL
+                  AND COALESCE(normalized_price_minor_units, price_minor_units) IS NOT NULL
             "#,
             [
                 Value::Uuid(Some(Box::new(product_id))),
@@ -128,6 +145,43 @@ impl AvailabilityCheckRepository {
         .await?;
 
         Ok(result.and_then(|r| r.avg_price.map(|avg| avg.round() as i64)))
+    }
+
+    /// Get per-currency average original prices for a product within a time period [from, to).
+    ///
+    /// Returns one row per currency with the average `price_minor_units` (original,
+    /// NOT normalized) and the number of checks. This enables re-normalization
+    /// using a single exchange rate snapshot to eliminate rate noise from daily comparisons.
+    pub async fn get_original_averages_by_currency_for_period(
+        conn: &DatabaseConnection,
+        product_id: Uuid,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<CurrencyAverageResult>, AppError> {
+        use sea_orm::Value;
+
+        let results = CurrencyAverageResult::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            r#"
+                SELECT price_currency, AVG(price_minor_units) as avg_price, COUNT(*) as check_count
+                FROM availability_checks
+                WHERE product_id = ?
+                  AND checked_at >= ?
+                  AND checked_at < ?
+                  AND price_minor_units IS NOT NULL
+                  AND price_currency IS NOT NULL
+                GROUP BY price_currency
+            "#,
+            [
+                Value::Uuid(Some(Box::new(product_id))),
+                from.into(),
+                to.into(),
+            ],
+        ))
+        .all(conn)
+        .await?;
+
+        Ok(results)
     }
 
     /// Find the most recent availability check for a product-retailer link
@@ -177,7 +231,8 @@ impl AvailabilityCheckRepository {
             DbBackend::Sqlite,
             r#"
                 WITH latest_per_retailer AS (
-                    SELECT price_minor_units, price_currency,
+                    SELECT COALESCE(normalized_price_minor_units, price_minor_units) as price_minor_units,
+                           COALESCE(normalized_currency, price_currency) as price_currency,
                            ROW_NUMBER() OVER (
                                PARTITION BY product_retailer_id
                                ORDER BY checked_at DESC
@@ -185,7 +240,7 @@ impl AvailabilityCheckRepository {
                     FROM availability_checks
                     WHERE product_id = ?
                       AND product_retailer_id IS NOT NULL
-                      AND price_minor_units IS NOT NULL
+                      AND COALESCE(normalized_price_minor_units, price_minor_units) IS NOT NULL
                 )
                 SELECT price_minor_units, price_currency
                 FROM latest_per_retailer
@@ -201,7 +256,42 @@ impl AvailabilityCheckRepository {
         Ok(result)
     }
 
-    /// Get average price for a product-retailer within a time period [from, to)
+    /// Find all availability checks that have price data (both price_minor_units
+    /// and price_currency are non-null).
+    pub async fn find_all_with_price_data(
+        conn: &DatabaseConnection,
+    ) -> Result<Vec<AvailabilityCheckModel>, AppError> {
+        let checks = AvailabilityCheck::find()
+            .filter(AvailabilityCheckColumn::PriceMinorUnits.is_not_null())
+            .filter(AvailabilityCheckColumn::PriceCurrency.is_not_null())
+            .all(conn)
+            .await?;
+        Ok(checks)
+    }
+
+    /// Update only the normalized price fields on an existing check.
+    pub async fn update_normalized_price(
+        conn: &DatabaseConnection,
+        id: Uuid,
+        normalized_price_minor_units: Option<i64>,
+        normalized_currency: Option<String>,
+    ) -> Result<AvailabilityCheckModel, AppError> {
+        let mut active: AvailabilityCheckActiveModel = AvailabilityCheck::find_by_id(id)
+            .one(conn)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Availability check not found: {}", id)))?
+            .into_active_model();
+        active.normalized_price_minor_units = Set(normalized_price_minor_units);
+        active.normalized_currency = Set(normalized_currency);
+        let updated = active.update(conn).await?;
+        Ok(updated)
+    }
+
+    /// Get average original price for a product-retailer within a time period [from, to).
+    ///
+    /// Uses original `price_minor_units` (not normalized) because each retailer
+    /// operates in a single currency, making the percentage change inherently
+    /// rate-stable without re-normalization.
     pub async fn get_average_price_for_period_by_product_retailer(
         conn: &DatabaseConnection,
         product_retailer_id: Uuid,
@@ -253,6 +343,8 @@ impl AvailabilityCheckRepository {
             price_minor_units: Set(price_minor_units),
             price_currency: Set(Some("USD".to_string())),
             raw_price: Set(None),
+            normalized_price_minor_units: Set(None),
+            normalized_currency: Set(None),
         };
         active_model.insert(conn).await.unwrap()
     }
@@ -277,6 +369,8 @@ impl AvailabilityCheckRepository {
             price_minor_units: Set(price_minor_units),
             price_currency: Set(price_currency.map(|s| s.to_string())),
             raw_price: Set(None),
+            normalized_price_minor_units: Set(None),
+            normalized_currency: Set(None),
         };
         active_model.insert(conn).await.unwrap()
     }
@@ -852,6 +946,354 @@ mod tests {
                     .unwrap();
 
             assert!(result.is_none());
+        }
+    }
+
+    mod find_all_with_price_data_tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_find_all_with_price_data_excludes_null_prices() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+
+            // Check WITH price data
+            AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product_id,
+                CreateCheckParams {
+                    status: AvailabilityStatus::InStock,
+                    price_minor_units: Some(5000),
+                    price_currency: Some("USD".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+            // Check WITHOUT price data (null price_minor_units)
+            AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product_id,
+                CreateCheckParams {
+                    status: AvailabilityStatus::InStock,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+            // Check with price_minor_units but null currency
+            AvailabilityCheckRepository::create(
+                &conn,
+                Uuid::new_v4(),
+                product_id,
+                CreateCheckParams {
+                    status: AvailabilityStatus::InStock,
+                    price_minor_units: Some(3000),
+                    price_currency: None,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+            let results = AvailabilityCheckRepository::find_all_with_price_data(&conn)
+                .await
+                .unwrap();
+
+            assert_eq!(results.len(), 1);
+            assert_eq!(results[0].price_minor_units, Some(5000));
+        }
+    }
+
+    mod update_normalized_price_tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_update_normalized_price() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let id = Uuid::new_v4();
+
+            AvailabilityCheckRepository::create(
+                &conn,
+                id,
+                product_id,
+                CreateCheckParams {
+                    status: AvailabilityStatus::InStock,
+                    price_minor_units: Some(5000),
+                    price_currency: Some("USD".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+            let updated = AvailabilityCheckRepository::update_normalized_price(
+                &conn,
+                id,
+                Some(7935),
+                Some("AUD".to_string()),
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(updated.normalized_price_minor_units, Some(7935));
+            assert_eq!(updated.normalized_currency, Some("AUD".to_string()));
+            // Original price should be unchanged
+            assert_eq!(updated.price_minor_units, Some(5000));
+            assert_eq!(updated.price_currency, Some("USD".to_string()));
+        }
+
+        #[tokio::test]
+        async fn test_update_normalized_price_to_none() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let id = Uuid::new_v4();
+
+            AvailabilityCheckRepository::create(
+                &conn,
+                id,
+                product_id,
+                CreateCheckParams {
+                    status: AvailabilityStatus::InStock,
+                    price_minor_units: Some(5000),
+                    price_currency: Some("USD".to_string()),
+                    normalized_price_minor_units: Some(7935),
+                    normalized_currency: Some("AUD".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+            let updated =
+                AvailabilityCheckRepository::update_normalized_price(&conn, id, None, None)
+                    .await
+                    .unwrap();
+
+            assert_eq!(updated.normalized_price_minor_units, None);
+            assert_eq!(updated.normalized_currency, None);
+        }
+    }
+
+    mod original_averages_by_currency_tests {
+        use super::*;
+        use chrono::Duration;
+
+        /// Helper to insert a check with a specific currency
+        async fn insert_check_with_currency(
+            conn: &DatabaseConnection,
+            product_id: Uuid,
+            price: Option<i64>,
+            currency: Option<&str>,
+            checked_at: DateTime<Utc>,
+        ) {
+            let model = AvailabilityCheckActiveModel {
+                id: Set(Uuid::new_v4()),
+                product_id: Set(product_id),
+                product_retailer_id: Set(None),
+                status: Set("in_stock".to_string()),
+                raw_availability: Set(None),
+                error_message: Set(None),
+                checked_at: Set(checked_at),
+                price_minor_units: Set(price),
+                price_currency: Set(currency.map(|s| s.to_string())),
+                raw_price: Set(None),
+                normalized_price_minor_units: Set(None),
+                normalized_currency: Set(None),
+            };
+            model.insert(conn).await.unwrap();
+        }
+
+        #[tokio::test]
+        async fn test_no_data_returns_empty() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+
+            let results =
+                AvailabilityCheckRepository::get_original_averages_by_currency_for_period(
+                    &conn, product_id, from, now,
+                )
+                .await
+                .unwrap();
+
+            assert!(results.is_empty());
+        }
+
+        #[tokio::test]
+        async fn test_single_currency_single_check() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+
+            insert_check_with_currency(
+                &conn,
+                product_id,
+                Some(10000),
+                Some("USD"),
+                now - Duration::hours(6),
+            )
+            .await;
+
+            let results =
+                AvailabilityCheckRepository::get_original_averages_by_currency_for_period(
+                    &conn, product_id, from, now,
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(results.len(), 1);
+            assert_eq!(results[0].price_currency, "USD");
+            assert!((results[0].avg_price - 10000.0).abs() < 0.01);
+            assert_eq!(results[0].check_count, 1);
+        }
+
+        #[tokio::test]
+        async fn test_multiple_currencies_grouped() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+
+            // Two USD checks
+            insert_check_with_currency(
+                &conn,
+                product_id,
+                Some(10000),
+                Some("USD"),
+                now - Duration::hours(6),
+            )
+            .await;
+            insert_check_with_currency(
+                &conn,
+                product_id,
+                Some(12000),
+                Some("USD"),
+                now - Duration::hours(5),
+            )
+            .await;
+
+            // One EUR check
+            insert_check_with_currency(
+                &conn,
+                product_id,
+                Some(8000),
+                Some("EUR"),
+                now - Duration::hours(4),
+            )
+            .await;
+
+            let results =
+                AvailabilityCheckRepository::get_original_averages_by_currency_for_period(
+                    &conn, product_id, from, now,
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(results.len(), 2);
+
+            let usd = results.iter().find(|r| r.price_currency == "USD").unwrap();
+            assert!((usd.avg_price - 11000.0).abs() < 0.01); // (10000 + 12000) / 2
+            assert_eq!(usd.check_count, 2);
+
+            let eur = results.iter().find(|r| r.price_currency == "EUR").unwrap();
+            assert!((eur.avg_price - 8000.0).abs() < 0.01);
+            assert_eq!(eur.check_count, 1);
+        }
+
+        #[tokio::test]
+        async fn test_excludes_null_price_and_currency() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+
+            // Valid check
+            insert_check_with_currency(
+                &conn,
+                product_id,
+                Some(10000),
+                Some("USD"),
+                now - Duration::hours(6),
+            )
+            .await;
+
+            // Null price
+            insert_check_with_currency(
+                &conn,
+                product_id,
+                None,
+                Some("USD"),
+                now - Duration::hours(5),
+            )
+            .await;
+
+            // Null currency
+            insert_check_with_currency(
+                &conn,
+                product_id,
+                Some(5000),
+                None,
+                now - Duration::hours(4),
+            )
+            .await;
+
+            let results =
+                AvailabilityCheckRepository::get_original_averages_by_currency_for_period(
+                    &conn, product_id, from, now,
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(results.len(), 1);
+            assert_eq!(results[0].price_currency, "USD");
+            assert!((results[0].avg_price - 10000.0).abs() < 0.01);
+            assert_eq!(results[0].check_count, 1);
+        }
+
+        #[tokio::test]
+        async fn test_excludes_outside_range() {
+            let conn = setup_availability_db().await;
+            let product_id = create_test_product_default(&conn).await;
+            let now = Utc::now();
+            let from = now - Duration::hours(24);
+
+            // Inside range
+            insert_check_with_currency(
+                &conn,
+                product_id,
+                Some(10000),
+                Some("USD"),
+                now - Duration::hours(6),
+            )
+            .await;
+
+            // Outside range
+            insert_check_with_currency(
+                &conn,
+                product_id,
+                Some(99999),
+                Some("USD"),
+                now - Duration::hours(30),
+            )
+            .await;
+
+            let results =
+                AvailabilityCheckRepository::get_original_averages_by_currency_for_period(
+                    &conn, product_id, from, now,
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(results.len(), 1);
+            assert!((results[0].avg_price - 10000.0).abs() < 0.01);
         }
     }
 }

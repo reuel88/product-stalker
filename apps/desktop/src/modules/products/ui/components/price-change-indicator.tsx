@@ -4,10 +4,10 @@ import { usePriceFormatting } from "@/modules/products/hooks/usePriceFormatting"
 
 interface PriceChangeIndicatorProps {
 	currentPriceMinorUnits: number | null;
-	/** Today's average price in minor units for comparison */
-	todayAverageMinorUnits: number | null;
-	/** Yesterday's average price in minor units for comparison */
-	yesterdayAverageMinorUnits: number | null;
+	/** Today's comparison price in minor units (e.g., average or lowest) */
+	todayComparisonMinorUnits: number | null;
+	/** Yesterday's comparison price in minor units (e.g., average or lowest) */
+	yesterdayComparisonMinorUnits: number | null;
 	currency: string | null;
 	/** Currency exponent for formatting (0 for JPY, 2 for USD, 3 for KWD) */
 	currencyExponent: number;
@@ -30,8 +30,8 @@ interface PriceChangeIndicatorProps {
  */
 export function PriceChangeIndicator({
 	currentPriceMinorUnits,
-	todayAverageMinorUnits,
-	yesterdayAverageMinorUnits,
+	todayComparisonMinorUnits,
+	yesterdayComparisonMinorUnits,
 	currency,
 	currencyExponent,
 	variant,
@@ -46,8 +46,8 @@ export function PriceChangeIndicator({
 		isRoundedZero,
 	} = usePriceFormatting({
 		currentPriceMinorUnits,
-		todayAverageMinorUnits,
-		yesterdayAverageMinorUnits,
+		todayComparisonMinorUnits,
+		yesterdayComparisonMinorUnits,
 		currency,
 		currencyExponent,
 	});

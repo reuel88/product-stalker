@@ -14,10 +14,10 @@ import {
 export interface UsePriceFormattingProps {
 	/** Current price in minor units */
 	currentPriceMinorUnits: number | null;
-	/** Today's average price in minor units (for comparison) */
-	todayAverageMinorUnits?: number | null;
-	/** Yesterday's average price in minor units (for comparison) */
-	yesterdayAverageMinorUnits?: number | null;
+	/** Today's comparison price in minor units (e.g., average or lowest) */
+	todayComparisonMinorUnits?: number | null;
+	/** Yesterday's comparison price in minor units (e.g., average or lowest) */
+	yesterdayComparisonMinorUnits?: number | null;
 	/** ISO 4217 currency code (e.g., "USD", "EUR", "JPY") */
 	currency: string | null;
 	/** Number of decimal places for the currency (0 for JPY, 2 for USD, 3 for KWD). Defaults to 2. */
@@ -63,8 +63,8 @@ export interface PriceFormattingResult {
  *     hasComparison
  *   } = usePriceFormatting({
  *     currentPriceMinorUnits: latestCheck.price_minor_units,
- *     todayAverageMinorUnits: latestCheck.today_average_price_minor_units,
- *     yesterdayAverageMinorUnits: latestCheck.yesterday_average_price_minor_units,
+ *     todayComparisonMinorUnits: latestCheck.today_average_price_minor_units,
+ *     yesterdayComparisonMinorUnits: latestCheck.yesterday_average_price_minor_units,
  *     currency: latestCheck.price_currency,
  *     currencyExponent: latestCheck.currency_exponent ?? 2,
  *   });
@@ -82,8 +82,8 @@ export interface PriceFormattingResult {
  */
 export function usePriceFormatting({
 	currentPriceMinorUnits,
-	todayAverageMinorUnits,
-	yesterdayAverageMinorUnits,
+	todayComparisonMinorUnits,
+	yesterdayComparisonMinorUnits,
 	currency,
 	currencyExponent = 2,
 }: UsePriceFormattingProps): PriceFormattingResult {
@@ -96,14 +96,14 @@ export function usePriceFormatting({
 				currencyExponent,
 			),
 			formattedPreviousPrice: formatPrice(
-				yesterdayAverageMinorUnits ?? null,
+				yesterdayComparisonMinorUnits ?? null,
 				currency,
 				currencyExponent,
 			),
 		}),
 		[
 			currentPriceMinorUnits,
-			yesterdayAverageMinorUnits,
+			yesterdayComparisonMinorUnits,
 			currency,
 			currencyExponent,
 		],
@@ -111,8 +111,8 @@ export function usePriceFormatting({
 
 	// Price comparison calculations (direction + percent + formatted)
 	const { direction, percentChange, formattedPercentChange } = useMemo(() => {
-		const today = todayAverageMinorUnits ?? null;
-		const yesterday = yesterdayAverageMinorUnits ?? null;
+		const today = todayComparisonMinorUnits ?? null;
+		const yesterday = yesterdayComparisonMinorUnits ?? null;
 		const dir = getPriceChangeDirection(today, yesterday);
 		const pct = calculatePriceChangePercent(today, yesterday);
 		return {
@@ -120,18 +120,18 @@ export function usePriceFormatting({
 			percentChange: pct,
 			formattedPercentChange: formatPriceChangePercent(pct),
 		};
-	}, [todayAverageMinorUnits, yesterdayAverageMinorUnits]);
+	}, [todayComparisonMinorUnits, yesterdayComparisonMinorUnits]);
 
 	// Comparison flags (hasComparison + isRoundedZero)
 	const { hasComparison, isRoundedZero: isRoundedZeroValue } = useMemo(
 		() => ({
 			hasComparison: direction !== "unknown" && direction !== "unchanged",
 			isRoundedZero: isRoundedZero(
-				todayAverageMinorUnits ?? null,
-				yesterdayAverageMinorUnits ?? null,
+				todayComparisonMinorUnits ?? null,
+				yesterdayComparisonMinorUnits ?? null,
 			),
 		}),
-		[direction, todayAverageMinorUnits, yesterdayAverageMinorUnits],
+		[direction, todayComparisonMinorUnits, yesterdayComparisonMinorUnits],
 	);
 
 	return {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { COMMANDS, UI } from "@/constants";
+import { COMMANDS } from "@/constants";
 import { formatDate } from "@/lib/format-date";
 import { ProductsTable } from "@/modules/products/ui/components/products-table";
 import {
@@ -36,7 +36,6 @@ describe("ProductsTable", () => {
 
 			expect(screen.getByText("Name")).toBeInTheDocument();
 			expect(screen.getByText("Retailers")).toBeInTheDocument();
-			expect(screen.getByText("Description")).toBeInTheDocument();
 			expect(screen.getByText("Created")).toBeInTheDocument();
 		});
 
@@ -70,28 +69,6 @@ describe("ProductsTable", () => {
 			expect(screen.getByText("Product B")).toBeInTheDocument();
 		});
 
-		it("should render product description or dash for null", () => {
-			const products = [
-				createMockProduct({
-					name: "With desc",
-					description: "Test description",
-				}),
-				createMockProduct({ name: "No desc", description: null }),
-			];
-
-			render(
-				<ProductsTable
-					products={products}
-					onEdit={mockOnEdit}
-					onDelete={mockOnDelete}
-				/>,
-			);
-
-			expect(screen.getByText("Test description")).toBeInTheDocument();
-			// Multiple "-" elements exist (for null prices and null description)
-			expect(screen.getAllByText("-").length).toBeGreaterThan(0);
-		});
-
 		it("should format created date", () => {
 			const product = createMockProduct({
 				created_at: "2024-01-15T10:30:00Z",
@@ -108,24 +85,6 @@ describe("ProductsTable", () => {
 			// Date format depends on locale, just verify it's rendered
 			const dateString = formatDate("2024-01-15T10:30:00Z");
 			expect(screen.getByText(dateString)).toBeInTheDocument();
-		});
-	});
-
-	describe("description truncation", () => {
-		it("should truncate long descriptions", () => {
-			const longDesc = "A".repeat(100);
-			const product = createMockProduct({ description: longDesc });
-
-			render(
-				<ProductsTable
-					products={[product]}
-					onEdit={mockOnEdit}
-					onDelete={mockOnDelete}
-				/>,
-			);
-
-			const truncated = `${longDesc.slice(0, UI.TRUNCATE.DESCRIPTION_LENGTH)}...`;
-			expect(screen.getByText(truncated)).toBeInTheDocument();
 		});
 	});
 

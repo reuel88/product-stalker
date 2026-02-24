@@ -169,5 +169,27 @@ Per-connection pragmas must use `map_sqlx_sqlite_opts()` in `build_connection_op
 4. Add service in the corresponding crate's `services/`
 5. Expose via Tauri command in `src/commands/`
 
+### Currency Normalization (Dual Price Strategy)
+
+Each availability check stores two price representations:
+- **Original**: `price_minor_units` / `price_currency` — the price as listed by the retailer
+- **Normalized**: `normalized_price_minor_units` / `normalized_currency` — converted to the user's preferred currency at check time via `ExchangeRateService`
+
+**Which price to use where:**
+| Context | Price to use | Why |
+|---------|-------------|-----|
+| Cross-currency comparisons (lowest price, charts) | Normalized (`getEffectivePrice()` on frontend) | Apples-to-apples comparison |
+| Per-retailer daily averages | Original (`price_minor_units`) | Each retailer is single-currency; avoids exchange rate noise |
+| Daily comparison (today vs yesterday) | Re-normalized (both windows converted with today's rate) | Eliminates false % changes from rate movement |
+
+**Key files:**
+- Exchange rate service: `crates/core/src/services/exchange_rate_service.rs`
+- Price normalization during checks: `crates/domain/src/services/availability/checker.rs` (`normalize_price()`)
+- Daily comparison re-normalization: `crates/domain/src/services/availability/comparison.rs`
+- Frontend price utilities: `apps/desktop/src/modules/products/price-utils.ts`
+- Currency exponent lookup: `crates/domain/src/services/currency.rs`
+
+**Gotcha:** Daily comparisons must re-normalize both periods with today's exchange rate. Using stored `normalized_price_minor_units` directly causes the percentage to reflect exchange rate changes, not actual price changes.
+
 ## Dependencies Note
 When bumping `@biomejs/biome` in `package.json`, update the `@biomejs+biome@X.Y.Z` segment in `.vscode/settings.json` biome.lsp.bin paths.

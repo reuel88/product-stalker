@@ -62,7 +62,7 @@ pub struct HeadlessService {
 
 impl HeadlessService {
     /// Page load timeout for headless browser (longer than HTTP due to JS execution)
-    const PAGE_TIMEOUT_SECS: u64 = 60;
+    pub(crate) const PAGE_TIMEOUT_SECS: u64 = 60;
 
     /// Create a new headless service instance
     pub fn new() -> Self {
@@ -155,10 +155,33 @@ impl HeadlessService {
         tab.navigate_to(url)
             .map_err(|e| AppError::External(format!("Failed to navigate to URL: {}", e)))?;
 
-        // Wait for page to load (DOMContentLoaded + network idle)
+        // Poll document.readyState instead of wait_until_navigated() which hangs
+        // on Cloudflare-protected sites (Turnstile keeps polling, so network idle never fires)
         log::debug!("Headless: waiting for navigation to complete");
-        tab.wait_until_navigated()
-            .map_err(|e| AppError::External(format!("Page load timeout: {}", e)))?;
+        let start = std::time::Instant::now();
+        let timeout = Duration::from_secs(Self::PAGE_TIMEOUT_SECS);
+
+        loop {
+            if start.elapsed() > timeout {
+                log::warn!(
+                    "Headless: page load timeout after {}s for {}",
+                    timeout.as_secs(),
+                    url
+                );
+                break;
+            }
+
+            if let Ok(result) = tab.evaluate("document.readyState", false) {
+                if let Some(value) = result.value {
+                    if value.as_str() == Some("complete") {
+                        log::debug!("Headless: page ready (readyState=complete) for {}", url);
+                        break;
+                    }
+                }
+            }
+
+            std::thread::sleep(Duration::from_millis(500));
+        }
 
         // Re-inject script after navigation in case page reset it
         if let Err(e) = tab.evaluate(COMPREHENSIVE_STEALTH_SCRIPT, false) {
