@@ -59,6 +59,7 @@ export function createMockSettings(
 		color_palette: "default",
 		display_timezone: "auto",
 		date_format: "system",
+		preferred_currency: "AUD",
 		updated_at: new Date().toISOString(),
 		...overrides,
 	};
@@ -123,6 +124,9 @@ export function createMockAvailabilityCheck(
 		lowest_price_minor_units: null,
 		lowest_price_currency: null,
 		lowest_currency_exponent: null,
+		normalized_price_minor_units: null,
+		normalized_currency: null,
+		normalized_currency_exponent: null,
 		...overrides,
 	};
 }

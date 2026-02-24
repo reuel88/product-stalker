@@ -8,12 +8,13 @@
 
 mod checker;
 mod comparison;
+mod renormalize;
 mod summary;
 mod types;
 
 pub use types::{
-    BulkCheckResult, BulkCheckSummary, CheckProcessingResult, CheckResultWithNotification,
-    DailyPriceComparison, ProductCheckContext,
+    BulkCheckResult, BulkCheckSummary, CheckConfig, CheckProcessingResult,
+    CheckResultWithNotification, DailyPriceComparison, ProductCheckContext,
 };
 
 /// Service layer for availability checking business logic

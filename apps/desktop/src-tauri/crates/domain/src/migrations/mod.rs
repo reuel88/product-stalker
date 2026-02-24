@@ -6,6 +6,7 @@ mod m20260212_000001_rename_price_cents_to_price_minor_units;
 mod m20260213_000001_add_multi_retailer;
 mod m20260214_000001_add_product_sort_order;
 mod m20260215_000001_add_retailer_sort_order;
+mod m20260216_000002_add_normalized_price_columns;
 mod migrator;
 
 pub use migrator::migrations;

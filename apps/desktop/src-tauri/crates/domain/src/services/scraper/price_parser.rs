@@ -53,8 +53,12 @@ pub const DOMAIN_CURRENCY_MAP: &[(&[&str], &str)] = &[
     (&[".com", ".us"], "USD"),
 ];
 
-/// Path locale patterns to currency mappings
+/// Path locale patterns to currency mappings.
 /// Format: (locale_pattern, currency_code)
+///
+/// **Ordering invariant:** Longer patterns (e.g., `en-au`) MUST appear before
+/// shorter ones (e.g., `au`) because `infer_currency_from_path()` uses `.find()`
+/// and stops at the first match.
 pub const PATH_LOCALE_CURRENCY_MAP: &[(&str, &str)] = &[
     ("en-au", "AUD"), // Australian English
     ("en-nz", "NZD"), // New Zealand English
@@ -64,7 +68,13 @@ pub const PATH_LOCALE_CURRENCY_MAP: &[(&str, &str)] = &[
     ("en-us", "USD"), // US English
     ("fr-ca", "CAD"), // French Canadian
     ("en-eu", "EUR"), // EU English (some stores)
-                      // Add more as needed
+    // Bare country-code paths (e.g., july.com/au/, nike.com/gb/)
+    ("au", "AUD"),
+    ("nz", "NZD"),
+    ("gb", "GBP"),
+    ("uk", "GBP"),
+    ("ca", "CAD"),
+    ("us", "USD"),
 ];
 
 /// Infer currency from a store's domain TLD
@@ -126,8 +136,8 @@ pub fn has_path_locale(url: &str) -> bool {
 ///
 /// Currency is determined in order of precedence:
 /// 1. Path-based locale (e.g., /en-au/ → AUD) - most reliable for multi-locale stores
-/// 2. Inferred from the store's domain TLD (e.g., .com.au → AUD)
-/// 3. Currency from the offer data (API default, may not match locale)
+/// 2. Currency from the offer data (API-provided, reflects what the store charges)
+/// 3. Inferred from the store's domain TLD (e.g., .com.au → AUD) - weakest heuristic
 /// 4. None if none of the above are available
 pub fn get_price_from_offer(offer: &serde_json::Value, url: &str) -> PriceInfo {
     let raw_price = offer.get("price").and_then(|p| match p {
@@ -141,11 +151,11 @@ pub fn get_price_from_offer(offer: &serde_json::Value, url: &str) -> PriceInfo {
         .and_then(|c| c.as_str())
         .map(|s| s.to_string());
 
-    // Apply priority system: path locale > domain > API default
+    // Apply priority system: path locale > API > domain fallback
     let price_currency = if raw_price.is_some() {
         infer_currency_from_path(url)
-            .or_else(|| infer_currency_from_domain(url))
             .or(api_currency)
+            .or_else(|| infer_currency_from_domain(url))
     } else {
         None
     };
@@ -360,6 +370,31 @@ mod tests {
             infer_currency_from_path("https://example.com/en-eu/products/test"),
             Some("EUR".to_string())
         );
+        // Bare country-code paths
+        assert_eq!(
+            infer_currency_from_path("https://july.com/au/travel-bags/backpack"),
+            Some("AUD".to_string())
+        );
+        assert_eq!(
+            infer_currency_from_path("https://nike.com/gb/products/shoe"),
+            Some("GBP".to_string())
+        );
+        assert_eq!(
+            infer_currency_from_path("https://store.com/nz/products/test"),
+            Some("NZD".to_string())
+        );
+        assert_eq!(
+            infer_currency_from_path("https://store.com/ca/products/test"),
+            Some("CAD".to_string())
+        );
+        assert_eq!(
+            infer_currency_from_path("https://store.com/us/products/test"),
+            Some("USD".to_string())
+        );
+        assert_eq!(
+            infer_currency_from_path("https://store.com/uk/products/test"),
+            Some("GBP".to_string())
+        );
         // No path locale
         assert_eq!(
             infer_currency_from_path("https://store.com/products/test"),
@@ -381,19 +416,33 @@ mod tests {
     }
 
     #[test]
-    fn test_get_price_from_offer_domain_fallback() {
-        // No path locale, should use domain (.com.au)
+    fn test_get_price_from_offer_api_beats_domain() {
+        // No path locale; API currency (AUD) should override domain (.com → USD)
         let offer = serde_json::json!({
             "price": "49.99",
-            "priceCurrency": "USD"
+            "priceCurrency": "AUD"
         });
-        let price = get_price_from_offer(&offer, "https://store.com.au/products/test");
+        let price = get_price_from_offer(
+            &offer,
+            "https://www.supercatalystlab.com/products/v01-backpack",
+        );
         assert_eq!(price.price_minor_units, Some(4999));
-        assert_eq!(price.price_currency, Some("AUD".to_string())); // Should use domain
+        assert_eq!(price.price_currency, Some("AUD".to_string())); // API wins over .com
     }
 
     #[test]
-    fn test_get_price_from_offer_api_fallback() {
+    fn test_get_price_from_offer_domain_fallback_when_no_api_currency() {
+        // No path locale, no API currency; should fall back to domain (.com.au → AUD)
+        let offer = serde_json::json!({
+            "price": "49.99"
+        });
+        let price = get_price_from_offer(&offer, "https://store.com.au/products/test");
+        assert_eq!(price.price_minor_units, Some(4999));
+        assert_eq!(price.price_currency, Some("AUD".to_string())); // Domain fallback
+    }
+
+    #[test]
+    fn test_get_price_from_offer_api_currency_with_unknown_domain() {
         // No path locale or recognized domain, should use API currency
         let offer = serde_json::json!({
             "price": "29.99",
@@ -401,7 +450,7 @@ mod tests {
         });
         let price = get_price_from_offer(&offer, "https://unknown.xyz/products/test");
         assert_eq!(price.price_minor_units, Some(2999));
-        assert_eq!(price.price_currency, Some("EUR".to_string())); // Should use API
+        assert_eq!(price.price_currency, Some("EUR".to_string())); // API currency
     }
 
     #[test]
@@ -439,6 +488,11 @@ mod tests {
     #[test]
     fn test_has_path_locale_fr_ca() {
         assert!(has_path_locale("https://example.com/fr-ca/products/item"));
+    }
+
+    #[test]
+    fn test_has_path_locale_bare_country_code() {
+        assert!(has_path_locale("https://july.com/au/travel-bags/backpack",));
     }
 
     #[test]

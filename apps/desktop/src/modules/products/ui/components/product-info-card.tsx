@@ -8,37 +8,23 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { getDisplayPrice } from "@/modules/products/price-utils";
+import {
+	getDisplayPrice,
+	type LowestPriceComparison,
+} from "@/modules/products/price-utils";
 import type {
 	AvailabilityCheckResponse,
-	AvailabilityStatus,
 	ProductResponse,
 } from "@/modules/products/types";
 import { useDateFormat } from "@/modules/shared/hooks/useDateFormat";
 import { PriceChangeIndicator } from "./price-change-indicator";
-import { STATUS_BADGE_CONFIG } from "./status-config";
 
 interface ProductInfoCardProps {
 	product: ProductResponse;
 	latestCheck: AvailabilityCheckResponse | null | undefined;
 	isChecking?: boolean;
 	onCheck?: () => void;
-}
-
-function StatusBadge({ status }: { status: AvailabilityStatus }) {
-	const { label, className } = STATUS_BADGE_CONFIG[status];
-
-	return (
-		<span
-			className={cn(
-				"inline-flex items-center rounded-full px-2.5 py-0.5 font-medium text-xs",
-				className,
-			)}
-		>
-			{label}
-		</span>
-	);
+	lowestPriceComparison?: LowestPriceComparison | null;
 }
 
 export function ProductInfoCard({
@@ -46,6 +32,7 @@ export function ProductInfoCard({
 	latestCheck,
 	isChecking,
 	onCheck,
+	lowestPriceComparison,
 }: ProductInfoCardProps) {
 	const { formatDate } = useDateFormat();
 
@@ -59,7 +46,6 @@ export function ProductInfoCard({
 					<CardTitle className="text-lg">{product.name}</CardTitle>
 				</div>
 				<div className="flex items-center gap-2">
-					{latestCheck?.status && <StatusBadge status={latestCheck.status} />}
 					{onCheck && (
 						<Button
 							variant="ghost"
@@ -84,11 +70,11 @@ export function ProductInfoCard({
 						<p className="text-muted-foreground text-xs">Current Price</p>
 						<PriceChangeIndicator
 							currentPriceMinorUnits={price}
-							todayAverageMinorUnits={
-								latestCheck?.today_average_price_minor_units ?? null
+							todayComparisonMinorUnits={
+								lowestPriceComparison?.todayLowestMinorUnits ?? null
 							}
-							yesterdayAverageMinorUnits={
-								latestCheck?.yesterday_average_price_minor_units ?? null
+							yesterdayComparisonMinorUnits={
+								lowestPriceComparison?.yesterdayLowestMinorUnits ?? null
 							}
 							currency={currency}
 							currencyExponent={exponent}

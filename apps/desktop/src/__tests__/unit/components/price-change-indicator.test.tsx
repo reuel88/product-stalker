@@ -8,8 +8,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={79900}
-					todayAverageMinorUnits={79900}
-					yesterdayAverageMinorUnits={null}
+					todayComparisonMinorUnits={79900}
+					yesterdayComparisonMinorUnits={null}
 					currency="USD"
 					currencyExponent={2}
 					variant="compact"
@@ -23,8 +23,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={79900}
-					todayAverageMinorUnits={79900}
-					yesterdayAverageMinorUnits={89900}
+					todayComparisonMinorUnits={79900}
+					yesterdayComparisonMinorUnits={89900}
 					currency="USD"
 					currencyExponent={2}
 					variant="compact"
@@ -39,8 +39,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={89900}
-					todayAverageMinorUnits={89900}
-					yesterdayAverageMinorUnits={79900}
+					todayComparisonMinorUnits={89900}
+					yesterdayComparisonMinorUnits={79900}
 					currency="USD"
 					currencyExponent={2}
 					variant="compact"
@@ -55,8 +55,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={null}
-					todayAverageMinorUnits={null}
-					yesterdayAverageMinorUnits={null}
+					todayComparisonMinorUnits={null}
+					yesterdayComparisonMinorUnits={null}
 					currency={null}
 					currencyExponent={2}
 					variant="compact"
@@ -70,8 +70,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={79900}
-					todayAverageMinorUnits={79900}
-					yesterdayAverageMinorUnits={79900}
+					todayComparisonMinorUnits={79900}
+					yesterdayComparisonMinorUnits={79900}
 					currency="USD"
 					currencyExponent={2}
 					variant="compact"
@@ -87,8 +87,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={80000}
-					todayAverageMinorUnits={80000}
-					yesterdayAverageMinorUnits={79960}
+					todayComparisonMinorUnits={80000}
+					yesterdayComparisonMinorUnits={79960}
 					currency="USD"
 					currencyExponent={2}
 					variant="compact"
@@ -105,8 +105,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={79960}
-					todayAverageMinorUnits={79960}
-					yesterdayAverageMinorUnits={80000}
+					todayComparisonMinorUnits={79960}
+					yesterdayComparisonMinorUnits={80000}
 					currency="USD"
 					currencyExponent={2}
 					variant="compact"
@@ -125,8 +125,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={79900}
-					todayAverageMinorUnits={79900}
-					yesterdayAverageMinorUnits={null}
+					todayComparisonMinorUnits={79900}
+					yesterdayComparisonMinorUnits={null}
 					currency="USD"
 					currencyExponent={2}
 					variant="detailed"
@@ -140,8 +140,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={79900}
-					todayAverageMinorUnits={79900}
-					yesterdayAverageMinorUnits={89900}
+					todayComparisonMinorUnits={79900}
+					yesterdayComparisonMinorUnits={89900}
 					currency="USD"
 					currencyExponent={2}
 					variant="detailed"
@@ -156,8 +156,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={89900}
-					todayAverageMinorUnits={89900}
-					yesterdayAverageMinorUnits={79900}
+					todayComparisonMinorUnits={89900}
+					yesterdayComparisonMinorUnits={79900}
 					currency="USD"
 					currencyExponent={2}
 					variant="detailed"
@@ -172,8 +172,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={null}
-					todayAverageMinorUnits={null}
-					yesterdayAverageMinorUnits={null}
+					todayComparisonMinorUnits={null}
+					yesterdayComparisonMinorUnits={null}
 					currency={null}
 					currencyExponent={2}
 					variant="detailed"
@@ -187,8 +187,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={80000}
-					todayAverageMinorUnits={80000}
-					yesterdayAverageMinorUnits={79960}
+					todayComparisonMinorUnits={80000}
+					yesterdayComparisonMinorUnits={79960}
 					currency="USD"
 					currencyExponent={2}
 					variant="detailed"
@@ -204,8 +204,8 @@ describe("PriceChangeIndicator", () => {
 			render(
 				<PriceChangeIndicator
 					currentPriceMinorUnits={79960}
-					todayAverageMinorUnits={79960}
-					yesterdayAverageMinorUnits={80000}
+					todayComparisonMinorUnits={79960}
+					yesterdayComparisonMinorUnits={80000}
 					currency="USD"
 					currencyExponent={2}
 					variant="detailed"

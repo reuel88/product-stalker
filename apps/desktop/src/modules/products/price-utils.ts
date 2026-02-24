@@ -1,5 +1,6 @@
 import type {
 	AvailabilityCheckResponse,
+	AvailabilityStatus,
 	MultiRetailerChartData,
 	PriceDataPoint,
 	ProductRetailerResponse,
@@ -176,8 +177,8 @@ export function formatPriceChangePercent(percent: number | null): string {
  * Checks if a percentage change rounds to 0 but is not actually zero.
  * Used to determine whether to show just the icon without percentage text.
  *
- * @param todayAverageMinorUnits - Today's average price in minor units
- * @param yesterdayAverageMinorUnits - Yesterday's average price in minor units
+ * @param todayComparisonMinorUnits - Today's comparison price in minor units
+ * @param yesterdayComparisonMinorUnits - Yesterday's comparison price in minor units
  * @returns True if the change rounds to 0% but prices are different, false otherwise
  *
  * @example
@@ -190,23 +191,23 @@ export function formatPriceChangePercent(percent: number | null): string {
  * ```
  */
 export function isRoundedZero(
-	todayAverageMinorUnits: number | null,
-	yesterdayAverageMinorUnits: number | null,
+	todayComparisonMinorUnits: number | null,
+	yesterdayComparisonMinorUnits: number | null,
 ): boolean {
 	if (
-		todayAverageMinorUnits === null ||
-		yesterdayAverageMinorUnits === null ||
-		yesterdayAverageMinorUnits === 0
+		todayComparisonMinorUnits === null ||
+		yesterdayComparisonMinorUnits === null ||
+		yesterdayComparisonMinorUnits === 0
 	) {
 		return false;
 	}
 
-	const change = todayAverageMinorUnits - yesterdayAverageMinorUnits;
+	const change = todayComparisonMinorUnits - yesterdayComparisonMinorUnits;
 	if (change === 0) {
 		return false; // Exactly zero, not rounded
 	}
 
-	const percentChange = (change / yesterdayAverageMinorUnits) * 100;
+	const percentChange = (change / yesterdayComparisonMinorUnits) * 100;
 	return Math.round(percentChange) === 0; // Rounds to zero but isn't exactly zero
 }
 
@@ -238,6 +239,22 @@ export function formatPrice(
 	}).format(minorUnits / 10 ** exponent);
 }
 
+/**
+ * Get the effective price from an availability check, preferring normalized over original.
+ * Used for cross-currency comparisons where prices have been normalized to the preferred currency.
+ */
+export function getEffectivePrice(check: AvailabilityCheckResponse): {
+	minorUnits: number | null;
+	currency: string | null;
+	exponent: number | null;
+} {
+	return {
+		minorUnits: check.normalized_price_minor_units ?? check.price_minor_units,
+		currency: check.normalized_currency ?? check.price_currency,
+		exponent: check.normalized_currency_exponent ?? check.currency_exponent,
+	};
+}
+
 /** Display price resolved from an availability check, preferring multi-retailer lowest price */
 export interface DisplayPrice {
 	price: number | null;
@@ -264,12 +281,17 @@ export interface RetailerPrice {
 	priceMinorUnits: number;
 	currency: string;
 	currencyExponent: number;
+	/** Original price (before normalization), only set when currency differs from normalized */
+	originalPriceMinorUnits?: number;
+	originalCurrency?: string;
+	originalCurrencyExponent?: number;
 }
 
 /**
  * Get the latest valid price for each retailer from availability checks.
  * Groups checks by `product_retailer_id`, picks the most recent check
  * with a valid price for each retailer.
+ * Uses normalized (effective) prices for cross-currency comparisons.
  *
  * @returns Map keyed by retailer ID → latest price info
  */
@@ -293,35 +315,238 @@ export function getLatestPriceByRetailer(
 		if (!retailerId || !retailerIds.has(retailerId)) continue;
 		if (result.has(retailerId)) continue;
 
-		result.set(retailerId, {
-			priceMinorUnits: check.price_minor_units,
-			currency: check.price_currency,
-			currencyExponent: check.currency_exponent ?? 2,
-		});
+		const effective = getEffectivePrice(check);
+		const originalDiffers =
+			check.normalized_currency !== null &&
+			check.normalized_currency !== check.price_currency;
+
+		// getEffectivePrice already falls back to check.price_*; the ?? here satisfies the non-null type
+		const retailerPrice: RetailerPrice = {
+			priceMinorUnits: effective.minorUnits ?? check.price_minor_units,
+			currency: effective.currency ?? check.price_currency,
+			currencyExponent: effective.exponent ?? 2,
+		};
+
+		if (originalDiffers) {
+			retailerPrice.originalPriceMinorUnits = check.price_minor_units;
+			retailerPrice.originalCurrency = check.price_currency;
+			retailerPrice.originalCurrencyExponent = check.currency_exponent ?? 2;
+		}
+
+		result.set(retailerId, retailerPrice);
 	}
 
 	return result;
 }
 
+/** Detailed info for a single retailer including status and price comparison */
+export interface RetailerDetails {
+	priceMinorUnits: number | null;
+	currency: string | null;
+	currencyExponent: number;
+	originalPriceMinorUnits?: number;
+	originalCurrency?: string;
+	originalCurrencyExponent?: number;
+	status: AvailabilityStatus | null;
+	checkedAt: string | null;
+	todayAverageMinorUnits: number | null;
+	yesterdayAverageMinorUnits: number | null;
+}
+
 /**
- * Find the retailer ID with the lowest price from a retailer price map.
- * Returns null if fewer than 2 retailers have prices (no comparison possible).
+ * Get detailed info for each retailer from availability checks.
+ * Single pass over sorted history, collecting per retailer:
+ * - Latest status (from most recent check, regardless of price validity)
+ * - Latest price (from most recent check with valid price)
+ * - Today (0-24h) / yesterday (24-48h) price averages
+ *
+ * @returns Map keyed by retailer ID → details
+ */
+export function getRetailerDetails(
+	checks: AvailabilityCheckResponse[],
+	retailers: ProductRetailerResponse[],
+): Map<string, RetailerDetails> {
+	const retailerIds = new Set(retailers.map((r) => r.id));
+	const result = new Map<string, RetailerDetails>();
+
+	const now = Date.now();
+	const todayCutoff = now - MILLISECONDS_PER_DAY;
+	const yesterdayCutoff = now - 2 * MILLISECONDS_PER_DAY;
+
+	const todayPrices = new Map<string, number[]>();
+	const yesterdayPrices = new Map<string, number[]>();
+
+	// --- Phase 1: Collect per-retailer status, latest price, and daily price buckets ---
+	const sorted = [...checks].sort(
+		(a, b) =>
+			new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime(),
+	);
+
+	for (const check of sorted) {
+		const retailerId = check.product_retailer_id;
+		if (!retailerId || !retailerIds.has(retailerId)) continue;
+
+		if (!result.has(retailerId)) {
+			result.set(retailerId, {
+				priceMinorUnits: null,
+				currency: null,
+				currencyExponent: 2,
+				status: check.status,
+				checkedAt: check.checked_at,
+				todayAverageMinorUnits: null,
+				yesterdayAverageMinorUnits: null,
+			});
+		}
+
+		const entry = result.get(retailerId);
+		if (!entry) continue;
+
+		if (entry.priceMinorUnits === null && hasValidPrice(check)) {
+			const effective = getEffectivePrice(check);
+			entry.priceMinorUnits = effective.minorUnits;
+			entry.currency = effective.currency;
+			entry.currencyExponent = effective.exponent ?? 2;
+
+			const originalDiffers =
+				check.normalized_currency !== null &&
+				check.normalized_currency !== check.price_currency;
+
+			if (originalDiffers) {
+				entry.originalPriceMinorUnits = check.price_minor_units;
+				entry.originalCurrency = check.price_currency;
+				entry.originalCurrencyExponent = check.currency_exponent ?? 2;
+			}
+		}
+
+		if (hasValidPrice(check)) {
+			const checkTime = new Date(check.checked_at).getTime();
+			// Use original price (not normalized) for daily comparison buckets.
+			// Each retailer operates in a single currency, so using original prices
+			// produces rate-stable percentage changes that reflect actual price
+			// changes rather than exchange rate fluctuations.
+			const price = check.price_minor_units;
+
+			if (checkTime >= todayCutoff) {
+				if (!todayPrices.has(retailerId)) todayPrices.set(retailerId, []);
+				todayPrices.get(retailerId)?.push(price);
+			} else if (checkTime >= yesterdayCutoff) {
+				if (!yesterdayPrices.has(retailerId))
+					yesterdayPrices.set(retailerId, []);
+				yesterdayPrices.get(retailerId)?.push(price);
+			}
+		}
+	}
+
+	// --- Phase 2: Compute daily averages from collected price buckets ---
+	computeDailyAverages(result, todayPrices, yesterdayPrices);
+
+	return result;
+}
+
+/** Compute today/yesterday average prices from collected price buckets and write into entries. */
+function computeDailyAverages(
+	result: Map<string, RetailerDetails>,
+	todayPrices: Map<string, number[]>,
+	yesterdayPrices: Map<string, number[]>,
+): void {
+	for (const [retailerId, entry] of result) {
+		const today = todayPrices.get(retailerId);
+		if (today && today.length > 0) {
+			entry.todayAverageMinorUnits = Math.round(
+				today.reduce((sum, p) => sum + p, 0) / today.length,
+			);
+		}
+
+		const yesterday = yesterdayPrices.get(retailerId);
+		if (yesterday && yesterday.length > 0) {
+			entry.yesterdayAverageMinorUnits = Math.round(
+				yesterday.reduce((sum, p) => sum + p, 0) / yesterday.length,
+			);
+		}
+	}
+}
+
+/** Lowest price comparison across all retailers for today vs yesterday */
+export interface LowestPriceComparison {
+	todayLowestMinorUnits: number | null;
+	yesterdayLowestMinorUnits: number | null;
+	currency: string | null;
+	currencyExponent: number;
+}
+
+/**
+ * Find the cheapest price across all retailers in today (0-24h) and
+ * yesterday (24-48h) windows for an apples-to-apples comparison.
+ */
+export function getLowestPriceComparison(
+	checks: AvailabilityCheckResponse[],
+): LowestPriceComparison {
+	const now = Date.now();
+	const todayCutoff = now - MILLISECONDS_PER_DAY;
+	const yesterdayCutoff = now - 2 * MILLISECONDS_PER_DAY;
+
+	let todayLowest: number | null = null;
+	let yesterdayLowest: number | null = null;
+	let currency: string | null = null;
+	let currencyExponent = 2;
+
+	for (const check of checks) {
+		if (!hasValidPrice(check)) continue;
+
+		const effective = getEffectivePrice(check);
+		const price = effective.minorUnits;
+		if (price === null) continue;
+
+		const checkTime = new Date(check.checked_at).getTime();
+
+		if (currency === null) {
+			currency = effective.currency;
+			currencyExponent = effective.exponent ?? 2;
+		} else if (effective.currency !== currency) {
+			continue;
+		}
+
+		if (checkTime >= todayCutoff) {
+			if (todayLowest === null || price < todayLowest) {
+				todayLowest = price;
+			}
+		} else if (checkTime >= yesterdayCutoff) {
+			if (yesterdayLowest === null || price < yesterdayLowest) {
+				yesterdayLowest = price;
+			}
+		}
+	}
+
+	return {
+		todayLowestMinorUnits: todayLowest,
+		yesterdayLowestMinorUnits: yesterdayLowest,
+		currency,
+		currencyExponent,
+	};
+}
+
+/**
+ * Find the retailer ID with the lowest price from a retailer price/details map.
+ * Returns null if fewer than 2 retailers have valid prices (no comparison possible).
+ * Skips entries with null priceMinorUnits.
  */
 export function findCheapestRetailerId(
-	priceMap: Map<string, RetailerPrice>,
+	priceMap: Map<string, { priceMinorUnits: number | null }>,
 ): string | null {
-	if (priceMap.size < 2) return null;
-
+	let pricedCount = 0;
 	let cheapestId: string | null = null;
 	let cheapestPrice = Number.POSITIVE_INFINITY;
 
-	for (const [id, price] of priceMap) {
-		if (price.priceMinorUnits < cheapestPrice) {
-			cheapestPrice = price.priceMinorUnits;
+	for (const [id, entry] of priceMap) {
+		if (entry.priceMinorUnits === null) continue;
+		pricedCount++;
+		if (entry.priceMinorUnits < cheapestPrice) {
+			cheapestPrice = entry.priceMinorUnits;
 			cheapestId = id;
 		}
 	}
 
+	if (pricedCount < 2) return null;
 	return cheapestId;
 }
 
@@ -380,12 +605,18 @@ export function transformToMultiRetailerChartData(
 		return { data: [], series: [], currency: "", currencyExponent: 2 };
 	}
 
-	const currency = validChecks[0].price_currency;
-	const currencyExponent = validChecks[0].currency_exponent ?? 2;
+	const firstEffective = getEffectivePrice(validChecks[0]);
+	const currency = firstEffective.currency ?? "";
+	const currencyExponent = firstEffective.exponent ?? 2;
+
+	// Skip checks whose effective currency doesn't match the canonical currency
+	const currencyMatchedChecks = validChecks.filter(
+		(check) => getEffectivePrice(check).currency === currency,
+	);
 
 	// Group by product_retailer_id (null → "legacy" fallback)
 	const grouped = new Map<string, typeof validChecks>();
-	for (const check of validChecks) {
+	for (const check of currencyMatchedChecks) {
 		const key = check.product_retailer_id ?? "legacy";
 		const list = grouped.get(key);
 		if (list) {
@@ -414,7 +645,7 @@ export function transformToMultiRetailerChartData(
 
 	// Build pivoted data rows bucketed by minute
 	const rowMap = new Map<string, Record<string, string | number>>();
-	for (const check of validChecks) {
+	for (const check of currencyMatchedChecks) {
 		const bucketDate = bucketToMinute(check.checked_at);
 		const retailerId = check.product_retailer_id ?? "legacy";
 
@@ -423,7 +654,7 @@ export function transformToMultiRetailerChartData(
 			row = { date: bucketDate };
 			rowMap.set(bucketDate, row);
 		}
-		row[retailerId] = check.price_minor_units;
+		row[retailerId] = getEffectivePrice(check).minorUnits ?? 0;
 	}
 
 	// Sort rows by date ascending

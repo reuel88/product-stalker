@@ -11,7 +11,7 @@ mod product_service;
 pub mod scraper;
 
 pub use availability::{
-    AvailabilityService, BulkCheckResult, BulkCheckSummary, CheckProcessingResult,
+    AvailabilityService, BulkCheckResult, BulkCheckSummary, CheckConfig, CheckProcessingResult,
     CheckResultWithNotification, DailyPriceComparison, ProductCheckContext,
 };
 pub use domain_setting_service::{

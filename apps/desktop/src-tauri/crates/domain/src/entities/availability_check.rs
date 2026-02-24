@@ -126,6 +126,12 @@ pub struct Model {
 
     /// Original schema.org price value for debugging
     pub raw_price: Option<String>,
+
+    /// Price normalized to the user's preferred currency (minor units)
+    pub normalized_price_minor_units: Option<i64>,
+
+    /// Currency code of the normalized price (the user's preferred currency)
+    pub normalized_currency: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -163,6 +169,18 @@ impl Model {
     /// Parse the stored status string into a typed `AvailabilityStatus` enum.
     pub fn status_enum(&self) -> AvailabilityStatus {
         self.status.parse().unwrap_or_default()
+    }
+
+    /// Get the effective price in minor units, preferring normalized over original.
+    pub fn effective_price_minor_units(&self) -> Option<i64> {
+        self.normalized_price_minor_units.or(self.price_minor_units)
+    }
+
+    /// Get the effective currency, preferring normalized over original.
+    pub fn effective_currency(&self) -> Option<&str> {
+        self.normalized_currency
+            .as_deref()
+            .or(self.price_currency.as_deref())
     }
 }
 
@@ -347,6 +365,8 @@ mod tests {
             price_minor_units: None,
             price_currency: None,
             raw_price: None,
+            normalized_price_minor_units: None,
+            normalized_currency: None,
         };
         assert_eq!(model.status_enum(), AvailabilityStatus::InStock);
 
@@ -373,6 +393,46 @@ mod tests {
             ..model
         };
         assert_eq!(model.status_enum(), AvailabilityStatus::Unknown);
+    }
+
+    #[test]
+    fn test_effective_price_prefers_normalized() {
+        let model = Model {
+            id: Uuid::new_v4(),
+            product_id: Uuid::new_v4(),
+            product_retailer_id: None,
+            status: "in_stock".to_string(),
+            raw_availability: None,
+            error_message: None,
+            checked_at: chrono::Utc::now(),
+            price_minor_units: Some(5000),
+            price_currency: Some("USD".to_string()),
+            raw_price: None,
+            normalized_price_minor_units: Some(7935),
+            normalized_currency: Some("AUD".to_string()),
+        };
+        assert_eq!(model.effective_price_minor_units(), Some(7935));
+        assert_eq!(model.effective_currency(), Some("AUD"));
+    }
+
+    #[test]
+    fn test_effective_price_falls_back_to_original() {
+        let model = Model {
+            id: Uuid::new_v4(),
+            product_id: Uuid::new_v4(),
+            product_retailer_id: None,
+            status: "in_stock".to_string(),
+            raw_availability: None,
+            error_message: None,
+            checked_at: chrono::Utc::now(),
+            price_minor_units: Some(5000),
+            price_currency: Some("USD".to_string()),
+            raw_price: None,
+            normalized_price_minor_units: None,
+            normalized_currency: None,
+        };
+        assert_eq!(model.effective_price_minor_units(), Some(5000));
+        assert_eq!(model.effective_currency(), Some("USD"));
     }
 
     #[test]

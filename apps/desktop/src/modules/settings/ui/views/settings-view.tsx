@@ -10,6 +10,7 @@ import { useUpdater } from "@/modules/settings/hooks/useUpdater";
 import { AdvancedCard } from "@/modules/settings/ui/components/advanced-card";
 import { AppearanceCard } from "@/modules/settings/ui/components/appearance-card";
 import { BackgroundCheckingCard } from "@/modules/settings/ui/components/background-checking-card";
+import { CurrencyCard } from "@/modules/settings/ui/components/currency-card";
 import { DateDisplayCard } from "@/modules/settings/ui/components/date-display-card";
 import { InterfaceCard } from "@/modules/settings/ui/components/interface-card";
 import { LoggingCard } from "@/modules/settings/ui/components/logging-card";
@@ -86,6 +87,7 @@ export function SettingsView() {
 			<div className="space-y-4">
 				<AppearanceCard settings={settings} onThemeChange={handleThemeChange} />
 				<DateDisplayCard settings={settings} onUpdate={handleUpdate} />
+				<CurrencyCard settings={settings} onUpdate={handleUpdate} />
 				<SystemCard settings={settings} onUpdate={handleUpdate} />
 				<LoggingCard settings={settings} onUpdate={handleUpdate} />
 				<NotificationsCard settings={settings} onUpdate={handleUpdate} />

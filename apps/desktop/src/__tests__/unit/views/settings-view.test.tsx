@@ -169,6 +169,17 @@ describe("SettingsView", () => {
 			).toBeInTheDocument();
 		});
 
+		it("should render Currency card", async () => {
+			render(<SettingsView />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Currency")).toBeInTheDocument();
+			});
+			expect(
+				screen.getByText("Set your preferred currency for price comparisons"),
+			).toBeInTheDocument();
+		});
+
 		it("should render Interface card", async () => {
 			render(<SettingsView />);
 
@@ -355,8 +366,8 @@ describe("SettingsView", () => {
 
 			await waitFor(() => {
 				const logLevelTriggers = screen.getAllByRole("combobox");
-				// Log level select should be the fourth combobox (after theme, timezone, date format)
-				const logLevelSelect = logLevelTriggers[3];
+				// Log level select should be the fifth combobox (after theme, timezone, date format, currency)
+				const logLevelSelect = logLevelTriggers[4];
 				expect(logLevelSelect).toBeDisabled();
 			});
 		});
@@ -415,8 +426,8 @@ describe("SettingsView", () => {
 
 			await waitFor(() => {
 				const selects = screen.getAllByRole("combobox");
-				// Check interval is the fifth combobox (theme, timezone, date format, log level, interval)
-				const intervalSelect = selects[4];
+				// Check interval is the sixth combobox (theme, timezone, date format, currency, log level, interval)
+				const intervalSelect = selects[5];
 				expect(intervalSelect).toBeDisabled();
 			});
 		});
