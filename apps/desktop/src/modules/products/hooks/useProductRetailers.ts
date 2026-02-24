@@ -53,6 +53,12 @@ export function useProductRetailers(productId: string) {
 			queryClient.invalidateQueries({
 				queryKey: QUERY_KEYS.productRetailers(productId),
 			});
+			queryClient.invalidateQueries({
+				queryKey: QUERY_KEYS.availability(productId),
+			});
+			queryClient.invalidateQueries({
+				queryKey: QUERY_KEYS.availabilityHistory(productId),
+			});
 		},
 	});
 
