@@ -123,23 +123,19 @@ export function useDialogResize() {
 
 			if (dir.includes("e")) {
 				newW = Math.max(MIN_WIDTH, prevW + dx);
+				offX = startResizeOffset.current.x + (newW - prevW) / 2;
 			}
 			if (dir.includes("w")) {
-				const proposed = prevW - dx;
-				const clamped = Math.max(MIN_WIDTH, proposed);
-				const actualDx = prevW - clamped;
-				newW = clamped;
-				offX = startResizeOffset.current.x + actualDx;
+				newW = Math.max(MIN_WIDTH, prevW - dx);
+				offX = startResizeOffset.current.x - (newW - prevW) / 2;
 			}
 			if (dir.includes("s")) {
 				newH = Math.max(MIN_HEIGHT, prevH + dy);
+				offY = startResizeOffset.current.y + (newH - prevH) / 2;
 			}
 			if (dir.includes("n")) {
-				const proposed = prevH - dy;
-				const clamped = Math.max(MIN_HEIGHT, proposed);
-				const actualDy = prevH - clamped;
-				newH = clamped;
-				offY = startResizeOffset.current.y + actualDy;
+				newH = Math.max(MIN_HEIGHT, prevH - dy);
+				offY = startResizeOffset.current.y - (newH - prevH) / 2;
 			}
 
 			setSize({ width: newW, height: newH });
