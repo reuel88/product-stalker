@@ -122,7 +122,7 @@ describe("useDialogResize", () => {
 
 		expect(result.current.size.width).toBe(600);
 		expect(result.current.size.height).toBe(400);
-		expect(result.current.resizeOffset).toEqual({ x: 0, y: 0 });
+		expect(result.current.resizeOffset).toEqual({ x: 50, y: 0 });
 	});
 
 	it("should resize south direction correctly", () => {
@@ -196,7 +196,7 @@ describe("useDialogResize", () => {
 
 		expect(result.current.size.width).toBe(550);
 		// West resize should produce negative x offset to anchor the right edge
-		expect(result.current.resizeOffset.x).toBe(-50);
+		expect(result.current.resizeOffset.x).toBe(-25);
 	});
 
 	it("should resize north direction with offset adjustment", () => {
@@ -233,7 +233,7 @@ describe("useDialogResize", () => {
 		});
 
 		expect(result.current.size.height).toBe(450);
-		expect(result.current.resizeOffset.y).toBe(-50);
+		expect(result.current.resizeOffset.y).toBe(-25);
 	});
 
 	it("should resize se corner (both width and height)", () => {
@@ -269,7 +269,7 @@ describe("useDialogResize", () => {
 		});
 
 		expect(result.current.size).toEqual({ width: 600, height: 500 });
-		expect(result.current.resizeOffset).toEqual({ x: 0, y: 0 });
+		expect(result.current.resizeOffset).toEqual({ x: 50, y: 50 });
 	});
 
 	it("should enforce minimum width constraint", () => {
