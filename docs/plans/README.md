@@ -54,3 +54,4 @@ Brief description of what we're building and why.
 | Plan | Status | Description |
 |------|--------|-------------|
 | [2024-01-availability-checker](./2024-01-availability-checker.md) | Completed | Web scraping for product availability checks |
+| [2026-05-dependency-updates](./2026-05-dependency-updates.md) | Draft | Phased upgrade of ~30 outdated npm packages across 11 ecosystem-scoped commits |
