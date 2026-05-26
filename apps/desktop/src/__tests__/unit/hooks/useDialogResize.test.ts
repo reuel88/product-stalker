@@ -145,12 +145,20 @@ describe("useDialogResize", () => {
 	});
 
 	it("should resize west direction with offset adjustment", () => {
-		const popupRef = createMockPopupRef();
+		// Position the popup away from the left edge so it has room to grow west
+		const popupRef = createMockPopupRef({
+			left: 100,
+			top: 0,
+			right: 600,
+			bottom: 400,
+			width: 500,
+			height: 400,
+		});
 		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		act(() => {
 			result.current.getHandleProps("w").onPointerDown({
-				clientX: 0,
+				clientX: 100,
 				clientY: 200,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
@@ -160,7 +168,7 @@ describe("useDialogResize", () => {
 		// Move west handle left by 50px (increasing width)
 		act(() => {
 			document.dispatchEvent(
-				new MouseEvent("pointermove", { clientX: -50, clientY: 200 }),
+				new MouseEvent("pointermove", { clientX: 50, clientY: 200 }),
 			);
 		});
 
@@ -170,13 +178,21 @@ describe("useDialogResize", () => {
 	});
 
 	it("should resize north direction with offset adjustment", () => {
-		const popupRef = createMockPopupRef();
+		// Position the popup away from the top edge so it has room to grow north
+		const popupRef = createMockPopupRef({
+			left: 0,
+			top: 50,
+			right: 500,
+			bottom: 450,
+			width: 500,
+			height: 400,
+		});
 		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		act(() => {
 			result.current.getHandleProps("n").onPointerDown({
 				clientX: 250,
-				clientY: 0,
+				clientY: 50,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -185,7 +201,7 @@ describe("useDialogResize", () => {
 		// Move north handle up by 50px
 		act(() => {
 			document.dispatchEvent(
-				new MouseEvent("pointermove", { clientX: 250, clientY: -50 }),
+				new MouseEvent("pointermove", { clientX: 250, clientY: 0 }),
 			);
 		});
 
