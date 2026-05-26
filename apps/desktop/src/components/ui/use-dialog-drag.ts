@@ -57,9 +57,11 @@ export function useDialogDrag(
 
 		document.addEventListener("pointermove", onPointerMove);
 		document.addEventListener("pointerup", onPointerUp);
+		document.addEventListener("pointercancel", onPointerUp);
 		return () => {
 			document.removeEventListener("pointermove", onPointerMove);
 			document.removeEventListener("pointerup", onPointerUp);
+			document.removeEventListener("pointercancel", onPointerUp);
 		};
 	}, [isDragging]);
 
@@ -67,6 +69,7 @@ export function useDialogDrag(
 		(e: React.PointerEvent) => {
 			const target = e.target as HTMLElement;
 			if (target.closest(INTERACTIVE_SELECTORS)) return;
+			if (e.button !== 0 || !e.isPrimary) return;
 
 			e.preventDefault();
 			startPos.current = { x: e.clientX, y: e.clientY };
