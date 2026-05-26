@@ -8,20 +8,42 @@ interface Offset {
 const INTERACTIVE_SELECTORS =
 	"button, input, textarea, select, a, [role='button']";
 
-export function useDialogDrag() {
+export function useDialogDrag(
+	popupRef: React.RefObject<HTMLDivElement | null>,
+) {
 	const [offset, setOffset] = useState<Offset>({ x: 0, y: 0 });
 	const [isDragging, setIsDragging] = useState(false);
 
 	const startPos = useRef<{ x: number; y: number } | null>(null);
 	const startOffset = useRef<Offset>({ x: 0, y: 0 });
+	const startRect = useRef<DOMRect | null>(null);
 
 	useEffect(() => {
 		if (!isDragging) return;
 
 		function onPointerMove(e: PointerEvent) {
 			if (!startPos.current) return;
-			const dx = e.clientX - startPos.current.x;
-			const dy = e.clientY - startPos.current.y;
+			let dx = e.clientX - startPos.current.x;
+			let dy = e.clientY - startPos.current.y;
+
+			if (startRect.current) {
+				const vw = window.innerWidth;
+				const vh = window.innerHeight;
+				const r = startRect.current;
+				if (r.width <= vw) {
+					const newLeft = r.left + dx;
+					const newRight = r.right + dx;
+					if (newLeft < 0) dx -= newLeft;
+					else if (newRight > vw) dx -= newRight - vw;
+				}
+				if (r.height <= vh) {
+					const newTop = r.top + dy;
+					const newBottom = r.bottom + dy;
+					if (newTop < 0) dy -= newTop;
+					else if (newBottom > vh) dy -= newBottom - vh;
+				}
+			}
+
 			setOffset({
 				x: startOffset.current.x + dx,
 				y: startOffset.current.y + dy,
@@ -49,9 +71,10 @@ export function useDialogDrag() {
 			e.preventDefault();
 			startPos.current = { x: e.clientX, y: e.clientY };
 			startOffset.current = { ...offset };
+			startRect.current = popupRef.current?.getBoundingClientRect() ?? null;
 			setIsDragging(true);
 		},
-		[offset],
+		[offset, popupRef],
 	);
 
 	const reset = useCallback(() => {

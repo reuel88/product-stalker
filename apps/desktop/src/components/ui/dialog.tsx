@@ -1,13 +1,7 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
 import type * as React from "react";
-import {
-	createContext,
-	useCallback,
-	useContext,
-	useEffect,
-	useRef,
-} from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 import { useDialogDrag } from "./use-dialog-drag";
@@ -59,27 +53,18 @@ function DialogContent({
 	children,
 	...props
 }: DialogPrimitive.Popup.Props) {
-	const drag = useDialogDrag();
-	const resize = useDialogResize();
+	const popupRef = useRef<HTMLDivElement | null>(null);
+	const drag = useDialogDrag(popupRef);
+	const resize = useDialogResize(popupRef);
 
 	const isInteracting = drag.isDragging || resize.isResizing;
 	const totalX = drag.offset.x + resize.resizeOffset.x;
 	const totalY = drag.offset.y + resize.resizeOffset.y;
 	const hasCustomSize = resize.size.width !== null;
 
-	const popupElRef = useRef<HTMLElement | null>(null);
-
-	const setPopupRef = useCallback(
-		(el: HTMLElement | null) => {
-			popupElRef.current = el;
-			resize.popupRef.current = el;
-		},
-		[resize.popupRef],
-	);
-
 	// Reset position/size when dialog closes
 	useEffect(() => {
-		const el = popupElRef.current;
+		const el = popupRef.current;
 		if (!el) return;
 
 		const observer = new MutationObserver(() => {
@@ -107,7 +92,7 @@ function DialogContent({
 			<DialogPortal>
 				<DialogBackdrop />
 				<DialogPrimitive.Popup
-					ref={setPopupRef}
+					ref={popupRef}
 					data-slot="dialog-content"
 					className={cn(
 						"data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 fixed top-1/2 left-1/2 z-50 grid gap-4 rounded-none border bg-background p-6 shadow-lg duration-200 data-closed:animate-out data-open:animate-in",

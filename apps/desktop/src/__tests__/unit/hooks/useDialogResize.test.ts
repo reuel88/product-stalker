@@ -1,6 +1,26 @@
 import { act, renderHook } from "@testing-library/react";
+import type { RefObject } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDialogResize } from "@/components/ui/use-dialog-resize";
+
+function createMockPopupRef(
+	rect: Partial<DOMRect> = {},
+): RefObject<HTMLDivElement | null> {
+	const el = document.createElement("div");
+	vi.spyOn(el, "getBoundingClientRect").mockReturnValue({
+		width: 500,
+		height: 400,
+		top: 0,
+		left: 0,
+		right: 500,
+		bottom: 400,
+		x: 0,
+		y: 0,
+		toJSON: vi.fn(),
+		...rect,
+	});
+	return { current: el };
+}
 
 describe("useDialogResize", () => {
 	afterEach(() => {
@@ -8,7 +28,8 @@ describe("useDialogResize", () => {
 	});
 
 	it("should have initial state with null size and not resizing", () => {
-		const { result } = renderHook(() => useDialogResize());
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		expect(result.current.size).toEqual({ width: null, height: null });
 		expect(result.current.isResizing).toBe(false);
@@ -16,7 +37,8 @@ describe("useDialogResize", () => {
 	});
 
 	it("should expose all 8 resize directions", () => {
-		const { result } = renderHook(() => useDialogResize());
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		expect(result.current.directions).toEqual([
 			"n",
@@ -31,7 +53,8 @@ describe("useDialogResize", () => {
 	});
 
 	it("should return handle props with correct cursor for each direction", () => {
-		const { result } = renderHook(() => useDialogResize());
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		const cursorMap: Record<string, string> = {
 			n: "ns-resize",
@@ -54,22 +77,8 @@ describe("useDialogResize", () => {
 	});
 
 	it("should capture initial popup size on first resize", () => {
-		const { result } = renderHook(() => useDialogResize());
-
-		// Mock the popup element with getBoundingClientRect
-		const mockEl = document.createElement("div");
-		vi.spyOn(mockEl, "getBoundingClientRect").mockReturnValue({
-			width: 500,
-			height: 400,
-			top: 0,
-			left: 0,
-			right: 500,
-			bottom: 400,
-			x: 0,
-			y: 0,
-			toJSON: vi.fn(),
-		});
-		result.current.popupRef.current = mockEl;
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		// Start resizing from the east handle
 		const handleProps = result.current.getHandleProps("e");
@@ -87,21 +96,8 @@ describe("useDialogResize", () => {
 	});
 
 	it("should resize east direction correctly", () => {
-		const { result } = renderHook(() => useDialogResize());
-
-		const mockEl = document.createElement("div");
-		vi.spyOn(mockEl, "getBoundingClientRect").mockReturnValue({
-			width: 500,
-			height: 400,
-			top: 0,
-			left: 0,
-			right: 500,
-			bottom: 400,
-			x: 0,
-			y: 0,
-			toJSON: vi.fn(),
-		});
-		result.current.popupRef.current = mockEl;
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		// Start resize
 		act(() => {
@@ -126,21 +122,8 @@ describe("useDialogResize", () => {
 	});
 
 	it("should resize south direction correctly", () => {
-		const { result } = renderHook(() => useDialogResize());
-
-		const mockEl = document.createElement("div");
-		vi.spyOn(mockEl, "getBoundingClientRect").mockReturnValue({
-			width: 500,
-			height: 400,
-			top: 0,
-			left: 0,
-			right: 500,
-			bottom: 400,
-			x: 0,
-			y: 0,
-			toJSON: vi.fn(),
-		});
-		result.current.popupRef.current = mockEl;
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		act(() => {
 			result.current.getHandleProps("s").onPointerDown({
@@ -162,21 +145,8 @@ describe("useDialogResize", () => {
 	});
 
 	it("should resize west direction with offset adjustment", () => {
-		const { result } = renderHook(() => useDialogResize());
-
-		const mockEl = document.createElement("div");
-		vi.spyOn(mockEl, "getBoundingClientRect").mockReturnValue({
-			width: 500,
-			height: 400,
-			top: 0,
-			left: 0,
-			right: 500,
-			bottom: 400,
-			x: 0,
-			y: 0,
-			toJSON: vi.fn(),
-		});
-		result.current.popupRef.current = mockEl;
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		act(() => {
 			result.current.getHandleProps("w").onPointerDown({
@@ -200,21 +170,8 @@ describe("useDialogResize", () => {
 	});
 
 	it("should resize north direction with offset adjustment", () => {
-		const { result } = renderHook(() => useDialogResize());
-
-		const mockEl = document.createElement("div");
-		vi.spyOn(mockEl, "getBoundingClientRect").mockReturnValue({
-			width: 500,
-			height: 400,
-			top: 0,
-			left: 0,
-			right: 500,
-			bottom: 400,
-			x: 0,
-			y: 0,
-			toJSON: vi.fn(),
-		});
-		result.current.popupRef.current = mockEl;
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		act(() => {
 			result.current.getHandleProps("n").onPointerDown({
@@ -237,21 +194,8 @@ describe("useDialogResize", () => {
 	});
 
 	it("should resize se corner (both width and height)", () => {
-		const { result } = renderHook(() => useDialogResize());
-
-		const mockEl = document.createElement("div");
-		vi.spyOn(mockEl, "getBoundingClientRect").mockReturnValue({
-			width: 500,
-			height: 400,
-			top: 0,
-			left: 0,
-			right: 500,
-			bottom: 400,
-			x: 0,
-			y: 0,
-			toJSON: vi.fn(),
-		});
-		result.current.popupRef.current = mockEl;
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		act(() => {
 			result.current.getHandleProps("se").onPointerDown({
@@ -273,21 +217,15 @@ describe("useDialogResize", () => {
 	});
 
 	it("should enforce minimum width constraint", () => {
-		const { result } = renderHook(() => useDialogResize());
-
-		const mockEl = document.createElement("div");
-		vi.spyOn(mockEl, "getBoundingClientRect").mockReturnValue({
+		const popupRef = createMockPopupRef({
 			width: 400,
 			height: 400,
 			top: 0,
 			left: 0,
 			right: 400,
 			bottom: 400,
-			x: 0,
-			y: 0,
-			toJSON: vi.fn(),
 		});
-		result.current.popupRef.current = mockEl;
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		act(() => {
 			result.current.getHandleProps("e").onPointerDown({
@@ -309,21 +247,15 @@ describe("useDialogResize", () => {
 	});
 
 	it("should enforce minimum height constraint", () => {
-		const { result } = renderHook(() => useDialogResize());
-
-		const mockEl = document.createElement("div");
-		vi.spyOn(mockEl, "getBoundingClientRect").mockReturnValue({
+		const popupRef = createMockPopupRef({
 			width: 500,
 			height: 300,
 			top: 0,
 			left: 0,
 			right: 500,
 			bottom: 300,
-			x: 0,
-			y: 0,
-			toJSON: vi.fn(),
 		});
-		result.current.popupRef.current = mockEl;
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		act(() => {
 			result.current.getHandleProps("s").onPointerDown({
@@ -345,21 +277,8 @@ describe("useDialogResize", () => {
 	});
 
 	it("should stop resizing on pointerup", () => {
-		const { result } = renderHook(() => useDialogResize());
-
-		const mockEl = document.createElement("div");
-		vi.spyOn(mockEl, "getBoundingClientRect").mockReturnValue({
-			width: 500,
-			height: 400,
-			top: 0,
-			left: 0,
-			right: 500,
-			bottom: 400,
-			x: 0,
-			y: 0,
-			toJSON: vi.fn(),
-		});
-		result.current.popupRef.current = mockEl;
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		act(() => {
 			result.current.getHandleProps("e").onPointerDown({
@@ -380,21 +299,8 @@ describe("useDialogResize", () => {
 	});
 
 	it("should reset size and offset", () => {
-		const { result } = renderHook(() => useDialogResize());
-
-		const mockEl = document.createElement("div");
-		vi.spyOn(mockEl, "getBoundingClientRect").mockReturnValue({
-			width: 500,
-			height: 400,
-			top: 0,
-			left: 0,
-			right: 500,
-			bottom: 400,
-			x: 0,
-			y: 0,
-			toJSON: vi.fn(),
-		});
-		result.current.popupRef.current = mockEl;
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
 
 		// Resize to create custom size
 		act(() => {
@@ -429,21 +335,8 @@ describe("useDialogResize", () => {
 
 	it("should clean up event listeners on unmount", () => {
 		const removeSpy = vi.spyOn(document, "removeEventListener");
-		const { result, unmount } = renderHook(() => useDialogResize());
-
-		const mockEl = document.createElement("div");
-		vi.spyOn(mockEl, "getBoundingClientRect").mockReturnValue({
-			width: 500,
-			height: 400,
-			top: 0,
-			left: 0,
-			right: 500,
-			bottom: 400,
-			x: 0,
-			y: 0,
-			toJSON: vi.fn(),
-		});
-		result.current.popupRef.current = mockEl;
+		const popupRef = createMockPopupRef();
+		const { result, unmount } = renderHook(() => useDialogResize(popupRef));
 
 		// Start resizing to attach listeners
 		act(() => {
@@ -461,5 +354,143 @@ describe("useDialogResize", () => {
 		expect(removeSpy).toHaveBeenCalledWith("pointerup", expect.any(Function));
 
 		removeSpy.mockRestore();
+	});
+
+	it("should clamp east resize to viewport right edge", () => {
+		vi.spyOn(window, "innerWidth", "get").mockReturnValue(800);
+		vi.spyOn(window, "innerHeight", "get").mockReturnValue(600);
+
+		// Dialog: left=100, right=600, width=500
+		const popupRef = createMockPopupRef({
+			left: 100,
+			top: 50,
+			right: 600,
+			bottom: 450,
+			width: 500,
+			height: 400,
+		});
+		const { result } = renderHook(() => useDialogResize(popupRef));
+
+		act(() => {
+			result.current.getHandleProps("e").onPointerDown({
+				clientX: 600,
+				clientY: 250,
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as React.PointerEvent);
+		});
+
+		// Try to resize 500px east — max width = 800 - 100 = 700
+		act(() => {
+			document.dispatchEvent(
+				new MouseEvent("pointermove", { clientX: 1100, clientY: 250 }),
+			);
+		});
+
+		expect(result.current.size.width).toBe(700);
+	});
+
+	it("should clamp south resize to viewport bottom edge", () => {
+		vi.spyOn(window, "innerWidth", "get").mockReturnValue(800);
+		vi.spyOn(window, "innerHeight", "get").mockReturnValue(600);
+
+		// Dialog: top=200, bottom=500, height=300
+		const popupRef = createMockPopupRef({
+			left: 100,
+			top: 200,
+			right: 600,
+			bottom: 500,
+			width: 500,
+			height: 300,
+		});
+		const { result } = renderHook(() => useDialogResize(popupRef));
+
+		act(() => {
+			result.current.getHandleProps("s").onPointerDown({
+				clientX: 350,
+				clientY: 500,
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as React.PointerEvent);
+		});
+
+		// Try to resize 400px south — max height = 600 - 200 = 400
+		act(() => {
+			document.dispatchEvent(
+				new MouseEvent("pointermove", { clientX: 350, clientY: 900 }),
+			);
+		});
+
+		expect(result.current.size.height).toBe(400);
+	});
+
+	it("should clamp west resize to viewport left edge", () => {
+		vi.spyOn(window, "innerWidth", "get").mockReturnValue(800);
+		vi.spyOn(window, "innerHeight", "get").mockReturnValue(600);
+
+		// Dialog: left=100, right=600, width=500
+		const popupRef = createMockPopupRef({
+			left: 100,
+			top: 50,
+			right: 600,
+			bottom: 450,
+			width: 500,
+			height: 400,
+		});
+		const { result } = renderHook(() => useDialogResize(popupRef));
+
+		act(() => {
+			result.current.getHandleProps("w").onPointerDown({
+				clientX: 100,
+				clientY: 250,
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as React.PointerEvent);
+		});
+
+		// Try to resize 200px west — max width = right = 600
+		act(() => {
+			document.dispatchEvent(
+				new MouseEvent("pointermove", { clientX: -100, clientY: 250 }),
+			);
+		});
+
+		// maxW = 600 (right edge), prevW = 500, dx = -200, so prevW - dx = 700 → clamped to 600
+		expect(result.current.size.width).toBe(600);
+	});
+
+	it("should clamp north resize to viewport top edge", () => {
+		vi.spyOn(window, "innerWidth", "get").mockReturnValue(800);
+		vi.spyOn(window, "innerHeight", "get").mockReturnValue(600);
+
+		// Dialog: top=50, bottom=450, height=400
+		const popupRef = createMockPopupRef({
+			left: 100,
+			top: 50,
+			right: 600,
+			bottom: 450,
+			width: 500,
+			height: 400,
+		});
+		const { result } = renderHook(() => useDialogResize(popupRef));
+
+		act(() => {
+			result.current.getHandleProps("n").onPointerDown({
+				clientX: 350,
+				clientY: 50,
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as React.PointerEvent);
+		});
+
+		// Try to resize 200px north — max height = bottom = 450
+		act(() => {
+			document.dispatchEvent(
+				new MouseEvent("pointermove", { clientX: 350, clientY: -150 }),
+			);
+		});
+
+		// maxH = 450 (bottom edge), prevH = 400, dy = -200, so prevH - dy = 600 → clamped to 450
+		expect(result.current.size.height).toBe(450);
 	});
 });
