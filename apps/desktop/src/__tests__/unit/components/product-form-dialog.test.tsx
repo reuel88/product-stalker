@@ -270,7 +270,9 @@ describe("ProductFormDialog", () => {
 				/>,
 			);
 
-			await user.type(screen.getByLabelText("Retailer 1 URL"), "h");
+			const urlInput = await screen.findByLabelText("Retailer 1 URL");
+			await user.click(urlInput);
+			await user.type(urlInput, "h");
 
 			expect(onUpdateRetailerEntry).toHaveBeenCalledWith(0, {
 				id: 1,
