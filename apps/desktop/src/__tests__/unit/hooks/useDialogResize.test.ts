@@ -86,6 +86,8 @@ describe("useDialogResize", () => {
 			handleProps.onPointerDown({
 				clientX: 500,
 				clientY: 200,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -104,6 +106,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("e").onPointerDown({
 				clientX: 500,
 				clientY: 200,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -129,6 +133,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("s").onPointerDown({
 				clientX: 250,
 				clientY: 400,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -160,6 +166,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("w").onPointerDown({
 				clientX: 100,
 				clientY: 200,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -193,6 +201,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("n").onPointerDown({
 				clientX: 250,
 				clientY: 50,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -217,6 +227,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("se").onPointerDown({
 				clientX: 500,
 				clientY: 400,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -247,6 +259,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("e").onPointerDown({
 				clientX: 400,
 				clientY: 200,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -277,6 +291,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("s").onPointerDown({
 				clientX: 250,
 				clientY: 300,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -300,6 +316,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("e").onPointerDown({
 				clientX: 500,
 				clientY: 200,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -323,6 +341,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("se").onPointerDown({
 				clientX: 500,
 				clientY: 400,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -359,6 +379,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("e").onPointerDown({
 				clientX: 500,
 				clientY: 200,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -368,8 +390,72 @@ describe("useDialogResize", () => {
 
 		expect(removeSpy).toHaveBeenCalledWith("pointermove", expect.any(Function));
 		expect(removeSpy).toHaveBeenCalledWith("pointerup", expect.any(Function));
+		expect(removeSpy).toHaveBeenCalledWith(
+			"pointercancel",
+			expect.any(Function),
+		);
 
 		removeSpy.mockRestore();
+	});
+
+	it("should not start resizing on right-click (non-primary button)", () => {
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
+
+		act(() => {
+			result.current.getHandleProps("e").onPointerDown({
+				button: 2,
+				isPrimary: true,
+				clientX: 500,
+				clientY: 200,
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as React.PointerEvent);
+		});
+
+		expect(result.current.isResizing).toBe(false);
+	});
+
+	it("should not start resizing for a non-primary pointer", () => {
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
+
+		act(() => {
+			result.current.getHandleProps("e").onPointerDown({
+				button: 0,
+				isPrimary: false,
+				clientX: 500,
+				clientY: 200,
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as React.PointerEvent);
+		});
+
+		expect(result.current.isResizing).toBe(false);
+	});
+
+	it("should stop resizing on pointercancel", () => {
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogResize(popupRef));
+
+		act(() => {
+			result.current.getHandleProps("e").onPointerDown({
+				button: 0,
+				isPrimary: true,
+				clientX: 500,
+				clientY: 200,
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as React.PointerEvent);
+		});
+
+		expect(result.current.isResizing).toBe(true);
+
+		act(() => {
+			document.dispatchEvent(new MouseEvent("pointercancel"));
+		});
+
+		expect(result.current.isResizing).toBe(false);
 	});
 
 	it("should clamp east resize to viewport right edge", () => {
@@ -391,6 +477,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("e").onPointerDown({
 				clientX: 600,
 				clientY: 250,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -425,6 +513,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("s").onPointerDown({
 				clientX: 350,
 				clientY: 500,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -459,6 +549,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("w").onPointerDown({
 				clientX: 100,
 				clientY: 250,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
@@ -494,6 +586,8 @@ describe("useDialogResize", () => {
 			result.current.getHandleProps("n").onPointerDown({
 				clientX: 350,
 				clientY: 50,
+				button: 0,
+				isPrimary: true,
 				preventDefault: vi.fn(),
 				stopPropagation: vi.fn(),
 			} as unknown as React.PointerEvent);
