@@ -172,15 +172,18 @@ export function useDialogResize(
 
 		document.addEventListener("pointermove", onPointerMove);
 		document.addEventListener("pointerup", onPointerUp);
+		document.addEventListener("pointercancel", onPointerUp);
 		return () => {
 			document.removeEventListener("pointermove", onPointerMove);
 			document.removeEventListener("pointerup", onPointerUp);
+			document.removeEventListener("pointercancel", onPointerUp);
 		};
 	}, [isResizing]);
 
 	const getHandleProps = useCallback(
 		(direction: ResizeDirection) => ({
 			onPointerDown: (e: React.PointerEvent) => {
+				if (e.button !== 0 || !e.isPrimary) return;
 				e.preventDefault();
 				e.stopPropagation();
 
