@@ -1,6 +1,26 @@
 import { act, renderHook } from "@testing-library/react";
+import type { RefObject } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDialogDrag } from "@/components/ui/use-dialog-drag";
+
+function createMockPopupRef(
+	rect: Partial<DOMRect> = {},
+): RefObject<HTMLDivElement | null> {
+	const el = document.createElement("div");
+	vi.spyOn(el, "getBoundingClientRect").mockReturnValue({
+		width: 400,
+		height: 300,
+		top: 100,
+		left: 200,
+		right: 600,
+		bottom: 400,
+		x: 200,
+		y: 100,
+		toJSON: vi.fn(),
+		...rect,
+	});
+	return { current: el };
+}
 
 describe("useDialogDrag", () => {
 	afterEach(() => {
@@ -8,14 +28,16 @@ describe("useDialogDrag", () => {
 	});
 
 	it("should have initial state with zero offset and not dragging", () => {
-		const { result } = renderHook(() => useDialogDrag());
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogDrag(popupRef));
 
 		expect(result.current.offset).toEqual({ x: 0, y: 0 });
 		expect(result.current.isDragging).toBe(false);
 	});
 
 	it("should update offset when dragging", () => {
-		const { result } = renderHook(() => useDialogDrag());
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogDrag(popupRef));
 
 		// Simulate pointerdown on a non-interactive element
 		act(() => {
@@ -41,7 +63,8 @@ describe("useDialogDrag", () => {
 	});
 
 	it("should stop dragging on pointerup", () => {
-		const { result } = renderHook(() => useDialogDrag());
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogDrag(popupRef));
 
 		act(() => {
 			const event = {
@@ -63,7 +86,8 @@ describe("useDialogDrag", () => {
 	});
 
 	it("should not start dragging when clicking on a button", () => {
-		const { result } = renderHook(() => useDialogDrag());
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogDrag(popupRef));
 
 		const button = document.createElement("button");
 		const parent = document.createElement("div");
@@ -83,7 +107,8 @@ describe("useDialogDrag", () => {
 	});
 
 	it("should not start dragging when clicking on an input", () => {
-		const { result } = renderHook(() => useDialogDrag());
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogDrag(popupRef));
 
 		const input = document.createElement("input");
 
@@ -101,7 +126,8 @@ describe("useDialogDrag", () => {
 	});
 
 	it("should not start dragging when clicking on an element inside a button", () => {
-		const { result } = renderHook(() => useDialogDrag());
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogDrag(popupRef));
 
 		const button = document.createElement("button");
 		const span = document.createElement("span");
@@ -121,7 +147,8 @@ describe("useDialogDrag", () => {
 	});
 
 	it("should accumulate offset across multiple drag operations", () => {
-		const { result } = renderHook(() => useDialogDrag());
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogDrag(popupRef));
 
 		// First drag: move 50px right
 		act(() => {
@@ -171,7 +198,8 @@ describe("useDialogDrag", () => {
 	});
 
 	it("should reset offset and dragging state", () => {
-		const { result } = renderHook(() => useDialogDrag());
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogDrag(popupRef));
 
 		// Drag to create offset
 		act(() => {
@@ -200,7 +228,8 @@ describe("useDialogDrag", () => {
 
 	it("should clean up event listeners on unmount", () => {
 		const removeSpy = vi.spyOn(document, "removeEventListener");
-		const { result, unmount } = renderHook(() => useDialogDrag());
+		const popupRef = createMockPopupRef();
+		const { result, unmount } = renderHook(() => useDialogDrag(popupRef));
 
 		// Start dragging to attach listeners
 		act(() => {
@@ -219,5 +248,117 @@ describe("useDialogDrag", () => {
 		expect(removeSpy).toHaveBeenCalledWith("pointerup", expect.any(Function));
 
 		removeSpy.mockRestore();
+	});
+
+	it("should clamp drag to prevent dialog from going off-screen right/bottom", () => {
+		// Dialog at left:200, top:100, width:400, height:300 → right:600, bottom:400
+		// Viewport: 1024x768
+		vi.spyOn(window, "innerWidth", "get").mockReturnValue(1024);
+		vi.spyOn(window, "innerHeight", "get").mockReturnValue(768);
+
+		const popupRef = createMockPopupRef({
+			left: 200,
+			top: 100,
+			right: 600,
+			bottom: 400,
+			width: 400,
+			height: 300,
+		});
+		const { result } = renderHook(() => useDialogDrag(popupRef));
+
+		act(() => {
+			const event = {
+				target: document.createElement("div"),
+				clientX: 400,
+				clientY: 250,
+				preventDefault: vi.fn(),
+			} as unknown as React.PointerEvent;
+			result.current.handlePointerDown(event);
+		});
+
+		// Try to drag 500px right — would put right edge at 1100, past viewport (1024)
+		act(() => {
+			document.dispatchEvent(
+				new MouseEvent("pointermove", { clientX: 900, clientY: 250 }),
+			);
+		});
+
+		// Should be clamped: max dx = 1024 - 600 = 424
+		expect(result.current.offset.x).toBe(424);
+		expect(result.current.offset.y).toBe(0);
+
+		act(() => {
+			document.dispatchEvent(new MouseEvent("pointerup"));
+		});
+
+		// Now drag down past bottom edge
+		// After first drag, dialog conceptually moved — recapture rect for next drag
+		const popupRef2 = createMockPopupRef({
+			left: 624,
+			top: 100,
+			right: 1024,
+			bottom: 400,
+			width: 400,
+			height: 300,
+		});
+		const { result: result2 } = renderHook(() => useDialogDrag(popupRef2));
+
+		act(() => {
+			const event = {
+				target: document.createElement("div"),
+				clientX: 800,
+				clientY: 250,
+				preventDefault: vi.fn(),
+			} as unknown as React.PointerEvent;
+			result2.current.handlePointerDown(event);
+		});
+
+		// Try to drag 500px down — would put bottom at 900, past viewport (768)
+		act(() => {
+			document.dispatchEvent(
+				new MouseEvent("pointermove", { clientX: 800, clientY: 750 }),
+			);
+		});
+
+		// Should be clamped: max dy = 768 - 400 = 368
+		expect(result2.current.offset.y).toBe(368);
+	});
+
+	it("should clamp drag to prevent dialog from going off-screen left/top", () => {
+		vi.spyOn(window, "innerWidth", "get").mockReturnValue(1024);
+		vi.spyOn(window, "innerHeight", "get").mockReturnValue(768);
+
+		// Dialog near top-left: left:50, top:30
+		const popupRef = createMockPopupRef({
+			left: 50,
+			top: 30,
+			right: 450,
+			bottom: 330,
+			width: 400,
+			height: 300,
+		});
+		const { result } = renderHook(() => useDialogDrag(popupRef));
+
+		act(() => {
+			const event = {
+				target: document.createElement("div"),
+				clientX: 200,
+				clientY: 150,
+				preventDefault: vi.fn(),
+			} as unknown as React.PointerEvent;
+			result.current.handlePointerDown(event);
+		});
+
+		// Try to drag 100px left — would put left edge at -50
+		act(() => {
+			document.dispatchEvent(
+				new MouseEvent("pointermove", { clientX: 100, clientY: 50 }),
+			);
+		});
+
+		// Should be clamped: min dx = -50 (so left stays at 0)
+		expect(result.current.offset.x).toBe(-50);
+		// dy = -100, would put top at -70 → clamped to top=0, so dy = -30
+		expect(result.current.offset.y).toBe(-30);
 	});
 });

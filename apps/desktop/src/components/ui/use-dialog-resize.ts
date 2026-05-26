@@ -90,7 +90,16 @@ const DIRECTIONS: ResizeDirection[] = [
 	"sw",
 ];
 
-export function useDialogResize() {
+interface StartEdges {
+	left: number;
+	right: number;
+	top: number;
+	bottom: number;
+}
+
+export function useDialogResize(
+	popupRef: React.RefObject<HTMLDivElement | null>,
+) {
 	const [size, setSize] = useState<Size>({ width: null, height: null });
 	const [isResizing, setIsResizing] = useState(false);
 	const [resizeOffset, setResizeOffset] = useState<ResizeOffset>({
@@ -102,7 +111,12 @@ export function useDialogResize() {
 	const startPos = useRef<{ x: number; y: number } | null>(null);
 	const startSize = useRef<Size>({ width: null, height: null });
 	const startResizeOffset = useRef<ResizeOffset>({ x: 0, y: 0 });
-	const popupRef = useRef<HTMLElement | null>(null);
+	const startEdges = useRef<StartEdges>({
+		left: 0,
+		right: 0,
+		top: 0,
+		bottom: 0,
+	});
 
 	useEffect(() => {
 		if (!isResizing) return;
@@ -121,20 +135,28 @@ export function useDialogResize() {
 			let offX = startResizeOffset.current.x;
 			let offY = startResizeOffset.current.y;
 
+			const vw = window.innerWidth;
+			const vh = window.innerHeight;
+			const edges = startEdges.current;
+
 			if (dir.includes("e")) {
-				newW = Math.max(MIN_WIDTH, prevW + dx);
+				const maxW = vw - edges.left;
+				newW = Math.max(MIN_WIDTH, Math.min(maxW, prevW + dx));
 				offX = startResizeOffset.current.x + (newW - prevW) / 2;
 			}
 			if (dir.includes("w")) {
-				newW = Math.max(MIN_WIDTH, prevW - dx);
+				const maxW = edges.right;
+				newW = Math.max(MIN_WIDTH, Math.min(maxW, prevW - dx));
 				offX = startResizeOffset.current.x - (newW - prevW) / 2;
 			}
 			if (dir.includes("s")) {
-				newH = Math.max(MIN_HEIGHT, prevH + dy);
+				const maxH = vh - edges.top;
+				newH = Math.max(MIN_HEIGHT, Math.min(maxH, prevH + dy));
 				offY = startResizeOffset.current.y + (newH - prevH) / 2;
 			}
 			if (dir.includes("n")) {
-				newH = Math.max(MIN_HEIGHT, prevH - dy);
+				const maxH = edges.bottom;
+				newH = Math.max(MIN_HEIGHT, Math.min(maxH, prevH - dy));
 				offY = startResizeOffset.current.y - (newH - prevH) / 2;
 			}
 
@@ -162,13 +184,24 @@ export function useDialogResize() {
 				e.preventDefault();
 				e.stopPropagation();
 
-				// Capture current popup size if this is the first resize
-				if (size.width === null || size.height === null) {
-					const el = popupRef.current;
-					if (el) {
-						const rect = el.getBoundingClientRect();
-						startSize.current = { width: rect.width, height: rect.height };
+				// Capture current popup size and edges
+				const el = popupRef.current;
+				if (el) {
+					const rect = el.getBoundingClientRect();
+					startEdges.current = {
+						left: rect.left,
+						right: rect.right,
+						top: rect.top,
+						bottom: rect.bottom,
+					};
+					if (size.width === null || size.height === null) {
+						startSize.current = {
+							width: rect.width,
+							height: rect.height,
+						};
 						setSize({ width: rect.width, height: rect.height });
+					} else {
+						startSize.current = { ...size };
 					}
 				} else {
 					startSize.current = { ...size };
@@ -204,7 +237,6 @@ export function useDialogResize() {
 		getHandleProps,
 		resizeOffset,
 		reset,
-		popupRef,
 		directions: DIRECTIONS,
 	};
 }
