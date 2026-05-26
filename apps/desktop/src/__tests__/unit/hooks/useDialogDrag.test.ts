@@ -43,6 +43,8 @@ describe("useDialogDrag", () => {
 		act(() => {
 			const event = {
 				target: document.createElement("div"),
+				button: 0,
+				isPrimary: true,
 				clientX: 100,
 				clientY: 200,
 				preventDefault: vi.fn(),
@@ -69,6 +71,8 @@ describe("useDialogDrag", () => {
 		act(() => {
 			const event = {
 				target: document.createElement("div"),
+				button: 0,
+				isPrimary: true,
 				clientX: 100,
 				clientY: 200,
 				preventDefault: vi.fn(),
@@ -154,6 +158,8 @@ describe("useDialogDrag", () => {
 		act(() => {
 			const event = {
 				target: document.createElement("div"),
+				button: 0,
+				isPrimary: true,
 				clientX: 100,
 				clientY: 100,
 				preventDefault: vi.fn(),
@@ -177,6 +183,8 @@ describe("useDialogDrag", () => {
 		act(() => {
 			const event = {
 				target: document.createElement("div"),
+				button: 0,
+				isPrimary: true,
 				clientX: 200,
 				clientY: 200,
 				preventDefault: vi.fn(),
@@ -205,6 +213,8 @@ describe("useDialogDrag", () => {
 		act(() => {
 			const event = {
 				target: document.createElement("div"),
+				button: 0,
+				isPrimary: true,
 				clientX: 100,
 				clientY: 100,
 				preventDefault: vi.fn(),
@@ -235,6 +245,8 @@ describe("useDialogDrag", () => {
 		act(() => {
 			const event = {
 				target: document.createElement("div"),
+				button: 0,
+				isPrimary: true,
 				clientX: 100,
 				clientY: 100,
 				preventDefault: vi.fn(),
@@ -246,8 +258,75 @@ describe("useDialogDrag", () => {
 
 		expect(removeSpy).toHaveBeenCalledWith("pointermove", expect.any(Function));
 		expect(removeSpy).toHaveBeenCalledWith("pointerup", expect.any(Function));
+		expect(removeSpy).toHaveBeenCalledWith(
+			"pointercancel",
+			expect.any(Function),
+		);
 
 		removeSpy.mockRestore();
+	});
+
+	it("should not start dragging on right-click (non-primary button)", () => {
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogDrag(popupRef));
+
+		act(() => {
+			const event = {
+				target: document.createElement("div"),
+				button: 2,
+				isPrimary: true,
+				clientX: 100,
+				clientY: 200,
+				preventDefault: vi.fn(),
+			} as unknown as React.PointerEvent;
+			result.current.handlePointerDown(event);
+		});
+
+		expect(result.current.isDragging).toBe(false);
+	});
+
+	it("should not start dragging for a non-primary pointer", () => {
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogDrag(popupRef));
+
+		act(() => {
+			const event = {
+				target: document.createElement("div"),
+				button: 0,
+				isPrimary: false,
+				clientX: 100,
+				clientY: 200,
+				preventDefault: vi.fn(),
+			} as unknown as React.PointerEvent;
+			result.current.handlePointerDown(event);
+		});
+
+		expect(result.current.isDragging).toBe(false);
+	});
+
+	it("should stop dragging on pointercancel", () => {
+		const popupRef = createMockPopupRef();
+		const { result } = renderHook(() => useDialogDrag(popupRef));
+
+		act(() => {
+			const event = {
+				target: document.createElement("div"),
+				button: 0,
+				isPrimary: true,
+				clientX: 100,
+				clientY: 200,
+				preventDefault: vi.fn(),
+			} as unknown as React.PointerEvent;
+			result.current.handlePointerDown(event);
+		});
+
+		expect(result.current.isDragging).toBe(true);
+
+		act(() => {
+			document.dispatchEvent(new MouseEvent("pointercancel"));
+		});
+
+		expect(result.current.isDragging).toBe(false);
 	});
 
 	it("should clamp drag to prevent dialog from going off-screen right/bottom", () => {
@@ -269,6 +348,8 @@ describe("useDialogDrag", () => {
 		act(() => {
 			const event = {
 				target: document.createElement("div"),
+				button: 0,
+				isPrimary: true,
 				clientX: 400,
 				clientY: 250,
 				preventDefault: vi.fn(),
@@ -306,6 +387,8 @@ describe("useDialogDrag", () => {
 		act(() => {
 			const event = {
 				target: document.createElement("div"),
+				button: 0,
+				isPrimary: true,
 				clientX: 800,
 				clientY: 250,
 				preventDefault: vi.fn(),
@@ -342,6 +425,8 @@ describe("useDialogDrag", () => {
 		act(() => {
 			const event = {
 				target: document.createElement("div"),
+				button: 0,
+				isPrimary: true,
 				clientX: 200,
 				clientY: 150,
 				preventDefault: vi.fn(),
