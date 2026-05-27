@@ -14,6 +14,20 @@ class ResizeObserverMock {
 
 global.ResizeObserver = ResizeObserverMock;
 
+// Polyfill PointerEvent constructor for Base UI compatibility (jsdom < 27 omits it)
+if (typeof window.PointerEvent === "undefined") {
+	class PointerEventPolyfill extends MouseEvent {
+		pointerType: string;
+		pointerId: number;
+		constructor(type: string, init: PointerEventInit = {}) {
+			super(type, init);
+			this.pointerType = init.pointerType ?? "";
+			this.pointerId = init.pointerId ?? 0;
+		}
+	}
+	window.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent;
+}
+
 // Mock pointer capture methods for Radix UI Select compatibility
 if (typeof Element.prototype.hasPointerCapture === "undefined") {
 	Element.prototype.hasPointerCapture = () => false;

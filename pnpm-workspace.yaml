@@ -2,6 +2,6 @@ packages:
   - apps/*
   - packages/*
 catalog:
-  dotenv: ^17.2.2
-  zod: ^4.1.13
+  dotenv: ^17.4.2
+  zod: ^4.4.3
   typescript: ^5
