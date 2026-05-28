@@ -25,6 +25,23 @@ const SEC_CH_UA: &str = r#""Not_A Brand";v="8", "Chromium";v="120", "Google Chro
 const BOT_PROTECTION_MESSAGE: &str =
     "This site has bot protection. Enable headless browser in settings to check this site.";
 
+/// Flatten an error and its `source()` chain into a single string.
+///
+/// reqwest's outer `Display` is usually generic ("error sending request for url (...)")
+/// while the actionable cause (TLS handshake failed, DNS lookup failed, connection reset)
+/// only appears via `source()`. Walking the chain makes connection-level failures
+/// diagnosable from logs alone.
+fn format_error_chain(err: &dyn std::error::Error) -> String {
+    let mut out = err.to_string();
+    let mut src = err.source();
+    while let Some(s) = src {
+        out.push_str(": ");
+        out.push_str(&s.to_string());
+        src = s.source();
+    }
+    out
+}
+
 /// Internal error type for HTTP fetch operations.
 ///
 /// Used within the scraper module to preserve structured error data
@@ -50,6 +67,7 @@ pub async fn fetch_html_with_fallback(
     conn: &DatabaseConnection,
     session_cache_duration_days: i32,
 ) -> Result<String, AppError> {
+    let mut http_error_msg: Option<String> = None;
     let needs_headless = match fetch_page(url).await {
         Ok(html) if !is_cloudflare_challenge(200, &html) => return Ok(html),
         Ok(_) => {
@@ -66,8 +84,11 @@ pub async fn fetch_html_with_fallback(
             return Err(AppError::External(msg));
         }
         Err(FetchPageError::Http(msg)) => {
-            log::error!("HTTP fetch failed for {}: {}", url, msg);
-            return Err(AppError::External(msg));
+            // Connection/TLS-level failures often mean WAF fingerprinting (e.g. Decathlon).
+            // Real Chrome via headless usually gets through, so try that before giving up.
+            log::info!("HTTP fetch failed, will retry via headless: {}", msg);
+            http_error_msg = Some(msg);
+            true
         }
     };
 
@@ -87,6 +108,10 @@ pub async fn fetch_html_with_fallback(
                 return Err(e);
             }
         }
+    }
+
+    if let Some(msg) = http_error_msg {
+        return Err(AppError::External(msg));
     }
 
     if allow_manual_verification {
@@ -173,7 +198,7 @@ async fn fetch_page(url: &str) -> Result<String, FetchPageError> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(TIMEOUT_SECS))
         .build()
-        .map_err(|e| FetchPageError::Http(e.to_string()))?;
+        .map_err(|e| FetchPageError::Http(format_error_chain(&e)))?;
 
     let response = client
         .get(url)
@@ -193,7 +218,7 @@ async fn fetch_page(url: &str) -> Result<String, FetchPageError> {
         .header("Upgrade-Insecure-Requests", "1")
         .send()
         .await
-        .map_err(|e| FetchPageError::Http(e.to_string()))?;
+        .map_err(|e| FetchPageError::Http(format_error_chain(&e)))?;
 
     if !response.status().is_success() {
         return Err(FetchPageError::HttpStatus {
@@ -205,6 +230,44 @@ async fn fetch_page(url: &str) -> Result<String, FetchPageError> {
     let html = response
         .text()
         .await
-        .map_err(|e| FetchPageError::Http(e.to_string()))?;
+        .map_err(|e| FetchPageError::Http(format_error_chain(&e)))?;
     Ok(html)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error;
+    use std::fmt;
+
+    #[test]
+    fn test_format_error_chain_single() {
+        let err = std::io::Error::other("boom");
+        assert_eq!(format_error_chain(&err), "boom");
+    }
+
+    #[derive(Debug)]
+    struct Outer {
+        inner: std::io::Error,
+    }
+
+    impl fmt::Display for Outer {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("outer")
+        }
+    }
+
+    impl Error for Outer {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            Some(&self.inner)
+        }
+    }
+
+    #[test]
+    fn test_format_error_chain_nested() {
+        let outer = Outer {
+            inner: std::io::Error::other("inner"),
+        };
+        assert_eq!(format_error_chain(&outer), "outer: inner");
+    }
 }
