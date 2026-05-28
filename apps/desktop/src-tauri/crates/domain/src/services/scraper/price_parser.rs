@@ -132,6 +132,30 @@ pub fn has_path_locale(url: &str) -> bool {
     infer_currency_from_path(url).is_some()
 }
 
+/// Read a price-like field from an offer as a string, accepting either a JSON
+/// string or number. Returns `None` for any other type or a missing field.
+fn read_price_field(offer: &serde_json::Value, key: &str) -> Option<String> {
+    offer.get(key).and_then(|p| match p {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    })
+}
+
+/// Whether a raw price string represents zero (e.g. "0", "0.00", "$0").
+///
+/// Used to skip placeholder `price: 0` values on aggregate offers so we can fall
+/// back to `lowPrice`/`highPrice`.
+fn is_zero_price(price_str: &str) -> bool {
+    let cleaned: String = price_str
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+    Decimal::from_str(&cleaned)
+        .map(|d| d.is_zero())
+        .unwrap_or(false)
+}
+
 /// Extract price info from an offer object
 ///
 /// Currency is determined in order of precedence:
@@ -140,11 +164,13 @@ pub fn has_path_locale(url: &str) -> bool {
 /// 3. Inferred from the store's domain TLD (e.g., .com.au → AUD) - weakest heuristic
 /// 4. None if none of the above are available
 pub fn get_price_from_offer(offer: &serde_json::Value, url: &str) -> PriceInfo {
-    let raw_price = offer.get("price").and_then(|p| match p {
-        serde_json::Value::String(s) => Some(s.clone()),
-        serde_json::Value::Number(n) => Some(n.to_string()),
-        _ => None,
-    });
+    // Prefer `price`, but fall back to an AggregateOffer's `lowPrice`/`highPrice`
+    // when `price` is absent or zero. Magento storefronts (e.g. bonds.com.au) emit
+    // a group-level offer with `price: 0` and the real value only in `lowPrice`.
+    let raw_price = read_price_field(offer, "price")
+        .filter(|p| !is_zero_price(p))
+        .or_else(|| read_price_field(offer, "lowPrice"))
+        .or_else(|| read_price_field(offer, "highPrice"));
 
     let api_currency = offer
         .get("priceCurrency")
@@ -287,6 +313,46 @@ mod tests {
         assert_eq!(price.price_minor_units, None);
         assert_eq!(price.price_currency, None);
         assert_eq!(price.raw_price, None);
+    }
+
+    #[test]
+    fn test_get_price_from_offer_zero_price_falls_back_to_low_price() {
+        // Magento aggregate offer: `price` is a placeholder 0; the real value
+        // lives in `lowPrice` (this is the bonds.com.au shape).
+        let offer = serde_json::json!({
+            "availability": "https://schema.org/InStock",
+            "price": 0,
+            "priceCurrency": "AUD",
+            "lowPrice": 30,
+            "highPrice": 30
+        });
+        let price = get_price_from_offer(&offer, "https://www.bonds.com.au/x.html");
+        assert_eq!(price.price_minor_units, Some(3000));
+        assert_eq!(price.price_currency, Some("AUD".to_string()));
+    }
+
+    #[test]
+    fn test_get_price_from_offer_only_low_price() {
+        let offer = serde_json::json!({
+            "priceCurrency": "USD",
+            "lowPrice": "19.99"
+        });
+        let price = get_price_from_offer(&offer, "https://store.com/x");
+        assert_eq!(price.price_minor_units, Some(1999));
+        assert_eq!(price.price_currency, Some("USD".to_string()));
+    }
+
+    #[test]
+    fn test_get_price_from_offer_high_price_when_low_absent() {
+        // `price` is the string "0.00" (also zero) and there is no `lowPrice`,
+        // so `highPrice` is used.
+        let offer = serde_json::json!({
+            "price": "0.00",
+            "priceCurrency": "USD",
+            "highPrice": 25
+        });
+        let price = get_price_from_offer(&offer, "https://store.com/x");
+        assert_eq!(price.price_minor_units, Some(2500));
     }
 
     #[test]
