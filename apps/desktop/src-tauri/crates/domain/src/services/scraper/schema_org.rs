@@ -107,14 +107,44 @@ fn has_schema_type(json: &serde_json::Value, expected_type: &str) -> bool {
     }
 }
 
-/// Check if a JSON value represents a Product type
-fn is_product_type(json: &serde_json::Value) -> bool {
-    has_schema_type(json, "Product")
+/// Whether a JSON object lacks a usable `@type` field.
+///
+/// Some storefronts (notably Magento, e.g. bonds.com.au) emit Product/ProductGroup
+/// JSON-LD with no `@type` at all. When `@type` is missing we fall back to
+/// structural detection based on the fields that are present.
+fn lacks_type(json: &serde_json::Value) -> bool {
+    match json.get("@type") {
+        None | Some(serde_json::Value::Null) => true,
+        Some(serde_json::Value::String(s)) => s.is_empty(),
+        Some(serde_json::Value::Array(arr)) => arr.is_empty(),
+        _ => false,
+    }
 }
 
-/// Check if a JSON value represents a ProductGroup type
+/// Whether the JSON object carries a non-empty `hasVariant` array.
+fn has_variants(json: &serde_json::Value) -> bool {
+    json.get("hasVariant")
+        .and_then(|v| v.as_array())
+        .is_some_and(|arr| !arr.is_empty())
+}
+
+/// Check if a JSON value represents a Product type.
+///
+/// Matches an explicit `@type: "Product"`, or — when `@type` is absent — a block
+/// that carries `offers` but no variants (a single product, not a group). The
+/// "no variants" guard ensures a typeless ProductGroup is not misread as a
+/// Product (which would consume its aggregate offer instead of a variant).
+fn is_product_type(json: &serde_json::Value) -> bool {
+    has_schema_type(json, "Product")
+        || (lacks_type(json) && json.get("offers").is_some() && !has_variants(json))
+}
+
+/// Check if a JSON value represents a ProductGroup type.
+///
+/// Matches an explicit `@type: "ProductGroup"`, or — when `@type` is absent — a
+/// block that carries a non-empty `hasVariant` array.
 fn is_product_group_type(json: &serde_json::Value) -> bool {
-    has_schema_type(json, "ProductGroup")
+    has_schema_type(json, "ProductGroup") || (lacks_type(json) && has_variants(json))
 }
 
 /// Get availability and price from a ProductGroup by matching variant ID
@@ -351,5 +381,123 @@ mod tests {
         // Should use first offer's availability
         assert_eq!(avail, "http://schema.org/OutOfStock");
         assert_eq!(price.price_minor_units, Some(4999));
+    }
+
+    #[test]
+    fn test_extract_typeless_product_group_bonds() {
+        // bonds.com.au (Magento) emits a ProductGroup with NO `@type`. Detection
+        // must fall back to the `hasVariant` structure. The aggregate offer has
+        // price 0, so the resolved price comes from the first variant.
+        let json = serde_json::json!({
+            "sku": "AVMJI_PCL",
+            "brand": { "@type": "Brand", "name": "Bonds" },
+            "offers": {
+                "availability": "https://schema.org/InStock",
+                "itemCondition": "https://schema.org/NewCondition",
+                "price": 0,
+                "priceCurrency": "AUD",
+                "offerCount": 2,
+                "lowPrice": 30,
+                "highPrice": 30
+            },
+            "productGroupID": "AVMJI_PCL",
+            "variesBy": ["https://schema.org/size"],
+            "hasVariant": [
+                {
+                    "sku": "AVMJI_PCL-XXL",
+                    "size": "XXL",
+                    "brand": { "@type": "Brand" },
+                    "offers": {
+                        "availability": "https://schema.org/InStock",
+                        "itemCondition": "https://schema.org/NewCondition",
+                        "price": 30,
+                        "priceCurrency": "AUD"
+                    }
+                },
+                {
+                    "sku": "AVMJI_PCL-3XL",
+                    "size": "3XL",
+                    "brand": { "@type": "Brand" },
+                    "offers": {
+                        "availability": "https://schema.org/InStock",
+                        "itemCondition": "https://schema.org/NewCondition",
+                        "price": 30,
+                        "priceCurrency": "AUD"
+                    }
+                }
+            ]
+        });
+
+        let result = extract_availability_and_price(
+            &json,
+            None,
+            "https://www.bonds.com.au/originals-skinny-trackie-avmji-pcl.html",
+        );
+        assert!(result.is_some());
+        let (avail, price) = result.unwrap();
+        assert_eq!(avail, "https://schema.org/InStock");
+        assert_eq!(price.price_minor_units, Some(3000));
+        assert_eq!(price.price_currency, Some("AUD".to_string()));
+    }
+
+    #[test]
+    fn test_extract_typeless_single_product() {
+        // A single product with `offers` but no `@type` and no variants should
+        // route through the Product branch.
+        let json = serde_json::json!({
+            "sku": "SKU123",
+            "offers": {
+                "availability": "https://schema.org/InStock",
+                "price": 49.99,
+                "priceCurrency": "AUD"
+            }
+        });
+        let result = extract_availability_and_price(&json, None, "https://store.com.au/products/x");
+        assert!(result.is_some());
+        let (avail, price) = result.unwrap();
+        assert_eq!(avail, "https://schema.org/InStock");
+        assert_eq!(price.price_minor_units, Some(4999));
+    }
+
+    #[test]
+    fn test_typeless_block_without_offers_or_variants_is_ignored() {
+        // A typeless block that is neither a product nor a group (e.g. an
+        // Organization-like blob) must not be misclassified.
+        let json = serde_json::json!({
+            "name": "Bonds Australia",
+            "url": "https://www.bonds.com.au/"
+        });
+        let result = extract_availability_and_price(&json, None, "https://www.bonds.com.au/");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_typed_product_group_with_aggregate_uses_variant_price() {
+        // Regression guard: an explicit ProductGroup carrying an aggregate
+        // `offers` (price 0) must still resolve to a variant price, not the
+        // aggregate. Confirms the structural Product fallback does not hijack
+        // typed ProductGroups.
+        let json = serde_json::json!({
+            "@type": "ProductGroup",
+            "offers": {
+                "availability": "https://schema.org/InStock",
+                "price": 0,
+                "priceCurrency": "AUD"
+            },
+            "hasVariant": [
+                {
+                    "@type": "Product",
+                    "offers": {
+                        "availability": "https://schema.org/InStock",
+                        "price": 30,
+                        "priceCurrency": "AUD"
+                    }
+                }
+            ]
+        });
+        let result = extract_availability_and_price(&json, None, "https://store.com.au/x");
+        assert!(result.is_some());
+        let (_, price) = result.unwrap();
+        assert_eq!(price.price_minor_units, Some(3000));
     }
 }
