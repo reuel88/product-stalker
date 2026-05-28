@@ -12,12 +12,14 @@ use crate::tauri_services::{send_desktop_notification, TauriAvailabilityService}
 /// When the background checker fails to load settings (e.g., database error),
 /// it waits this long before trying again to avoid tight error loops.
 const ERROR_RETRY_DELAY_SECS: u64 = 60;
+const _: () = assert!(ERROR_RETRY_DELAY_SECS > 0 && ERROR_RETRY_DELAY_SECS <= 300);
 
 /// Polling interval in seconds when background checking is disabled.
 ///
 /// The checker periodically re-checks settings even when disabled,
 /// so it can start checking when the user enables the feature.
 const DISABLED_POLL_INTERVAL_SECS: u64 = 60;
+const _: () = assert!(DISABLED_POLL_INTERVAL_SECS > 0 && DISABLED_POLL_INTERVAL_SECS <= 300);
 
 /// State for managing the background checker task.
 ///
@@ -91,20 +93,5 @@ async fn background_checker_loop(app: AppHandle, conn: Arc<DatabaseConnection>) 
             domain_settings.background_check_interval_minutes
         );
         tokio::time::sleep(Duration::from_secs(interval_secs)).await;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_error_retry_delay_is_reasonable() {
-        assert!(super::ERROR_RETRY_DELAY_SECS > 0);
-        assert!(super::ERROR_RETRY_DELAY_SECS <= 300);
-    }
-
-    #[test]
-    fn test_disabled_poll_interval_is_reasonable() {
-        assert!(super::DISABLED_POLL_INTERVAL_SECS > 0);
-        assert!(super::DISABLED_POLL_INTERVAL_SECS <= 300);
     }
 }
