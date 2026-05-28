@@ -448,7 +448,6 @@ mod tests {
     /// percentage changes when actual prices haven't changed.
     mod renormalization_tests {
         use super::*;
-        use crate::repositories::AvailabilityCheckRepository;
         use crate::test_utils::{create_test_product, setup_availability_db_with_exchange_rates};
         use product_stalker_core::repositories::ExchangeRateRepository;
 
