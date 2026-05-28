@@ -47,6 +47,7 @@ mod nextjs_data;
 mod price_parser;
 mod schema_org;
 mod shopify;
+mod uniqlo;
 
 use sea_orm::DatabaseConnection;
 use url::Url;
@@ -105,6 +106,18 @@ impl ScraperService {
     ) -> Result<ScrapingResult, AppError> {
         // Step 1: Validate URL scheme
         Self::validate_url_scheme(url)?;
+
+        // Step 1.5: Uniqlo is a SPA whose HTML has no price/stock — query its
+        // commerce API directly and skip the heavy page fetch when it succeeds.
+        if uniqlo::is_uniqlo_product_url(url) {
+            match uniqlo::check_uniqlo_availability(url).await {
+                Ok(result) => return Ok(result),
+                Err(e) => log::debug!(
+                    "Uniqlo adapter failed, falling back to HTML strategies: {}",
+                    e
+                ),
+            }
+        }
 
         // Step 2: Fetch HTML (tries HTTP first, falls back to headless if needed)
         let html = http_client::fetch_html_with_fallback(
