@@ -78,14 +78,20 @@ impl UniqloContext {
                 AppError::External("URL does not contain a 'products' path segment".to_string())
             })?;
 
+        // `/products/` must be preceded by a region segment (e.g. `/au/...`).
+        // Without one, `region` would be set to "products" and produce a
+        // nonsensical API URL.
+        if products_idx == 0 {
+            return Err(AppError::External(
+                "URL is missing the region segment before '/products/'".to_string(),
+            ));
+        }
+
         let product_code = segments.get(products_idx + 1).ok_or_else(|| {
             AppError::External("URL is missing the product code after '/products/'".to_string())
         })?;
 
-        // `/products/` is always preceded by region (and usually language).
-        let region = segments.first().ok_or_else(|| {
-            AppError::External("URL is missing the region path segment".to_string())
-        })?;
+        let region = segments[0];
         let lang = if products_idx >= 2 {
             segments[1]
         } else {
@@ -203,6 +209,17 @@ pub fn is_uniqlo_product_url(url: &str) -> bool {
 
 /// Check availability and price for a Uniqlo product via the commerce API.
 pub async fn check_uniqlo_availability(url: &str) -> Result<ScrapingResult, AppError> {
+    // Guard against unintended outbound requests: the API URL is built using
+    // the input URL's host, so a non-Uniqlo URL would fire requests at an
+    // arbitrary host. Today's orchestrator already filters this, but this
+    // function is public and may be called directly in the future.
+    if !is_uniqlo_product_url(url) {
+        return Err(AppError::Validation(format!(
+            "Not a Uniqlo product URL: {}",
+            url
+        )));
+    }
+
     let context = UniqloContext::from_url(url)?;
     log::debug!(
         "Uniqlo extraction: region={}, lang={}, code={}, price_group={}, color={:?}, size={:?}",
@@ -521,5 +538,35 @@ mod tests {
         );
         assert_eq!(map_stock_status("SOLD_OUT"), AvailabilityStatus::OutOfStock);
         assert_eq!(map_stock_status("MYSTERY"), AvailabilityStatus::Unknown);
+    }
+
+    #[test]
+    fn test_context_from_url_rejects_products_as_first_segment() {
+        // Without a region segment, `products` would be picked as the region
+        // and produce a nonsensical API URL. Reject it instead.
+        // (Pattern-match instead of expect_err — UniqloContext is not Debug.)
+        let Err(err) = UniqloContext::from_url("https://www.uniqlo.com/products/E123") else {
+            panic!("expected error for missing region segment");
+        };
+        let message = format!("{}", err);
+        assert!(
+            message.to_lowercase().contains("region"),
+            "expected error to mention 'region', got: {}",
+            message
+        );
+    }
+
+    #[tokio::test]
+    async fn test_check_uniqlo_availability_rejects_non_uniqlo_url() {
+        // The guard must short-circuit before parsing context or making any
+        // HTTP request — protects against unintended outbound requests if the
+        // function is called directly (bypassing the orchestrator).
+        let result = check_uniqlo_availability("https://example.com/products/x").await;
+        let err = result.expect_err("expected validation error for non-Uniqlo URL");
+        assert!(
+            matches!(err, AppError::Validation(_)),
+            "expected AppError::Validation, got {:?}",
+            err
+        );
     }
 }
