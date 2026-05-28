@@ -18,7 +18,8 @@
 //!    availability, since Shopify pages often lack Schema.org data.
 //!
 //! 4. **Site-specific parsers** — Fallback for sites that don't use any standard
-//!    format. Currently supports Chemist Warehouse (via `nextjs_data`).
+//!    format. Currently supports Chemist Warehouse and Decathlon (both via
+//!    `nextjs_data`).
 //!
 //! # Adding a New Strategy
 //!
@@ -32,6 +33,7 @@
 //!
 //! - `bot_detection`: Cloudflare and bot protection detection
 //! - `chemist_warehouse`: Site-specific adapter for Chemist Warehouse
+//! - `decathlon`: Site-specific adapter for Decathlon storefronts
 //! - `gtm_datalayer`: GTM dataLayer.push() ecommerce data extraction
 //! - `http_client`: HTTP fetching with browser-like headers and headless fallback
 //! - `nextjs_data`: Next.js __NEXT_DATA__ extraction
@@ -41,6 +43,7 @@
 
 mod bot_detection;
 mod chemist_warehouse;
+mod decathlon;
 mod gtm_datalayer;
 mod http_client;
 mod nextjs_data;
@@ -200,6 +203,11 @@ impl ScraperService {
             return Self::try_chemist_warehouse_extraction(html);
         }
 
+        // Decathlon: also Next.js, but a different pageProps.product shape
+        if decathlon::is_decathlon_url(url) {
+            return Self::try_decathlon_extraction(html);
+        }
+
         // No site-specific parser matched
         Err(AppError::External(
             "No availability information found. Site does not use Schema.org or a supported data format.".to_string(),
@@ -212,6 +220,14 @@ impl ScraperService {
         let page_props = nextjs_data::get_page_props(&next_data)
             .ok_or_else(|| AppError::External("No pageProps found in Next.js data".to_string()))?;
         chemist_warehouse::parse_chemist_warehouse_data(page_props)
+    }
+
+    /// Extract availability from Decathlon using Next.js data
+    fn try_decathlon_extraction(html: &str) -> Result<ScrapingResult, AppError> {
+        let next_data = nextjs_data::extract_next_data(html)?;
+        let page_props = nextjs_data::get_page_props(&next_data)
+            .ok_or_else(|| AppError::External("No pageProps found in Next.js data".to_string()))?;
+        decathlon::parse_decathlon_data(page_props)
     }
 
     /// Validate that the URL uses http or https scheme
@@ -541,6 +557,45 @@ mod tests {
         let result = ScraperService::try_chemist_warehouse_extraction(&html).unwrap();
         assert_eq!(result.status, AvailabilityStatus::OutOfStock);
         assert_eq!(result.raw_availability, Some("out-of-stock".to_string()));
+    }
+
+    #[test]
+    fn test_decathlon_extraction_in_stock() {
+        let html = html_with_next_data(
+            r#"{
+                "name": "Men's surfing long-sleeved UV-protection top",
+                "price": { "value": 19.99, "currency": "AUD" },
+                "items": [
+                    { "itemId": "1", "desactivated": false },
+                    { "itemId": "2", "desactivated": true }
+                ]
+            }"#,
+        );
+
+        let result = ScraperService::try_decathlon_extraction(&html).unwrap();
+        assert_eq!(result.status, AvailabilityStatus::InStock);
+        assert_eq!(result.raw_availability, Some("in-stock".to_string()));
+        assert_eq!(result.price.price_minor_units, Some(1999));
+        assert_eq!(result.price.price_currency, Some("AUD".to_string()));
+    }
+
+    #[test]
+    fn test_site_specific_extraction_decathlon() {
+        let html = html_with_next_data(
+            r#"{
+                "name": "Test Product",
+                "price": { "value": 7, "currency": "AUD" },
+                "items": [{ "itemId": "1", "desactivated": false }]
+            }"#,
+        );
+
+        let result = ScraperService::try_site_specific_extraction(
+            &html,
+            "https://www.decathlon.com.au/p/test-decathlon-12345.html",
+        )
+        .unwrap();
+        assert_eq!(result.status, AvailabilityStatus::InStock);
+        assert_eq!(result.price.price_minor_units, Some(700));
     }
 
     #[test]
