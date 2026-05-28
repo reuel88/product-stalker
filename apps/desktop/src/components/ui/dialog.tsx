@@ -186,13 +186,13 @@ function DialogDescription({
 
 export {
 	Dialog,
-	DialogPortal,
 	DialogBackdrop,
 	DialogClose,
-	DialogTrigger,
 	DialogContent,
-	DialogHeader,
-	DialogFooter,
-	DialogTitle,
 	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogPortal,
+	DialogTitle,
+	DialogTrigger,
 };
