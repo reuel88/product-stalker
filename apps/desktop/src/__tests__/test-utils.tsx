@@ -51,4 +51,4 @@ function createHookWrapper() {
 }
 
 export * from "@testing-library/react";
-export { customRender as render, createTestQueryClient, createHookWrapper };
+export { createHookWrapper, createTestQueryClient, customRender as render };

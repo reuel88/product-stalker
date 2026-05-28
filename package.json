@@ -22,11 +22,11 @@
 		"zod": "catalog:"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.2.0",
+		"@biomejs/biome": "^2.4.15",
 		"@product-stalker/config": "workspace:*",
 		"husky": "^9.1.7",
 		"lint-staged": "^16.1.2",
-		"turbo": "^2.6.3",
+		"turbo": "^2.9.14",
 		"typescript": "catalog:"
 	},
 	"lint-staged": {
