@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use headless_chrome::{Browser, LaunchOptions};
-use rand::Rng;
+use rand::RngExt;
 
 use product_stalker_core::AppError;
 
@@ -145,8 +145,8 @@ impl HeadlessService {
         }
 
         // Add human-like random delay before navigation (500-1500ms)
-        let mut rng = rand::thread_rng();
-        let delay_ms = rng.gen_range(500..1500);
+        let mut rng = rand::rng();
+        let delay_ms = rng.random_range(500..1500);
         std::thread::sleep(Duration::from_millis(delay_ms));
         log::debug!("Headless: added human-like delay of {}ms", delay_ms);
 
